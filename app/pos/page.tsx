@@ -416,12 +416,18 @@ export default function POSPage() {
 
   // Final total
   const total = subtotal - discountAmount
+  const isCashPayment = paymentMethod === "cash"
   const cash = parseFloat(cashReceived) || 0
   const change = cash - total
 
+  useEffect(() => {
+    if (isCashPayment) return
+    setCashReceived(total > 0 ? total.toFixed(2) : "")
+  }, [isCashPayment, total])
+
   const confirmSale = async () => {
     // For non-cash payments, we don't need cash received
-    const isValidPayment = paymentMethod === "cash" ? cash >= total : true
+    const isValidPayment = isCashPayment ? cash >= total : true
     if (cart.length === 0 || !isValidPayment) return
 
     const now = new Date()
@@ -438,8 +444,8 @@ export default function POSPage() {
       discountAmount,
       total,
       paymentMethod,
-      cashReceived: paymentMethod === "cash" ? cash : total,
-      change: paymentMethod === "cash" ? change : 0,
+      cashReceived: isCashPayment ? cash : total,
+      change: isCashPayment ? change : 0,
       processedBy: currentUser?.username || "Unknown",
       date: now.toISOString().split("T")[0],
       time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase(),
@@ -777,7 +783,13 @@ export default function POSPage() {
                 <label className="text-xs lg:text-sm text-muted-foreground block mb-2">Mode of Payment</label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  onChange={(e) => {
+                    const nextPaymentMethod = e.target.value as typeof paymentMethod
+                    setPaymentMethod(nextPaymentMethod)
+                    if (nextPaymentMethod === "cash") {
+                      setCashReceived("")
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#A61F30] outline-none text-sm"
                 >
                   <option value="cash">Cash</option>
@@ -846,19 +858,27 @@ export default function POSPage() {
 
               {/* Cash Received */}
               <div className="pt-2">
-                <label className="text-xs text-muted-foreground block mb-1">Cash Received</label>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  {isCashPayment ? "Cash Received" : "Amount Received"}
+                </label>
                 <input
                   type="number"
                   value={cashReceived}
                   onChange={(e) => setCashReceived(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#A61F30] outline-none"
+                  disabled={!isCashPayment}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#A61F30] outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
                 />
+                {!isCashPayment && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Auto-filled for {paymentMethod === "gcash" ? "GCash" : paymentMethod === "grab_pay" ? "Grab Pay" : "card"} payments.
+                  </p>
+                )}
               </div>
 
               <button
                 onClick={confirmSale}
-                disabled={cart.length === 0 || cash < total}
+                disabled={cart.length === 0 || (isCashPayment && cash < total)}
                 className="w-full py-3 bg-[#A61F30] hover:bg-[#8B1826] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 CONFIRM SALE
