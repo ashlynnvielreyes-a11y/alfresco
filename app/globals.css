@@ -4,39 +4,39 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f9f5f7;
-  --foreground: #1a1a1a;
-  --card: #ffffff;
-  --card-foreground: #1a1a1a;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
-  --primary: #A61F30;
+  --background: #fff1d7;
+  --foreground: #3d2410;
+  --card: #fff7e9;
+  --card-foreground: #3d2410;
+  --popover: #fffaf1;
+  --popover-foreground: #3d2410;
+  --primary: #bb3e00;
   --primary-foreground: #ffffff;
-  --secondary: #F1646E;
-  --secondary-foreground: #ffffff;
-  --muted: #f0f0f0;
-  --muted-foreground: #666666;
-  --accent: #F1646E;
-  --accent-foreground: #ffffff;
-  --destructive: #A61F30;
+  --secondary: #f7a645;
+  --secondary-foreground: #4f320f;
+  --muted: #f5e5c2;
+  --muted-foreground: #7a6748;
+  --accent: #7b6f19;
+  --accent-foreground: #fffdf7;
+  --destructive: #bb3e00;
   --destructive-foreground: #ffffff;
-  --border: #e8dce2;
-  --input: #f5f5f5;
-  --ring: #A61F30;
-  --chart-1: #A61F30;
-  --chart-2: #F1646E;
-  --chart-3: #d4516f;
-  --chart-4: #A61F30;
-  --chart-5: #F1646E;
+  --border: #e5d3ae;
+  --input: #fffaf1;
+  --ring: #bb3e00;
+  --chart-1: #bb3e00;
+  --chart-2: #f7a645;
+  --chart-3: #7b6f19;
+  --chart-4: #9d4b1f;
+  --chart-5: #cf7d2d;
   --radius: 0.625rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1a1a1a;
-  --sidebar-primary: #A61F30;
+  --sidebar: #fff8eb;
+  --sidebar-foreground: #3d2410;
+  --sidebar-primary: #bb3e00;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #F1646E;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #e8dce2;
-  --sidebar-ring: #A61F30;
+  --sidebar-accent: #f7a645;
+  --sidebar-accent-foreground: #4f320f;
+  --sidebar-border: #e5d3ae;
+  --sidebar-ring: #bb3e00;
 }
 
 .dark {
@@ -121,5 +121,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at top left, rgba(247, 166, 69, 0.22), transparent 28%),
+      radial-gradient(circle at top right, rgba(123, 111, 25, 0.16), transparent 22%),
+      linear-gradient(180deg, #fff7e9 0%, #fff1d7 100%);
   }
 }
