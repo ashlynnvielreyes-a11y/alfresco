@@ -349,8 +349,8 @@ export default function RegisterPage() {
         <div className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-[#bb3e00]/10 blur-3xl" />
       </div>
       <div className="relative w-full max-w-md rounded-[30px] border border-white/55 bg-white/55 p-10 shadow-[0_28px_70px_rgba(123,111,25,0.12),inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl">
-        <h1 className="text-4xl font-bold text-[#bb3e00] text-center mb-2">
-          Al Fresco
+        <h1 className="brand-wordmark text-4xl text-[#bb3e00] text-center mb-2">
+          Al Fresco Café
         </h1>
         <p className="text-[#8f2f00] text-center mb-8">Create a new account</p>
 

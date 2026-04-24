@@ -83,7 +83,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#bb3e00] to-[#f7a645] text-white shadow-[0_18px_35px_rgba(187,62,0,0.18)]">
             <Coffee className="h-8 w-8" />
           </div>
-          <h1 className="mb-2 text-4xl font-bold text-[#bb3e00]">Al Fresco</h1>
+          <h1 className="brand-wordmark mb-2 text-4xl text-[#bb3e00]">Al Fresco Café</h1>
           <p className="text-sm text-muted-foreground">Sign in to access the cafe system.</p>
         </div>
 

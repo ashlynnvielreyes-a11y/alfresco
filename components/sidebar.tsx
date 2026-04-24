@@ -101,7 +101,7 @@ export const Sidebar = memo(function Sidebar() {
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 border-b border-white/40 bg-[#fff8eb]/85 backdrop-blur-xl px-4 py-3 flex items-center justify-between shadow-[0_10px_24px_rgba(123,111,25,0.08)]">
         <Link href="/dashboard" className="flex items-center gap-2">
           <Coffee className="h-7 w-7 text-[#bb3e00]" />
-          <span className="text-xl font-bold text-[#bb3e00]">Al Fresco</span>
+          <span className="brand-wordmark text-xl text-[#bb3e00]">Al Fresco</span>
         </Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -169,7 +169,7 @@ export const Sidebar = memo(function Sidebar() {
               <Coffee className="h-6 w-6" />
             </div>
             <div>
-              <span className="block text-2xl font-bold text-[#bb3e00]">Al Fresco</span>
+              <span className="brand-wordmark block text-2xl text-[#bb3e00]">Al Fresco</span>
               <span className="text-xs uppercase tracking-[0.24em] text-[#7b6f19]">Cafe Panel</span>
             </div>
           </Link>
