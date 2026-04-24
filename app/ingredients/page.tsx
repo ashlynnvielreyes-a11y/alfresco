@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, Link, X, Check } from "lucide-react"
+import { Plus, Pencil, Trash2, Link, X, Check, Search } from "lucide-react"
 import { getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, updateProduct, addIngredientStock } from "@/lib/store"
 import type { Ingredient, Product, ProductIngredient } from "@/lib/types"
 
@@ -14,6 +14,7 @@ function IngredientsPageContent() {
   const [mode, setMode] = useState<FormMode>("list")
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
   const [assigningIngredient, setAssigningIngredient] = useState<Ingredient | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
   const [formData, setFormData] = useState({
     name: "",
@@ -131,6 +132,17 @@ function IngredientsPageContent() {
     if (stock <= 10) return { text: "Low Stock", color: "bg-yellow-500" }
     return { text: "In Stock", color: "bg-green-500" }
   }
+
+  const filteredIngredients = ingredients.filter((ingredient) => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return true
+
+    return (
+      ingredient.name.toLowerCase().includes(query) ||
+      ingredient.unit.toLowerCase().includes(query) ||
+      getStockStatus(ingredient.stock).text.toLowerCase().includes(query)
+    )
+  })
 
   if (mode === "restock") {
     return (
@@ -355,9 +367,20 @@ function IngredientsPageContent() {
           </button>
         </div>
 
+        <div className="relative mb-4 lg:mb-6">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search ingredients, units, or stock status"
+            className="w-full rounded-2xl border border-white/55 bg-white/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-sm transition-all focus:border-[#f7a645] focus:ring-2 focus:ring-[#bb3e00]/15"
+          />
+        </div>
+
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-3">
-          {ingredients.map((ingredient) => {
+          {filteredIngredients.map((ingredient) => {
             const status = getStockStatus(ingredient.stock)
             return (
               <div key={ingredient.id} className="bg-white rounded-lg border border-border p-4">
@@ -417,7 +440,7 @@ function IngredientsPageContent() {
               </tr>
             </thead>
             <tbody>
-              {ingredients.map((ingredient) => {
+              {filteredIngredients.map((ingredient) => {
                 const status = getStockStatus(ingredient.stock)
                 return (
                   <tr key={ingredient.id} className="border-b border-border last:border-0">

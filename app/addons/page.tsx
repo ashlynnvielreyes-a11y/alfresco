@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, X, Coffee, UtensilsCrossed } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Coffee, UtensilsCrossed, Search } from "lucide-react"
 import { getAddOns, addAddOn, updateAddOn, deleteAddOn } from "@/lib/store"
 import type { AddOn } from "@/lib/types"
 
@@ -14,6 +14,7 @@ function AddOnsPageContent() {
   const [mode, setMode] = useState<FormMode>("list")
   const [editingAddOn, setEditingAddOn] = useState<AddOn | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -74,9 +75,16 @@ function AddOnsPageContent() {
     resetForm()
   }
 
-  const filteredAddOns = categoryFilter === "all" 
-    ? addOns 
-    : addOns.filter(a => a.category === categoryFilter)
+  const filteredAddOns = addOns.filter((addOn) => {
+    const matchesCategory = categoryFilter === "all" || addOn.category === categoryFilter
+    const query = searchQuery.trim().toLowerCase()
+    const matchesSearch =
+      !query ||
+      addOn.name.toLowerCase().includes(query) ||
+      addOn.category.toLowerCase().includes(query)
+
+    return matchesCategory && matchesSearch
+  })
 
   const drinkAddOns = addOns.filter(a => a.category === "drink")
   const mealAddOns = addOns.filter(a => a.category === "meal")
@@ -199,6 +207,17 @@ function AddOnsPageContent() {
             <Plus className="h-5 w-5" />
             Add New
           </button>
+        </div>
+
+        <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search add-ons by name or type"
+            className="w-full rounded-2xl border border-white/55 bg-white/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-sm transition-all focus:border-[#f7a645] focus:ring-2 focus:ring-[#bb3e00]/15"
+          />
         </div>
 
         {/* Category Filter */}

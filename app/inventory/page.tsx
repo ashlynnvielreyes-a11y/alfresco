@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, X } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Search } from "lucide-react"
 import { getProducts, addProduct, updateProduct, deleteProduct, getIngredients, getProductAvailableStock } from "@/lib/store"
 import type { Product, Ingredient, ProductIngredient } from "@/lib/types"
 
@@ -13,6 +13,7 @@ function InventoryPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     category: "Coffee" as Product["category"],
@@ -111,6 +112,21 @@ function InventoryPageContent() {
     const ingredient = ingredients.find((i) => i.id === id)
     return ingredient ? `${ingredient.name} (${ingredient.unit})` : "Unknown"
   }
+
+  const filteredProducts = products.filter((product) => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return true
+
+    const ingredientNames = (product.ingredients || [])
+      .map((pi) => getIngredientName(pi.ingredientId).toLowerCase())
+      .join(" ")
+
+    return (
+      product.name.toLowerCase().includes(query) ||
+      product.category.toLowerCase().includes(query) ||
+      ingredientNames.includes(query)
+    )
+  })
 
   if (mode !== "list") {
     const availableIngredientsForAdd = ingredients.filter(
@@ -296,9 +312,20 @@ function InventoryPageContent() {
           </button>
         </div>
 
+        <div className="relative mb-4 lg:mb-6">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search products, categories, or ingredients"
+            className="w-full rounded-2xl border border-white/55 bg-white/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-sm transition-all focus:border-[#f7a645] focus:ring-2 focus:ring-[#bb3e00]/15"
+          />
+        </div>
+
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-3">
-          {products.map((product) => (
+          {filteredProducts.map((product) => (
             <div key={product.id} className="bg-white rounded-lg border border-border p-4">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1 min-w-0">
@@ -366,7 +393,7 @@ function InventoryPageContent() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <tr key={product.id} className="border-b border-border last:border-0">
                   <td className="px-6 py-4 font-medium">{product.name}</td>
                   <td className="px-6 py-4">
