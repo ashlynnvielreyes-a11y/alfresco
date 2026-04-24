@@ -125,7 +125,7 @@ function ComboMealsPageContent() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Coffee & Pastry Bundle"
+                  placeholder="e.g. Coffee & Fruit Tea Bundle"
                   className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none"
                   required
                 />

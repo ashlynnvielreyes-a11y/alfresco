@@ -8,7 +8,7 @@ import { useDebounce } from "@/hooks/useDebounce"
 import { createClient } from "@/lib/supabase/client"
 import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal } from "@/lib/types"
 
-const categories = ["All Items", "Coffee", "Milk Tea", "Silog", "Pastry", "Combos"] as const
+const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Tea", "Silog", "Combos"] as const
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -120,7 +120,7 @@ export default function POSPage() {
   }, [ingredients, cart])
 
   const getAvailableAddOns = useCallback((product: Product): AddOn[] => {
-    if (product.category === "Coffee" || product.category === "Milk Tea") {
+    if (product.category === "Coffee" || product.category === "Milk Tea" || product.category === "Fruit Tea") {
       return allAddOns.filter(a => a.category === "drink")
     } else if (product.category === "Silog") {
       return allAddOns.filter(a => a.category === "meal")

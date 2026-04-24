@@ -21,7 +21,7 @@ export interface ProductIngredient {
 export interface Product {
   id: number
   name: string
-  category: "Coffee" | "Milk Tea" | "Silog" | "Pastry"
+  category: "Coffee" | "Milk Tea" | "Fruit Tea" | "Silog"
   price: number
   ingredients: ProductIngredient[]
 }

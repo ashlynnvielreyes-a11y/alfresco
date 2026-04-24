@@ -212,11 +212,14 @@ export function getProducts(): Product[] {
     return defaultProducts
   }
   const products = JSON.parse(stored)
-  // Ensure all products have ingredients array
-  return products.map((p: Product) => ({
+  // Ensure all products have ingredients array and migrate legacy Pastry entries
+  const normalizedProducts = products.map((p: Product & { category?: string }) => ({
     ...p,
+    category: p.category === "Pastry" ? "Fruit Tea" : p.category,
     ingredients: p.ingredients || []
   }))
+  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(normalizedProducts))
+  return normalizedProducts
 }
 
 export function saveProducts(products: Product[]): void {
@@ -773,11 +776,10 @@ export async function getSalesByCategory(startDate: Date, endDate: Date): Promis
   const products = getProducts()
   
   const categoryColors: Record<string, string> = {
-    'Coffee': '#A61F30',
-    'Milk Tea': '#F1646E',
-    'Silog': '#d4516f',
-    'Burger': '#8B1826',
-    'Fruit Tea': '#E84A5C'
+    'Coffee': '#bb3e00',
+    'Milk Tea': '#f7a645',
+    'Fruit Tea': '#7b6f19',
+    'Silog': '#cf7d2d'
   }
   
   transactions.forEach(t => {
@@ -799,7 +801,7 @@ export async function getSalesByCategory(startDate: Date, endDate: Date): Promis
       category,
       sales: Math.round(sales * 100) / 100,
       percentage: total > 0 ? Math.round((sales / total) * 100) : 0,
-      color: categoryColors[category] || '#A61F30'
+      color: categoryColors[category] || '#bb3e00'
     }))
     .sort((a, b) => b.sales - a.sales)
 }

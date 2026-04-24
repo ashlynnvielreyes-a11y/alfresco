@@ -152,8 +152,8 @@ function InventoryPageContent() {
                 >
                   <option value="Coffee">Coffee</option>
                   <option value="Milk Tea">Milk Tea</option>
+                  <option value="Fruit Tea">Fruit Tea</option>
                   <option value="Silog">Silog</option>
-                  <option value="Pastry">Pastry</option>
                 </select>
               </div>
 
