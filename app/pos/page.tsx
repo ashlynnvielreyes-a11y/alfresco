@@ -910,7 +910,7 @@ export default function POSPage() {
             {getAvailableAddOns(selectedProductForAddOns).length > 0 ? (
               <>
                 <h3 className="font-semibold text-foreground mb-3">Add extras:</h3>
-                <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+                <div className="cafe-scrollbar space-y-2 mb-4 max-h-60 overflow-y-auto pr-1">
                   {getAvailableAddOns(selectedProductForAddOns).map((addon) => {
                     const isSelected = selectedAddOns.some((a) => a.id === addon.id)
                     return (
