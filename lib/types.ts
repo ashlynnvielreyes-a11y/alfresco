@@ -45,11 +45,13 @@ export interface ComboMeal {
 }
 
 export type DrinkSize = "regular" | "medium" | "large"
+export type CoffeeTemperature = "hot" | "cold"
 
 export interface CartItem {
   product: Product
   quantity: number
   size?: DrinkSize
+  temperature?: CoffeeTemperature
   addOns?: AddOn[]
 }
 
