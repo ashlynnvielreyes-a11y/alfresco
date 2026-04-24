@@ -123,7 +123,7 @@ export const Sidebar = memo(function Sidebar() {
           onClick={closeMobileMenu}
         >
           <aside 
-            className="w-72 h-full bg-[#fff8eb]/95 border-r border-white/40 flex flex-col overflow-y-auto backdrop-blur-xl shadow-[18px_0_40px_rgba(123,111,25,0.12)]"
+            className="cafe-scrollbar w-72 h-full bg-[#fff8eb]/95 border-r border-white/40 flex flex-col overflow-y-auto backdrop-blur-xl shadow-[18px_0_40px_rgba(123,111,25,0.12)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* User info */}
@@ -134,7 +134,7 @@ export const Sidebar = memo(function Sidebar() {
               </div>
             </div>
 
-            <nav className="flex-1 px-3">
+            <nav className="cafe-scrollbar flex-1 px-3 overflow-y-auto">
               {navItems.map((item) => (
                 <NavItemComponent 
                   key={item.href} 
@@ -183,7 +183,7 @@ export const Sidebar = memo(function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 overflow-y-auto">
+        <nav className="cafe-scrollbar flex-1 px-3 overflow-y-auto">
           {navItems.map((item) => (
             <NavItemComponent key={item.href} item={item} isActive={pathname === item.href} />
           ))}

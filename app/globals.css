@@ -127,3 +127,57 @@
       linear-gradient(180deg, #fff7e9 0%, #fff1d7 100%);
   }
 }
+
+@layer components {
+  .cafe-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(187, 62, 0, 0.88) rgba(255, 241, 215, 0.38);
+  }
+
+  .cafe-scrollbar::-webkit-scrollbar {
+    width: 9px;
+  }
+
+  .cafe-scrollbar::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, rgba(255, 241, 215, 0.22), rgba(255, 247, 233, 0.5));
+    border-radius: 999px;
+    border: 1px solid rgba(123, 111, 25, 0.08);
+    backdrop-filter: blur(6px);
+  }
+
+  .cafe-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    border: 2px solid rgba(255, 248, 235, 0.72);
+    background:
+      linear-gradient(180deg, rgba(247, 173, 69, 0.98) 0%, rgba(187, 62, 0, 0.94) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 6px 14px rgba(187, 62, 0, 0.18),
+      0 0 0 1px rgba(123, 111, 25, 0.12);
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      filter 180ms ease,
+      opacity 180ms ease;
+  }
+
+  .cafe-scrollbar::-webkit-scrollbar-thumb:hover {
+    background:
+      linear-gradient(180deg, rgba(255, 189, 97, 1) 0%, rgba(204, 77, 12, 0.98) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      0 8px 18px rgba(187, 62, 0, 0.22),
+      0 0 0 1px rgba(123, 111, 25, 0.18);
+    filter: saturate(1.05);
+  }
+
+  .cafe-scrollbar::-webkit-scrollbar-thumb:active {
+    background:
+      linear-gradient(180deg, rgba(247, 173, 69, 1) 0%, rgba(167, 54, 0, 1) 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.2),
+      0 4px 10px rgba(187, 62, 0, 0.2),
+      0 0 0 1px rgba(123, 111, 25, 0.2);
+  }
+}
