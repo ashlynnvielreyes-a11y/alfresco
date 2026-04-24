@@ -566,7 +566,7 @@ export default function POSPage() {
         <div className="flex flex-col xl:flex-row gap-4 lg:gap-6">
           {/* Menu Section */}
           <div className="flex-1">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30] mb-4">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] mb-4">
               AL FRESCO MENU
             </h1>
 
@@ -578,7 +578,7 @@ export default function POSPage() {
                 placeholder="Search deliciousness..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[#A61F30] outline-none text-base"
+                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[#bb3e00] outline-none text-base"
               />
             </div>
 
@@ -590,7 +590,7 @@ export default function POSPage() {
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 lg:px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex-shrink-0 ${
                     selectedCategory === cat
-                      ? "bg-[#A61F30] text-white"
+                      ? "bg-[#bb3e00] text-white"
                       : "bg-white border border-border text-foreground hover:bg-muted"
                   }`}
                 >
@@ -616,11 +616,11 @@ export default function POSPage() {
                       className={`p-3 lg:p-4 rounded-lg border text-left transition-all relative ${
                         unavailable
                           ? "border-red-300 bg-red-50 cursor-not-allowed"
-                          : "border-[#8B1826] bg-[#f9f5f7] hover:border-[#A61F30] hover:bg-#F5E6E8"
+                          : "border-[#8f2f00] bg-[#fff1d7] hover:border-[#bb3e00] hover:bg-[#fff1d7]"
                       }`}
                     >
                       <div className="absolute top-2 right-2">
-                        <span className="text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold bg-[#8B1826] text-white">
+                        <span className="text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold bg-[#8f2f00] text-white">
                           COMBO
                         </span>
                       </div>
@@ -633,13 +633,13 @@ export default function POSPage() {
                         {combo.description}
                       </p>
                       <div className="flex justify-between items-center mt-2">
-                        <p className={`font-bold text-sm lg:text-base ${unavailable ? "text-red-600" : "text-[#A61F30]"}`}>
+                        <p className={`font-bold text-sm lg:text-base ${unavailable ? "text-red-600" : "text-[#bb3e00]"}`}>
                           P{combo.price.toFixed(2)}
                         </p>
                         <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold ${
                           unavailable
                             ? "bg-red-100 text-red-700"
-                            : "bg-[#A61F30] text-white"
+                            : "bg-[#bb3e00] text-white"
                         }`}>
                           {comboStock}
                         </span>
@@ -669,8 +669,8 @@ export default function POSPage() {
                       isUnavailable
                         ? "border-red-300 bg-red-50 cursor-not-allowed"
                         : inCart
-                        ? "border-[#A61F30] bg-#F5E6E8"
-                        : "border-border bg-white hover:border-[#A61F30]"
+                        ? "border-[#bb3e00] bg-[#fff1d7]"
+                        : "border-border bg-white hover:border-[#bb3e00]"
                     }`}
                   >
                     {hasIngredientIssue && (
@@ -683,12 +683,12 @@ export default function POSPage() {
                       <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold flex-shrink-0 ${
                         isUnavailable
                           ? "bg-red-100 text-red-700"
-                          : "bg-[#A61F30] text-white"
+                          : "bg-[#bb3e00] text-white"
                       }`}>
                         {availableStock}
                       </span>
                     </div>
-                    <p className={`font-bold mt-2 text-sm lg:text-base ${isUnavailable ? "text-red-600" : "text-[#A61F30]"}`}>
+                    <p className={`font-bold mt-2 text-sm lg:text-base ${isUnavailable ? "text-red-600" : "text-[#bb3e00]"}`}>
                       P{product.price.toFixed(2)}
                     </p>
                     {hasIngredientIssue && (
@@ -713,7 +713,7 @@ export default function POSPage() {
           {/* Order Panel */}
           <div className="w-full xl:w-80 bg-white rounded-lg border border-border p-4 flex-shrink-0">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg lg:text-xl font-bold text-[#A61F30]">Current Order</h2>
+              <h2 className="text-lg lg:text-xl font-bold text-[#bb3e00]">Current Order</h2>
               <button onClick={clearCart} className="p-2 hover:bg-muted rounded-lg">
                 <Trash2 className="h-5 w-5 text-muted-foreground" />
               </button>
@@ -743,7 +743,7 @@ export default function POSPage() {
                               ))}
                             </div>
                           )}
-                          <p className="text-xs text-[#F1646E] font-medium mt-1">
+                          <p className="text-xs text-[#f7a645] font-medium mt-1">
                             P{itemTotal.toFixed(2)} each
                           </p>
                         </div>
@@ -790,7 +790,7 @@ export default function POSPage() {
                       setCashReceived("")
                     }
                   }}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#A61F30] outline-none text-sm"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#bb3e00] outline-none text-sm"
                 >
                   <option value="cash">Cash</option>
                   <option value="card">Card</option>
@@ -805,7 +805,7 @@ export default function POSPage() {
                 <select
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#A61F30] outline-none text-sm"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#bb3e00] outline-none text-sm"
                 >
                   <option value="none">No Discount</option>
                   <option value="senior">Senior Citizen (20%)</option>
@@ -825,7 +825,7 @@ export default function POSPage() {
                     placeholder="0"
                     min="0"
                     max="100"
-                    className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#A61F30] outline-none"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#bb3e00] outline-none"
                   />
                 </div>
               )}
@@ -837,7 +837,7 @@ export default function POSPage() {
                   <span className="font-medium">P{subtotal.toFixed(2)}</span>
                 </div>
                 {discountAmount > 0 && (
-                  <div className="flex justify-between py-1 text-[#A61F30]">
+                  <div className="flex justify-between py-1 text-[#bb3e00]">
                     <span className="text-muted-foreground">Discount</span>
                     <span className="font-medium">-P{discountAmount.toFixed(2)}</span>
                   </div>
@@ -851,7 +851,7 @@ export default function POSPage() {
               {/* Total Amount */}
               <div className="flex justify-between items-center pt-3 border-t border-border">
                 <span className="text-sm font-semibold text-foreground">Total Amount</span>
-                <span className="text-2xl font-bold text-[#A61F30]">
+                <span className="text-2xl font-bold text-[#bb3e00]">
                   P{total.toFixed(2)}
                 </span>
               </div>
@@ -867,7 +867,7 @@ export default function POSPage() {
                   onChange={(e) => setCashReceived(e.target.value)}
                   placeholder="0.00"
                   disabled={!isCashPayment}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#A61F30] outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#bb3e00] outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
                 />
                 {!isCashPayment && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -879,7 +879,7 @@ export default function POSPage() {
               <button
                 onClick={confirmSale}
                 disabled={cart.length === 0 || (isCashPayment && cash < total)}
-                className="w-full py-3 bg-[#A61F30] hover:bg-[#8B1826] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="w-full py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 CONFIRM SALE
               </button>
@@ -900,10 +900,10 @@ export default function POSPage() {
       {showAddOnsModal && selectedProductForAddOns && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-[400px] max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-[#A91D3A] mb-2">
+            <h2 className="text-xl font-bold text-[#bb3e00] mb-2">
               {selectedProductForAddOns.name}
             </h2>
-            <p className="text-[#F1646E] font-bold text-lg mb-4">
+            <p className="text-[#f7a645] font-bold text-lg mb-4">
               P{selectedProductForAddOns.price.toFixed(2)}
             </p>
             
@@ -919,12 +919,12 @@ export default function POSPage() {
                         onClick={() => toggleAddOn(addon)}
                         className={`w-full p-3 rounded-lg text-left transition-colors flex justify-between items-center ${
                           isSelected
-                            ? "bg-[#FFF0F5] border-2 border-[#A91D3A]"
+                            ? "bg-[#fff7e9] border-2 border-[#bb3e00]"
                             : "bg-muted hover:bg-muted/80 border-2 border-transparent"
                         }`}
                       >
                         <span className="font-medium">{addon.name}</span>
-                        <span className="text-[#F1646E] font-bold">+P{addon.price}</span>
+                        <span className="text-[#f7a645] font-bold">+P{addon.price}</span>
                       </button>
                     )
                   })}
@@ -940,12 +940,12 @@ export default function POSPage() {
                 <p className="text-sm font-medium text-muted-foreground mb-1">Selected Add-ons:</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedAddOns.map((addon) => (
-                    <span key={addon.id} className="text-xs bg-[#A91D3A] text-white px-2 py-1 rounded-full">
+                    <span key={addon.id} className="text-xs bg-[#bb3e00] text-white px-2 py-1 rounded-full">
                       {addon.name}
                     </span>
                   ))}
                 </div>
-                <p className="text-right font-bold text-[#F1646E] mt-2">
+                <p className="text-right font-bold text-[#f7a645] mt-2">
                   Total: P{(selectedProductForAddOns.price + selectedAddOns.reduce((acc, a) => acc + a.price, 0)).toFixed(2)}
                 </p>
               </div>
@@ -1061,7 +1061,7 @@ export default function POSPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-[500px] max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-[#A91D3A] flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#bb3e00] flex items-center gap-2">
                 <Ban className="h-5 w-5" />
                 Void Transaction
               </h2>
@@ -1105,7 +1105,7 @@ export default function POSPage() {
                             {transaction.date} {transaction.time}
                           </p>
                         </div>
-                        <p className="font-bold text-[#F1646E]">
+                        <p className="font-bold text-[#f7a645]">
                           P{transaction.total.toFixed(2)}
                         </p>
                       </div>
@@ -1150,7 +1150,7 @@ export default function POSPage() {
                   value={voidKeyInput}
                   onChange={(e) => setVoidKeyInput(e.target.value)}
                   placeholder="Enter admin void key"
-                  className="w-full px-4 py-3 rounded-lg bg-[#E8F8F5] border-0 focus:ring-2 focus:ring-[#A91D3A] outline-none pr-12 font-mono tracking-widest"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12 font-mono tracking-widest"
                 />
                 <button
                   type="button"
@@ -1204,3 +1204,4 @@ export default function POSPage() {
   </div>
   )
   }
+

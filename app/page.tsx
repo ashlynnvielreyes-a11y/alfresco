@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Coffee } from "lucide-react"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -21,21 +21,19 @@ export default function LoginPage() {
     try {
       const supabase = createClient()
 
-      // Query the users table to find the user by username first
       let { data: user, error: queryError } = await supabase
         .from("users")
         .select("id, username, email, password_hash, role")
         .eq("username", username.toLowerCase())
         .single()
 
-      // If not found by username, try email
       if (!user) {
         const { data: userByEmail, error: emailError } = await supabase
           .from("users")
           .select("id, username, email, password_hash, role")
           .eq("email", username.toLowerCase())
           .single()
-        
+
         user = userByEmail
         queryError = emailError
       }
@@ -46,21 +44,22 @@ export default function LoginPage() {
         return
       }
 
-      // Check password (plain text comparison for simplicity)
       if (user.password_hash !== password) {
         setError("Invalid username or password")
         setIsLoading(false)
         return
       }
 
-      // Save user data to localStorage
       localStorage.setItem("alfresco_auth", "true")
-      localStorage.setItem("currentUserData", JSON.stringify({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role || "cashier"
-      }))
+      localStorage.setItem(
+        "currentUserData",
+        JSON.stringify({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role || "cashier",
+        })
+      )
 
       router.push("/dashboard")
     } catch (err) {
@@ -72,31 +71,36 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f9f5f7] flex items-center justify-center">
-      <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-md border border-[#F1646E]/30">
-        <h1 className="text-4xl font-bold text-[#A61F30] text-center mb-2">
-          Al Fresco
-        </h1>
-        <p className="text-[#666666] text-center mb-8">Please login to your account</p>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-0 top-0 h-72 w-72 rounded-full bg-[#f7a645]/20 blur-3xl" />
+        <div className="absolute right-10 top-16 h-64 w-64 rounded-full bg-[#7b6f19]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-[#bb3e00]/10 blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md rounded-[30px] border border-white/55 bg-white/55 p-8 shadow-[0_28px_70px_rgba(123,111,25,0.12),inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl lg:p-10">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#bb3e00] to-[#f7a645] text-white shadow-[0_18px_35px_rgba(187,62,0,0.18)]">
+            <Coffee className="h-8 w-8" />
+          </div>
+          <h1 className="mb-2 text-4xl font-bold text-[#bb3e00]">Al Fresco</h1>
+          <p className="text-sm text-muted-foreground">Sign in to access the cafe system.</p>
+        </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-[#1a1a1a] mb-2">
-              Username
-            </label>
+            <label className="mb-2 block text-sm font-medium text-foreground">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="admin"
-              className="w-full px-4 py-3 rounded-lg bg-[#f5f5f5] border border-[#F1646E]/50 focus:ring-2 focus:ring-[#A61F30] focus:border-[#A61F30] outline-none text-foreground placeholder:text-[#999999]"
+              className="w-full rounded-2xl border border-white/60 bg-[#fffaf1]/90 px-4 py-3 text-foreground outline-none transition-all focus:border-[#f7a645] focus:ring-2 focus:ring-[#bb3e00]/15"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#1a1a1a] mb-2">
-              Password
-            </label>
+            <label className="mb-2 block text-sm font-medium text-foreground">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -106,12 +110,12 @@ export default function LoginPage() {
                 onCopy={(e) => e.preventDefault()}
                 onCut={(e) => e.preventDefault()}
                 placeholder="password"
-                className="w-full px-4 py-3 pr-12 rounded-lg bg-[#f5f5f5] border border-[#F1646E]/50 focus:ring-2 focus:ring-[#A61F30] focus:border-[#A61F30] outline-none text-foreground placeholder:text-[#999999]"
+                className="w-full rounded-2xl border border-white/60 bg-[#fffaf1]/90 px-4 py-3 pr-12 text-foreground outline-none transition-all focus:border-[#f7a645] focus:ring-2 focus:ring-[#bb3e00]/15"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B1826]/70 hover:text-[#A61F30]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8f2f00]/70 hover:text-[#bb3e00]"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -119,21 +123,19 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && (
-            <p className="text-[#A61F30] text-sm text-center font-medium">{error}</p>
-          )}
+          {error && <p className="text-center text-sm font-medium text-[#bb3e00]">{error}</p>}
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-4 bg-[#A61F30] hover:bg-[#8B1826] disabled:bg-[#F1646E]/50 disabled:text-white text-white font-semibold rounded-lg transition-colors"
+            className="w-full rounded-2xl bg-gradient-to-r from-[#bb3e00] to-[#f7a645] py-4 font-semibold text-white shadow-[0_16px_28px_rgba(187,62,0,0.18)] transition-all hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "Logging in..." : "LOGIN"}
           </button>
 
-          <p className="text-center text-[#666666] text-sm">
+          <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <a href="/register" className="text-[#A61F30] hover:underline font-medium">
+            <a href="/register" className="font-medium text-[#bb3e00] hover:underline">
               Register here
             </a>
           </p>

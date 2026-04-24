@@ -112,13 +112,13 @@ function ComboMealsPageContent() {
         <Sidebar />
         <main className="flex-1 flex items-center justify-center p-4 pt-20 lg:pt-6 lg:p-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:p-8 w-full max-w-2xl">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30] text-center mb-6 lg:mb-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] text-center mb-6 lg:mb-8">
               {mode === "add" ? "Create Combo Meal" : "Edit Combo Meal"}
             </h1>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-[#8B1826] mb-2">
+                <label className="block text-sm font-semibold text-[#8f2f00] mb-2">
                   Combo Name
                 </label>
                 <input
@@ -126,26 +126,26 @@ function ComboMealsPageContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Coffee & Pastry Bundle"
-                  className="w-full px-4 py-3 rounded-lg bg-[#f9f5f7] border border-[#F1646E]/50 focus:ring-2 focus:ring-[#A61F30] focus:border-[#A61F30] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-[#8B1826] mb-2">
+                <label className="block text-sm font-semibold text-[#8f2f00] mb-2">
                   Description
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="e.g. Spanish Latte with Croissant"
-                  className="w-full px-4 py-3 rounded-lg bg-[#f9f5f7] border border-[#F1646E]/50 focus:ring-2 focus:ring-[#A61F30] focus:border-[#A61F30] outline-none resize-none h-24"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none resize-none h-24"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-[#8B1826] mb-2">
+                <label className="block text-sm font-semibold text-[#8f2f00] mb-2">
                   Combo Price (P)
                 </label>
                 <input
@@ -154,20 +154,20 @@ function ComboMealsPageContent() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="0.00"
-                  className="w-full px-4 py-3 rounded-lg bg-[#f9f5f7] border border-[#F1646E]/50 focus:ring-2 focus:ring-[#A61F30] focus:border-[#A61F30] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none"
                   required
                 />
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="block text-sm font-semibold text-[#8B1826]">
+                  <label className="block text-sm font-semibold text-[#8f2f00]">
                     Items in Combo
                   </label>
                   <button
                     type="button"
                     onClick={addProductToCombo}
-                    className="flex items-center gap-1 text-sm text-[#A61F30] hover:text-[#8B1826] font-medium"
+                    className="flex items-center gap-1 text-sm text-[#bb3e00] hover:text-[#8f2f00] font-medium"
                   >
                     <Plus className="h-4 w-4" />
                     Add Item
@@ -179,11 +179,11 @@ function ComboMealsPageContent() {
                 ) : (
                   <div className="space-y-3">
                     {selectedItems.map((item, index) => (
-                      <div key={index} className="flex gap-2 items-center bg-[#f9f5f7] p-3 rounded-lg border border-[#F1646E]/30">
+                      <div key={index} className="flex gap-2 items-center bg-[#fff1d7] p-3 rounded-lg border border-[#f7a645]/30">
                         <select
                           value={item.productId}
                           onChange={(e) => updateProductSelection(index, parseInt(e.target.value))}
-                          className="flex-1 px-3 py-2 rounded-lg border border-[#F1646E]/50 focus:ring-2 focus:ring-[#A61F30] focus:border-[#A61F30] outline-none bg-white"
+                          className="flex-1 px-3 py-2 rounded-lg border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none bg-white"
                         >
                           {products.map((product) => (
                             <option key={product.id} value={product.id}>
@@ -196,7 +196,7 @@ function ComboMealsPageContent() {
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateProductQuantity(index, parseInt(e.target.value))}
-                          className="w-20 px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-[#A61F30] outline-none text-center"
+                          className="w-20 px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-[#bb3e00] outline-none text-center"
                         />
                         <span className="text-sm font-medium text-foreground min-w-fit">qty</span>
                         <button
@@ -204,7 +204,7 @@ function ComboMealsPageContent() {
                           onClick={() => removeProductFromCombo(index)}
                           className="p-1 hover:bg-white rounded transition-colors"
                         >
-                          <X className="h-4 w-4 text-[#A61F30]" />
+                          <X className="h-4 w-4 text-[#bb3e00]" />
                         </button>
                       </div>
                     ))}
@@ -217,8 +217,8 @@ function ComboMealsPageContent() {
                 disabled={selectedItems.length === 0}
                 className={`w-full py-4 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   mode === "add"
-                    ? "bg-[#A61F30] hover:bg-[#8B1826] text-white"
-                    : "bg-[#8B1826] hover:bg-[#6a6315] text-white"
+                    ? "bg-[#bb3e00] hover:bg-[#8f2f00] text-white"
+                    : "bg-[#8f2f00] hover:bg-[#6a6315] text-white"
                 }`}
               >
                 {mode === "add" ? "CREATE COMBO MEAL" : "SAVE CHANGES"}
@@ -244,7 +244,7 @@ function ComboMealsPageContent() {
       <main className="flex-1 p-4 pt-20 lg:pt-6 lg:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 lg:mb-8">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30]">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00]">
               Combo Meals
             </h1>
             <p className="text-muted-foreground mt-1 lg:mt-2 text-sm lg:text-base">Manage your combo meal offerings</p>
@@ -252,7 +252,7 @@ function ComboMealsPageContent() {
 
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#A61F30] hover:bg-[#8B1826] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
           >
             <Plus className="h-5 w-5" />
             Create Combo Meal
@@ -264,7 +264,7 @@ function ComboMealsPageContent() {
             <p className="text-muted-foreground mb-4 text-sm lg:text-base">No combo meals created yet</p>
             <button
               onClick={handleAdd}
-              className="inline-flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#A61F30] hover:bg-[#8B1826] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base"
+              className="inline-flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base"
             >
               <Plus className="h-5 w-5" />
               Create Your First Combo
@@ -276,7 +276,7 @@ function ComboMealsPageContent() {
               <div key={combo.id} className="bg-white rounded-lg border border-border p-4 lg:p-6 hover:shadow-lg transition-shadow">
                 <div className="flex justify-between items-start mb-2 lg:mb-3">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base lg:text-lg font-bold text-[#A61F30] truncate">{combo.name}</h3>
+                    <h3 className="text-base lg:text-lg font-bold text-[#bb3e00] truncate">{combo.name}</h3>
                     <p className="text-xs lg:text-sm text-muted-foreground mt-1 line-clamp-2">{combo.description}</p>
                   </div>
                 </div>
@@ -293,19 +293,19 @@ function ComboMealsPageContent() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-xl lg:text-2xl font-bold text-[#A61F30]">P{combo.price.toFixed(2)}</span>
+                  <span className="text-xl lg:text-2xl font-bold text-[#bb3e00]">P{combo.price.toFixed(2)}</span>
                   <div className="flex gap-1 lg:gap-2">
                     <button
                       onClick={() => handleEdit(combo)}
-                      className="p-1.5 lg:p-2 hover:bg-#F5E6E8 rounded-lg transition-colors"
+                      className="p-1.5 lg:p-2 hover:bg-[#fff1d7] rounded-lg transition-colors"
                     >
-                      <Pencil className="h-4 w-4 lg:h-5 lg:w-5 text-[#8B1826]" />
+                      <Pencil className="h-4 w-4 lg:h-5 lg:w-5 text-[#8f2f00]" />
                     </button>
                     <button
                       onClick={() => handleDelete(combo.id)}
-                      className="p-1.5 lg:p-2 hover:bg-#F5E6E8 rounded-lg transition-colors"
+                      className="p-1.5 lg:p-2 hover:bg-[#fff1d7] rounded-lg transition-colors"
                     >
-                      <Trash2 className="h-4 w-4 lg:h-5 lg:w-5 text-[#A61F30]" />
+                      <Trash2 className="h-4 w-4 lg:h-5 lg:w-5 text-[#bb3e00]" />
                     </button>
                   </div>
                 </div>
@@ -321,3 +321,4 @@ function ComboMealsPageContent() {
 export default function ComboMealsPage() {
   return <ComboMealsPageContent />
 }
+

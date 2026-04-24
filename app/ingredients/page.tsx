@@ -138,7 +138,7 @@ function IngredientsPageContent() {
         <Sidebar />
         <main className="flex-1 flex items-center justify-center p-4 pt-20 lg:pt-6 lg:p-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:p-8 w-full max-w-lg">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30] text-center mb-6 lg:mb-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] text-center mb-6 lg:mb-8">
               Restock {restockingIngredient?.name}
             </h1>
 
@@ -154,10 +154,10 @@ function IngredientsPageContent() {
                     value={restockQuantity}
                     onChange={(e) => setRestockQuantity(e.target.value)}
                     placeholder="0"
-                    className="flex-1 px-4 py-3 rounded-lg bg-#F5E6E8 border-0 focus:ring-2 focus:ring-[#A61F30] outline-none"
+                    className="flex-1 px-4 py-3 rounded-lg bg-[#fff1d7] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none"
                     required
                   />
-                  <span className="flex items-center px-4 py-3 bg-[#A61F30] text-white rounded-lg font-semibold">
+                  <span className="flex items-center px-4 py-3 bg-[#bb3e00] text-white rounded-lg font-semibold">
                     {restockingIngredient?.unit}
                   </span>
                 </div>
@@ -168,7 +168,7 @@ function IngredientsPageContent() {
 
               <button
                 type="submit"
-                className="w-full py-4 bg-[#8B1826] hover:bg-[#6a6315] text-white font-semibold rounded-lg transition-colors"
+                className="w-full py-4 bg-[#8f2f00] hover:bg-[#6a6315] text-white font-semibold rounded-lg transition-colors"
               >
                 ADD STOCK (FIFO)
               </button>
@@ -202,7 +202,7 @@ function IngredientsPageContent() {
             </button>
             
             <div className="bg-white rounded-2xl shadow-lg p-8">
-              <h1 className="text-3xl font-bold text-[#A91D3A] mb-2">
+              <h1 className="text-3xl font-bold text-[#bb3e00] mb-2">
                 Assign {assigningIngredient?.name}
               </h1>
               <p className="text-muted-foreground mb-6">
@@ -258,7 +258,7 @@ function IngredientsPageContent() {
         <Sidebar />
         <main className="flex-1 flex items-center justify-center p-4 pt-20 lg:pt-6 lg:p-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:p-8 w-full max-w-lg">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30] text-center mb-6 lg:mb-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] text-center mb-6 lg:mb-8">
               {mode === "add" ? "Add New Ingredient" : "Edit Ingredient"}
             </h1>
 
@@ -272,7 +272,7 @@ function IngredientsPageContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Rice"
-                  className="w-full px-4 py-3 rounded-lg bg-#F5E6E8 border-0 focus:ring-2 focus:ring-[#A61F30] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none"
                   required
                 />
               </div>
@@ -287,7 +287,7 @@ function IngredientsPageContent() {
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     placeholder="e.g. pcs, cups, ml, g"
-                    className="w-full px-4 py-3 rounded-lg bg-#F5E6E8 border-0 focus:ring-2 focus:ring-[#A61F30] outline-none"
+                    className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none"
                     required
                   />
                 </div>
@@ -301,7 +301,7 @@ function IngredientsPageContent() {
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                     placeholder="0"
-                    className="w-full px-4 py-3 rounded-lg bg-#F5E6E8 border-0 focus:ring-2 focus:ring-[#A61F30] outline-none"
+                    className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none"
                     required
                   />
                 </div>
@@ -311,8 +311,8 @@ function IngredientsPageContent() {
                 type="submit"
                 className={`w-full py-4 font-semibold rounded-lg transition-colors ${
                   mode === "add"
-                ? "bg-[#A61F30] hover:bg-[#a03200] text-white"
-                : "bg-[#8B1826] hover:bg-[#6a6315] text-white"
+                ? "bg-[#bb3e00] hover:bg-[#8f2f00] text-white"
+                : "bg-[#8f2f00] hover:bg-[#6a6315] text-white"
                 }`}
               >
                 {mode === "add" ? "SAVE INGREDIENT" : "SAVE CHANGES"}
@@ -339,7 +339,7 @@ function IngredientsPageContent() {
       <main className="flex-1 p-4 pt-20 lg:pt-6 lg:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 lg:mb-6">
           <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30]">
+          <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00]">
             Ingredients
           </h1>
             <p className="text-muted-foreground text-sm lg:text-base">
@@ -348,7 +348,7 @@ function IngredientsPageContent() {
           </div>
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#A61F30] hover:bg-[#a03200] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
           >
             <Plus className="h-5 w-5" />
             Add New Ingredient
@@ -366,7 +366,7 @@ function IngredientsPageContent() {
                     <h3 className="font-medium text-foreground">{ingredient.name}</h3>
                     <p className="text-xs text-muted-foreground">{ingredient.unit}</p>
                   </div>
-                  <span className="inline-flex items-center justify-center min-w-[50px] px-2 py-1 bg-[#A61F30] text-white rounded-full font-medium text-sm">
+                  <span className="inline-flex items-center justify-center min-w-[50px] px-2 py-1 bg-[#bb3e00] text-white rounded-full font-medium text-sm">
                     {ingredient.stock}
                   </span>
                 </div>
@@ -376,16 +376,16 @@ function IngredientsPageContent() {
                   </span>
                   <div className="flex gap-1">
                     <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Add stock">
-                      <Plus className="h-4 w-4 text-[#8B1826]" />
+                      <Plus className="h-4 w-4 text-[#8f2f00]" />
                     </button>
                     <button onClick={() => handleAssign(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Assign">
-                      <Link className="h-4 w-4 text-[#A61F30]" />
+                      <Link className="h-4 w-4 text-[#bb3e00]" />
                     </button>
                     <button onClick={() => handleEdit(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors">
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </button>
                     <button onClick={() => handleDelete(ingredient.id)} className="p-2 hover:bg-muted rounded-lg transition-colors">
-                      <Trash2 className="h-4 w-4 text-[#A61F30]" />
+                      <Trash2 className="h-4 w-4 text-[#bb3e00]" />
                     </button>
                   </div>
                 </div>
@@ -424,7 +424,7 @@ function IngredientsPageContent() {
                     <td className="px-6 py-4 font-medium">{ingredient.name}</td>
                     <td className="px-6 py-4 text-muted-foreground">{ingredient.unit}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center justify-center min-w-[60px] px-3 py-1 bg-[#A61F30] text-white rounded-full font-medium">
+                      <span className="inline-flex items-center justify-center min-w-[60px] px-3 py-1 bg-[#bb3e00] text-white rounded-full font-medium">
                         {ingredient.stock}
                       </span>
                     </td>
@@ -440,14 +440,14 @@ function IngredientsPageContent() {
                           className="p-2 hover:bg-muted rounded-lg transition-colors"
                           title="Add stock (FIFO)"
                         >
-                          <Plus className="h-5 w-5 text-[#8B1826]" />
+                          <Plus className="h-5 w-5 text-[#8f2f00]" />
                         </button>
                         <button
                           onClick={() => handleAssign(ingredient)}
                           className="p-2 hover:bg-muted rounded-lg transition-colors"
                           title="Assign to products"
                         >
-                          <Link className="h-5 w-5 text-[#A61F30]" />
+                          <Link className="h-5 w-5 text-[#bb3e00]" />
                         </button>
                         <button
                           onClick={() => handleEdit(ingredient)}
@@ -459,7 +459,7 @@ function IngredientsPageContent() {
                           onClick={() => handleDelete(ingredient.id)}
                           className="p-2 hover:bg-muted rounded-lg transition-colors"
                         >
-                          <Trash2 className="h-5 w-5 text-[#A61F30]" />
+                          <Trash2 className="h-5 w-5 text-[#bb3e00]" />
                         </button>
                       </div>
                     </td>
@@ -477,3 +477,4 @@ function IngredientsPageContent() {
 export default function IngredientsPage() {
   return <IngredientsPageContent />
 }
+

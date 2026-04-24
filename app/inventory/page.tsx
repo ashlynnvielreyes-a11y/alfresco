@@ -122,7 +122,7 @@ function InventoryPageContent() {
         <Sidebar />
         <main className="flex-1 flex items-center justify-center p-4 pt-20 lg:pt-6 lg:p-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:p-8 w-full max-w-2xl">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30] text-center mb-6 lg:mb-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] text-center mb-6 lg:mb-8">
               {mode === "add" ? "Add New Product" : "Edit Product"}
             </h1>
 
@@ -136,7 +136,7 @@ function InventoryPageContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Spanish Latte"
-                  className="w-full px-4 py-3 rounded-lg bg-#F5E6E8 border-0 focus:ring-2 focus:ring-[#A61F30] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none"
                   required
                 />
               </div>
@@ -148,7 +148,7 @@ function InventoryPageContent() {
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value as Product["category"] })}
-                  className="w-full px-4 py-3 rounded-lg bg-white border border-border focus:ring-2 focus:ring-[#A61F30] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-white border border-border focus:ring-2 focus:ring-[#bb3e00] outline-none"
                 >
                   <option value="Coffee">Coffee</option>
                   <option value="Milk Tea">Milk Tea</option>
@@ -167,7 +167,7 @@ function InventoryPageContent() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="0.00"
-                  className="w-full px-4 py-3 rounded-lg bg-#F5E6E8 border-0 focus:ring-2 focus:ring-[#A61F30] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none"
                   required
                 />
               </div>
@@ -182,7 +182,7 @@ function InventoryPageContent() {
                     <button
                       type="button"
                       onClick={addIngredientToProduct}
-                      className="flex items-center gap-1 text-sm text-[#A61F30] hover:text-[#a03200] font-medium"
+                      className="flex items-center gap-1 text-sm text-[#bb3e00] hover:text-[#8f2f00] font-medium"
                     >
                       <Plus className="h-4 w-4" />
                       Add Ingredient
@@ -213,7 +213,7 @@ function InventoryPageContent() {
                             onChange={(e) =>
                               updateIngredientSelection(pi.ingredientId, parseInt(e.target.value))
                             }
-                            className="flex-1 px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-[#A61F30] outline-none bg-white"
+                            className="flex-1 px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-[#bb3e00] outline-none bg-white"
                           >
                             {availableForSelect.map((ing) => (
                               <option key={ing.id} value={ing.id}>
@@ -229,7 +229,7 @@ function InventoryPageContent() {
                             onChange={(e) =>
                               updateIngredientQuantity(pi.ingredientId, parseFloat(e.target.value) || 0.1)
                             }
-                            className="w-24 px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-[#A61F30] outline-none text-center"
+                            className="w-24 px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-[#bb3e00] outline-none text-center"
                           />
                           <span className="text-sm text-muted-foreground w-12">
                             {ingredient?.unit || ""}
@@ -239,7 +239,7 @@ function InventoryPageContent() {
                             onClick={() => removeIngredientFromProduct(pi.ingredientId)}
                             className="p-1 hover:bg-white rounded transition-colors"
                           >
-                            <X className="h-4 w-4 text-[#A61F30]" />
+                            <X className="h-4 w-4 text-[#bb3e00]" />
                           </button>
                         </div>
                       )
@@ -252,8 +252,8 @@ function InventoryPageContent() {
                 type="submit"
                 className={`w-full py-4 font-semibold rounded-lg transition-colors ${
                   mode === "add"
-                    ? "bg-[#A61F30] hover:bg-[#a03200] text-white"
-                    : "bg-[#8B1826] hover:bg-[#6a6315] text-white"
+                    ? "bg-[#bb3e00] hover:bg-[#8f2f00] text-white"
+                    : "bg-[#8f2f00] hover:bg-[#6a6315] text-white"
                 }`}
               >
                 {mode === "add" ? "SAVE PRODUCT" : "SAVE CHANGES"}
@@ -280,7 +280,7 @@ function InventoryPageContent() {
       <main className="flex-1 p-4 pt-20 lg:pt-6 lg:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 lg:mb-6">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#A61F30]">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00]">
               Inventory Management
             </h1>
             <p className="text-muted-foreground text-sm lg:text-base">
@@ -289,7 +289,7 @@ function InventoryPageContent() {
           </div>
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#A61F30] hover:bg-[#a03200] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
           >
             <Plus className="h-5 w-5" />
             Add New Product
@@ -307,7 +307,7 @@ function InventoryPageContent() {
                     {product.category}
                   </span>
                 </div>
-                <span className="inline-flex items-center justify-center w-8 h-8 bg-[#A61F30] text-white rounded-full font-medium text-sm flex-shrink-0">
+                <span className="inline-flex items-center justify-center w-8 h-8 bg-[#bb3e00] text-white rounded-full font-medium text-sm flex-shrink-0">
                   {getProductAvailableStock(product, ingredients)}
                 </span>
               </div>
@@ -326,13 +326,13 @@ function InventoryPageContent() {
                 </div>
               )}
               <div className="flex justify-between items-center">
-                <p className="text-[#A61F30] font-bold">P{product.price.toFixed(2)}</p>
+                <p className="text-[#bb3e00] font-bold">P{product.price.toFixed(2)}</p>
                 <div className="flex gap-2">
                   <button onClick={() => handleEdit(product)} className="p-2 hover:bg-muted rounded-lg transition-colors">
                     <Pencil className="h-4 w-4 text-muted-foreground" />
                   </button>
                   <button onClick={() => handleDelete(product.id)} className="p-2 hover:bg-muted rounded-lg transition-colors">
-                    <Trash2 className="h-4 w-4 text-[#A61F30]" />
+                    <Trash2 className="h-4 w-4 text-[#bb3e00]" />
                   </button>
                 </div>
               </div>
@@ -395,11 +395,11 @@ function InventoryPageContent() {
                       <span className="text-muted-foreground text-sm">None</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-right text-[#A61F30] font-medium">
+                  <td className="px-6 py-4 text-right text-[#bb3e00] font-medium">
                     P{product.price.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className="inline-flex items-center justify-center w-10 h-10 bg-[#A61F30] text-white rounded-full font-medium">
+                    <span className="inline-flex items-center justify-center w-10 h-10 bg-[#bb3e00] text-white rounded-full font-medium">
                       {getProductAvailableStock(product, ingredients)}
                     </span>
                   </td>
@@ -415,7 +415,7 @@ function InventoryPageContent() {
                         onClick={() => handleDelete(product.id)}
                         className="p-2 hover:bg-muted rounded-lg transition-colors"
                       >
-                        <Trash2 className="h-5 w-5 text-[#A61F30]" />
+                        <Trash2 className="h-5 w-5 text-[#bb3e00]" />
                       </button>
                     </div>
                   </td>
@@ -432,3 +432,4 @@ function InventoryPageContent() {
 export default function InventoryPage() {
   return <InventoryPageContent />
 }
+

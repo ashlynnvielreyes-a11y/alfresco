@@ -217,7 +217,7 @@ export default function SettingsPage() {
       <main className="flex-1 p-4 pt-20 lg:pt-8 lg:p-8">
         <div className="max-w-2xl mx-auto lg:mx-0">
           <div className="flex items-center gap-3 mb-6 lg:mb-8">
-            <Settings className="h-6 w-6 lg:h-8 lg:w-8 text-[#A91D3A]" />
+            <Settings className="h-6 w-6 lg:h-8 lg:w-8 text-[#bb3e00]" />
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Settings</h1>
           </div>
 
@@ -235,7 +235,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Role</span>
-                <span className="font-medium capitalize px-3 py-1 bg-[#E8F8F5] rounded-full text-sm">
+                <span className="font-medium capitalize px-3 py-1 bg-[#fff7e9] rounded-full text-sm">
                   {user.role}
                 </span>
               </div>
@@ -245,7 +245,7 @@ export default function SettingsPage() {
           {/* Change Password Card */}
           <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-border">
             <div className="flex items-center gap-2 mb-4 lg:mb-6">
-              <Lock className="h-5 w-5 text-[#A91D3A]" />
+              <Lock className="h-5 w-5 text-[#bb3e00]" />
               <h2 className="text-base lg:text-lg font-semibold text-foreground">Change Password</h2>
             </div>
 
@@ -264,7 +264,7 @@ export default function SettingsPage() {
                     onCopy={(e) => e.preventDefault()}
                     onCut={(e) => e.preventDefault()}
                     placeholder="Enter current password"
-                    className="w-full px-4 py-3 rounded-lg bg-[#E8F8F5] border-0 focus:ring-2 focus:ring-[#A91D3A] outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12"
                     required
                   />
                   <button
@@ -291,7 +291,7 @@ export default function SettingsPage() {
                     onCopy={(e) => e.preventDefault()}
                     onCut={(e) => e.preventDefault()}
                     placeholder="Enter new password"
-                    className="w-full px-4 py-3 rounded-lg bg-[#E8F8F5] border-0 focus:ring-2 focus:ring-[#A91D3A] outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12"
                     required
                   />
                   <button
@@ -330,7 +330,7 @@ export default function SettingsPage() {
                     onCopy={(e) => e.preventDefault()}
                     onCut={(e) => e.preventDefault()}
                     placeholder="Confirm new password"
-                    className="w-full px-4 py-3 rounded-lg bg-[#E8F8F5] border-0 focus:ring-2 focus:ring-[#A91D3A] outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12"
                     required
                   />
                   <button
@@ -364,7 +364,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={isLoading || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-                className="w-full py-3 bg-[#A91D3A] hover:bg-[#8B1830] disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 bg-[#bb3e00] hover:bg-[#8f2f00] disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -382,7 +382,7 @@ export default function SettingsPage() {
           {user.role === "admin" && (
             <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-border mt-6 lg:mt-8">
               <div className="flex items-center gap-2 mb-4 lg:mb-6">
-                <Key className="h-5 w-5 text-[#A91D3A]" />
+                <Key className="h-5 w-5 text-[#bb3e00]" />
                 <h2 className="text-base lg:text-lg font-semibold text-foreground">Admin Void Key</h2>
               </div>
 
@@ -391,7 +391,7 @@ export default function SettingsPage() {
               </p>
 
               {/* Current Void Key */}
-              <div className="mb-6 p-4 bg-[#E8F8F5] rounded-lg">
+              <div className="mb-6 p-4 bg-[#fff7e9] rounded-lg">
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Current Void Key
                 </label>
@@ -426,7 +426,7 @@ export default function SettingsPage() {
                       onCopy={(e) => e.preventDefault()}
                       onCut={(e) => e.preventDefault()}
                       placeholder="Enter new void key (min 4 characters)"
-                      className="w-full px-4 py-3 rounded-lg bg-[#E8F8F5] border-0 focus:ring-2 focus:ring-[#A91D3A] outline-none pr-12 font-mono tracking-widest"
+                      className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12 font-mono tracking-widest"
                       minLength={4}
                       required
                     />
@@ -458,7 +458,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={isLoadingVoidKey || !newVoidKey || newVoidKey.length < 4}
-                  className="w-full py-3 bg-[#A91D3A] hover:bg-[#8B1830] disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-[#bb3e00] hover:bg-[#8f2f00] disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   {isLoadingVoidKey ? (
                     <>
@@ -477,3 +477,4 @@ export default function SettingsPage() {
     </div>
   )
 }
+

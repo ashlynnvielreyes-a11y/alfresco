@@ -75,9 +75,9 @@ export async function POST(request: NextRequest) {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px;">
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fffaf1; margin: 0; padding: 20px;">
           <div style="max-width: 500px; margin: 0 auto; background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="background-color: #A91D3A; padding: 30px; text-align: center;">
+            <div style="background-color: #bb3e00; padding: 30px; text-align: center;">
               <h1 style="color: white; margin: 0; font-size: 28px;">Al Fresco Cafe</h1>
             </div>
             <div style="padding: 40px;">
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
               <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 30px; text-align: center;">
                 Use the following code to verify your email address. This code will expire in 10 minutes.
               </p>
-              <div style="background-color: #E8F8F5; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 30px;">
-                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #A91D3A;">${otp}</span>
+              <div style="background-color: #fff7e9; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 30px;">
+                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #bb3e00;">${otp}</span>
               </div>
               <p style="color: #999; font-size: 14px; text-align: center;">
                 If you did not request this code, please ignore this email.
@@ -128,3 +128,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

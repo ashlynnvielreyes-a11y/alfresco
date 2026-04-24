@@ -53,7 +53,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-[#A91D3A]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#bb3e00]" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -76,3 +76,4 @@ export function AdminOnly({ children }: { children: React.ReactNode }) {
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   return <AuthGuard>{children}</AuthGuard>
 }
+
