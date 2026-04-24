@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [monthlyTotal, setMonthlyTotal] = useState(0)
   const [yearlyTotal, setYearlyTotal] = useState(0)
   const [timeView, setTimeView] = useState<"weekly" | "monthly">("weekly")
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState("--:--:--")
 
   useEffect(() => {
     const loadData = async () => {
@@ -41,6 +42,7 @@ export default function DashboardPage() {
       setWeeklyTotal(await getWeeklySales(now.getFullYear(), weekNumber))
       setMonthlyTotal(await getMonthlySales(now.getFullYear(), now.getMonth()))
       setYearlyTotal(await getYearlySales(now.getFullYear()))
+      setLastUpdatedLabel(now.toLocaleTimeString())
     }
 
     loadData()
@@ -152,7 +154,7 @@ export default function DashboardPage() {
                 <div className="rounded-2xl border border-white/55 bg-white/55 px-4 py-3 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-sm">
                   <p className="text-[10px] tracking-[0.24em] text-[#7b6f19]">LIVE REFRESH</p>
                   <p className="text-sm font-semibold text-foreground">
-                    Updated {new Date().toLocaleTimeString()}
+                    Updated {lastUpdatedLabel}
                   </p>
                 </div>
               </div>

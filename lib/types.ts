@@ -44,9 +44,12 @@ export interface ComboMeal {
   }[]
 }
 
+export type DrinkSize = "regular" | "medium" | "large"
+
 export interface CartItem {
   product: Product
   quantity: number
+  size?: DrinkSize
   addOns?: AddOn[]
 }
 

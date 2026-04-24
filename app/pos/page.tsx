@@ -6,9 +6,36 @@ import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, 
 import { getProducts, saveProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { createClient } from "@/lib/supabase/client"
-import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal } from "@/lib/types"
+import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, DrinkSize } from "@/lib/types"
 
 const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Tea", "Silog", "Combos"] as const
+const drinkCategoriesWithSizes: Product["category"][] = ["Coffee", "Milk Tea", "Fruit Tea"]
+const drinkSizes: DrinkSize[] = ["regular", "medium", "large"]
+
+function getAddOnKey(addOns?: AddOn[]) {
+  return (addOns || []).map((a) => a.id).sort().join("-")
+}
+
+function getCartItemKey(item: CartItem) {
+  return `${item.product.id}::${item.size || "none"}::${getAddOnKey(item.addOns)}`
+}
+
+function formatDrinkSize(size?: DrinkSize) {
+  if (!size) return null
+  return size.charAt(0).toUpperCase() + size.slice(1)
+}
+
+function getDrinkSizePriceAdjustment(size?: DrinkSize) {
+  if (size === "medium") return 10
+  if (size === "large") return 20
+  return 0
+}
+
+function getCartItemUnitPrice(item: CartItem) {
+  const sizeAdjustment = getDrinkSizePriceAdjustment(item.size)
+  const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price, 0)
+  return item.product.price + sizeAdjustment + addOnsTotal
+}
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -37,6 +64,7 @@ export default function POSPage() {
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedProductForAddOns, setSelectedProductForAddOns] = useState<Product | null>(null)
   const [selectedAddOns, setSelectedAddOns] = useState<AddOn[]>([])
+  const [selectedSize, setSelectedSize] = useState<DrinkSize>("regular")
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null)
 
   // Payment and discount state
@@ -107,8 +135,10 @@ export default function POSPage() {
     
     // Check ingredient availability
     if (product.ingredients && product.ingredients.length > 0) {
-      const cartItem = cart.find((item) => item.product.id === product.id)
-      const totalQuantity = (cartItem?.quantity || 0) + quantity
+      const currentCartQuantity = cart
+        .filter((item) => item.product.id === product.id)
+        .reduce((sum, item) => sum + item.quantity, 0)
+      const totalQuantity = currentCartQuantity + quantity
       
       const { available, missingIngredients } = checkIngredientAvailability(product, totalQuantity, ingredients)
       if (!available) {
@@ -118,6 +148,10 @@ export default function POSPage() {
     
     return { available: true }
   }, [ingredients, cart])
+
+  const productSupportsSizes = useCallback((product: Product) => {
+    return drinkCategoriesWithSizes.includes(product.category)
+  }, [])
 
   const getAvailableAddOns = useCallback((product: Product): AddOn[] => {
     if (product.category === "Coffee" || product.category === "Milk Tea" || product.category === "Fruit Tea") {
@@ -142,6 +176,8 @@ export default function POSPage() {
       // Open add-ons modal for drinks and meals
       setSelectedProductForAddOns(product)
       setSelectedAddOns([])
+      setSelectedSize("regular")
+      setEditingCartIndex(null)
       setShowAddOnsModal(true)
     } else {
       // Add directly to cart for pastries (no add-ons)
@@ -190,13 +226,15 @@ export default function POSPage() {
     
     const product = selectedProductForAddOns
     const addOns = selectedAddOns
+    const size = productSupportsSizes(product) ? selectedSize : undefined
     
     setCart((prev) => {
-      // Create a unique key based on product + addons combination
-      const addOnKey = addOns.map(a => a.id).sort().join("-")
+      // Create a unique key based on product + size + add-ons combination
+      const addOnKey = getAddOnKey(addOns)
       const existing = prev.find((item) => 
         item.product.id === product.id && 
-        (item.addOns || []).map(a => a.id).sort().join("-") === addOnKey
+        item.size === size &&
+        getAddOnKey(item.addOns) === addOnKey
       )
       
       if (existing) {
@@ -216,25 +254,27 @@ export default function POSPage() {
         
         return prev.map((item) =>
           item.product.id === product.id && 
-          (item.addOns || []).map(a => a.id).sort().join("-") === addOnKey
+          item.size === size &&
+          getAddOnKey(item.addOns) === addOnKey
             ? { ...item, quantity: newQuantity }
             : item
         )
       }
-      return [...prev, { product, quantity: 1, addOns: addOns.length > 0 ? addOns : undefined }]
+      return [...prev, { product, quantity: 1, size, addOns: addOns.length > 0 ? addOns : undefined }]
     })
     
     setShowAddOnsModal(false)
     setSelectedProductForAddOns(null)
     setSelectedAddOns([])
-  }, [selectedProductForAddOns, selectedAddOns, ingredients])
+    setSelectedSize("regular")
+    setEditingCartIndex(null)
+  }, [selectedProductForAddOns, selectedAddOns, selectedSize, ingredients, productSupportsSizes])
 
-  const updateQuantity = useCallback((productId: number, addOnKey: string, delta: number) => {
+  const updateQuantity = useCallback((itemKey: string, delta: number) => {
     setCart((prev) =>
       prev
         .map((item) => {
-          const itemAddOnKey = (item.addOns || []).map(a => a.id).sort().join("-")
-          if (item.product.id === productId && itemAddOnKey === addOnKey) {
+          if (getCartItemKey(item) === itemKey) {
             const newQty = item.quantity + delta
             if (newQty <= 0) return null
             const availableStock = getProductAvailableStock(item.product, ingredients)
@@ -268,6 +308,7 @@ export default function POSPage() {
     if (!cartItem) return
     setSelectedProductForAddOns(cartItem.product)
     setSelectedAddOns(cartItem.addOns || [])
+    setSelectedSize(cartItem.size || "regular")
     setEditingCartIndex(cartIndex)
     setShowAddOnsModal(true)
   }, [cart])
@@ -285,18 +326,20 @@ export default function POSPage() {
       // Update the item with the new add-ons
       newCart[editingCartIndex] = {
         ...currentItem,
+        size: productSupportsSizes(currentItem.product) ? selectedSize : undefined,
         addOns: selectedAddOns.length > 0 ? selectedAddOns : undefined
       }
       
       // Check if we need to merge items (e.g., when removing all add-ons creates a duplicate)
       const updatedItem = newCart[editingCartIndex]
-      const updatedAddOnKey = (updatedItem.addOns || []).map(a => a.id).sort().join("-")
+      const updatedAddOnKey = getAddOnKey(updatedItem.addOns)
       
-      // Find if there's another item with the same product and same add-on combination
+      // Find if there's another item with the same product, size, and add-on combination
       const duplicateIndex = newCart.findIndex((item, idx) => 
         idx !== editingCartIndex &&
         item.product.id === updatedItem.product.id &&
-        (item.addOns || []).map(a => a.id).sort().join("-") === updatedAddOnKey
+        item.size === updatedItem.size &&
+        getAddOnKey(item.addOns) === updatedAddOnKey
       )
       
       if (duplicateIndex !== -1) {
@@ -315,8 +358,9 @@ export default function POSPage() {
     setShowAddOnsModal(false)
     setSelectedProductForAddOns(null)
     setSelectedAddOns([])
+    setSelectedSize("regular")
     setEditingCartIndex(null)
-  }, [editingCartIndex, selectedProductForAddOns, selectedAddOns])
+  }, [editingCartIndex, selectedProductForAddOns, selectedAddOns, selectedSize, productSupportsSizes])
 
   // Handle adding a combo meal to cart - adds all items as a bundle
   const handleComboClick = useCallback((combo: ComboMeal) => {
@@ -396,8 +440,7 @@ export default function POSPage() {
 
   // Calculate subtotal (before VAT and discounts)
   const subtotal = cart.reduce((sum, item) => {
-    const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price, 0)
-    return sum + (item.product.price + addOnsTotal) * item.quantity
+    return sum + getCartItemUnitPrice(item) * item.quantity
   }, 0)
 
   // VAT calculation (12% - standard in Philippines, VAT is already included in price)
@@ -727,15 +770,21 @@ export default function POSPage() {
                 </p>
               ) : (
                 cart.map((item, index) => {
-                  const addOnKey = (item.addOns || []).map(a => a.id).sort().join("-")
-                  const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price, 0)
-                  const itemTotal = item.product.price + addOnsTotal
+                  const itemKey = getCartItemKey(item)
+                  const sizeAdjustment = getDrinkSizePriceAdjustment(item.size)
+                  const itemTotal = getCartItemUnitPrice(item)
+                  const sizeLabel = formatDrinkSize(item.size)
                   
                   return (
-                    <div key={`${item.product.id}-${addOnKey}-${index}`} className="border-b border-border pb-3 mb-3">
+                    <div key={`${itemKey}-${index}`} className="border-b border-border pb-3 mb-3">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <p className="font-medium text-sm">{item.product.name}</p>
+                          {sizeLabel && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Size: {sizeLabel}{sizeAdjustment > 0 ? ` (+P${sizeAdjustment})` : ""}
+                            </p>
+                          )}
                           {item.addOns && item.addOns.length > 0 && (
                             <div className="text-xs text-muted-foreground mt-1">
                               {item.addOns.map((addon) => (
@@ -757,14 +806,14 @@ export default function POSPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => updateQuantity(item.product.id, addOnKey, -1)}
+                            onClick={() => updateQuantity(itemKey, -1)}
                             className="w-5 h-5 flex items-center justify-center bg-muted rounded text-xs"
                           >
                             <Minus className="h-3 w-3" />
                           </button>
                           <span className="w-5 text-center text-xs">{item.quantity}</span>
                           <button
-                            onClick={() => updateQuantity(item.product.id, addOnKey, 1)}
+                            onClick={() => updateQuantity(itemKey, 1)}
                             className="w-5 h-5 flex items-center justify-center bg-muted rounded text-xs"
                           >
                             <Plus className="h-3 w-3" />
@@ -906,6 +955,34 @@ export default function POSPage() {
             <p className="text-[#f7a645] font-bold text-lg mb-4">
               P{selectedProductForAddOns.price.toFixed(2)}
             </p>
+
+            {productSupportsSizes(selectedProductForAddOns) && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-foreground mb-3">Choose size:</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {drinkSizes.map((size) => {
+                    const isSelected = selectedSize === size
+                    const sizeAdjustment = getDrinkSizePriceAdjustment(size)
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedSize(size)}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium capitalize transition-colors ${
+                          isSelected
+                            ? "bg-[#fff7e9] border-2 border-[#bb3e00] text-[#8f2f00]"
+                            : "bg-muted hover:bg-muted/80 border-2 border-transparent text-foreground"
+                        }`}
+                      >
+                        <span className="block capitalize">{size}</span>
+                        <span className="block text-[11px] opacity-80">
+                          {sizeAdjustment > 0 ? `+P${sizeAdjustment}` : "Base"}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             
             {getAvailableAddOns(selectedProductForAddOns).length > 0 ? (
               <>
@@ -946,9 +1023,20 @@ export default function POSPage() {
                   ))}
                 </div>
                 <p className="text-right font-bold text-[#f7a645] mt-2">
-                  Total: P{(selectedProductForAddOns.price + selectedAddOns.reduce((acc, a) => acc + a.price, 0)).toFixed(2)}
+                  Total: P{(
+                    selectedProductForAddOns.price +
+                    getDrinkSizePriceAdjustment(productSupportsSizes(selectedProductForAddOns) ? selectedSize : undefined) +
+                    selectedAddOns.reduce((acc, a) => acc + a.price, 0)
+                  ).toFixed(2)}
                 </p>
               </div>
+            )}
+
+            {productSupportsSizes(selectedProductForAddOns) && (
+              <p className="text-sm text-muted-foreground mb-4">
+                Selected size: <span className="font-medium text-foreground">{formatDrinkSize(selectedSize)}</span>
+                {getDrinkSizePriceAdjustment(selectedSize) > 0 ? ` (+P${getDrinkSizePriceAdjustment(selectedSize)})` : ""}
+              </p>
             )}
             
             <div className="flex gap-3">
@@ -957,6 +1045,7 @@ export default function POSPage() {
                   setShowAddOnsModal(false)
                   setSelectedProductForAddOns(null)
                   setSelectedAddOns([])
+                  setSelectedSize("regular")
                   setEditingCartIndex(null)
                 }}
                 className="flex-1 py-3 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-lg transition-colors"
@@ -989,12 +1078,12 @@ export default function POSPage() {
 
             <div className="border-t border-dashed border-border py-4 space-y-2 font-mono text-sm">
               {lastTransaction.items.map((item, index) => {
-                const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price, 0)
-                const itemTotal = (item.product.price + addOnsTotal) * item.quantity
+                const itemTotal = getCartItemUnitPrice(item) * item.quantity
+                const sizeLabel = formatDrinkSize(item.size)
                 return (
-                  <div key={`${item.product.id}-${index}`}>
+                  <div key={`${getCartItemKey(item)}-${index}`}>
                     <div className="flex justify-between">
-                      <span>{item.product.name} x{item.quantity}</span>
+                      <span>{item.product.name}{sizeLabel ? ` (${sizeLabel})` : ""} x{item.quantity}</span>
                       <span>P{itemTotal.toFixed(2)}</span>
                     </div>
                     {item.addOns && item.addOns.length > 0 && (
@@ -1110,7 +1199,7 @@ export default function POSPage() {
                         </p>
                       </div>
                       <div className="mt-2 text-xs text-muted-foreground">
-                        {transaction.items.map((item) => item.product.name).join(", ")}
+                        {transaction.items.map((item) => item.product.name + (item.size ? ` (${formatDrinkSize(item.size)})` : "")).join(", ")}
                       </div>
                     </button>
                   ))
@@ -1126,9 +1215,9 @@ export default function POSPage() {
                 </p>
                 <div className="space-y-1 text-sm">
                   {selectedTransactionToVoid.items.map((item) => (
-                    <div key={item.product.id} className="flex justify-between">
-                      <span>{item.product.name} x{item.quantity}</span>
-                      <span>P{(item.product.price * item.quantity).toFixed(2)}</span>
+                    <div key={getCartItemKey(item)} className="flex justify-between">
+                      <span>{item.product.name}{item.size ? ` (${formatDrinkSize(item.size)})` : ""} x{item.quantity}</span>
+                      <span>P{(getCartItemUnitPrice(item) * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                   <div className="flex justify-between font-bold pt-2 border-t border-red-200">
