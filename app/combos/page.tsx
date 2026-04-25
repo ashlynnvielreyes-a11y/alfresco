@@ -33,10 +33,7 @@ function ComboMealsPageContent() {
     setIngredients(getIngredients())
   }, [])
 
-  const comboIngredients = useMemo(
-    () => ingredients.filter((ingredient) => ingredient.assignedProducts.length > 0),
-    [ingredients]
-  )
+  const comboIngredients = useMemo(() => ingredients, [ingredients])
 
   const getIngredientById = (ingredientId: number) =>
     comboIngredients.find((ingredient) => ingredient.id === ingredientId)
@@ -191,6 +188,8 @@ function ComboMealsPageContent() {
     }
   }
 
+  const hasUnlinkedSelections = selectedItems.some((item) => getLinkedProducts(item.ingredientId).length === 0)
+
   const pageShellClass =
     "rounded-[28px] border border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.72)] shadow-[0_24px_60px_rgba(74,52,42,0.08)] backdrop-blur-xl"
 
@@ -280,9 +279,15 @@ function ComboMealsPageContent() {
                             {comboIngredients.map((ingredient) => (
                               <option key={ingredient.id} value={ingredient.id}>
                                 {ingredient.productId} • {ingredient.name}
+                                {ingredient.assignedProducts.length === 0 ? " (not linked)" : ""}
                               </option>
                             ))}
                           </select>
+                          {getLinkedProducts(item.ingredientId).length === 0 && (
+                            <p className="mt-2 text-xs text-[#7d5a44]">
+                              This ingredient is visible here, but it still needs a linked POS product before this combo can be saved.
+                            </p>
+                          )}
                         </div>
 
                         <div>
@@ -311,11 +316,16 @@ function ComboMealsPageContent() {
                     ))}
                   </div>
                 )}
+                {hasUnlinkedSelections && (
+                  <div className="rounded-xl border border-[#d7c9b8] bg-[rgba(245,241,234,0.72)] px-4 py-3 text-sm text-[#7d5a44]">
+                    Some selected ingredients do not have linked POS products yet. They are now visible in the picker, but you’ll need to assign them first before saving this combo.
+                  </div>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={selectedItems.length === 0}
+                disabled={selectedItems.length === 0 || hasUnlinkedSelections}
                 className="w-full rounded-2xl bg-[#4a342a] py-4 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {mode === "add" ? "CREATE COMBO MEAL" : "SAVE CHANGES"}
