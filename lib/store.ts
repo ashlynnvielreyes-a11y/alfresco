@@ -120,10 +120,23 @@ function normalizeIngredient(ingredient: Ingredient): Ingredient {
   return {
     ...ingredient,
     productId: ingredient.productId || buildIngredientProductId(ingredient.id),
-    assignedProducts: ingredient.assignedProducts || [],
+    assignedProducts: [...new Set(ingredient.assignedProducts || [])].sort((a, b) => a - b),
     stockBatches: normalizedBatches,
     stock: normalizedStock || ingredient.stock || 0,
   }
+}
+
+function syncIngredientAssignmentsWithProducts(ingredients: Ingredient[], products: Product[]) {
+  return ingredients.map((ingredient) => {
+    const recipeLinkedProducts = products
+      .filter((product) => product.ingredients.some((pi) => pi.ingredientId === ingredient.id))
+      .map((product) => product.id)
+
+    return normalizeIngredient({
+      ...ingredient,
+      assignedProducts: [...new Set([...(ingredient.assignedProducts || []), ...recipeLinkedProducts])],
+    })
+  })
 }
 
 function sortBatchesForFifo(stockBatches: StockBatch[]) {
@@ -204,13 +217,13 @@ export function getIngredients(): Ingredient[] {
   if (typeof window === "undefined") return defaultIngredients.map(normalizeIngredient)
   const stored = localStorage.getItem(INGREDIENTS_KEY)
   if (!stored) {
-    const seeded = defaultIngredients.map(normalizeIngredient)
+    const seeded = syncIngredientAssignmentsWithProducts(defaultIngredients.map(normalizeIngredient), getProducts())
     localStorage.setItem(INGREDIENTS_KEY, JSON.stringify(seeded))
     return seeded
   }
 
   const ingredients = JSON.parse(stored) as Ingredient[]
-  const normalized = ingredients.map(normalizeIngredient)
+  const normalized = syncIngredientAssignmentsWithProducts(ingredients.map(normalizeIngredient), getProducts())
   localStorage.setItem(INGREDIENTS_KEY, JSON.stringify(normalized))
   return normalized
 }
