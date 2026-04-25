@@ -11,7 +11,7 @@ export const validators = {
 
   // Username validation
   username: (username: string): boolean => {
-    return username && username.trim().length > 0
+    return username.trim().length > 0
   },
 
   // Password validation helpers

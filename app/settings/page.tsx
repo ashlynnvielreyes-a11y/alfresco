@@ -201,28 +201,32 @@ export default function SettingsPage() {
   const ValidationItem = ({ valid, text }: { valid: boolean; text: string }) => (
     <div className="flex items-center gap-2">
       {valid ? (
-        <Check className="h-4 w-4 text-green-500" />
+        <Check className="h-4 w-4 text-[#b2967d]" />
       ) : (
-        <X className="h-4 w-4 text-red-500" />
+        <X className="h-4 w-4 text-[#f5f1ea]0" />
       )}
-      <span className={valid ? "text-green-600" : "text-red-500"}>{text}</span>
+      <span className={valid ? "text-[#7d5a44]" : "text-[#f5f1ea]0"}>{text}</span>
     </div>
   )
 
   if (!user) return null
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-transparent">
       <Sidebar />
-      <main className="flex-1 p-4 pt-20 lg:pt-8 lg:p-8">
-        <div className="max-w-2xl mx-auto lg:mx-0">
+      <main className="relative flex-1 overflow-hidden p-4 pt-20 lg:p-8 lg:pt-8">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-0 top-10 h-64 w-64 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
+          <div className="absolute right-10 top-28 h-56 w-56 rounded-full bg-[#7d5a44]/10 blur-3xl" />
+        </div>
+        <div className="relative z-10 max-w-2xl mx-auto lg:mx-0">
           <div className="flex items-center gap-3 mb-6 lg:mb-8">
-            <Settings className="h-6 w-6 lg:h-8 lg:w-8 text-[#bb3e00]" />
+            <Settings className="h-6 w-6 lg:h-8 lg:w-8 text-[#4a342a]" />
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Settings</h1>
           </div>
 
           {/* User Info Card */}
-          <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-border mb-6 lg:mb-8">
+          <div className="rounded-xl border border-border bg-[rgba(245,241,234,0.74)] p-4 shadow-sm backdrop-blur-md lg:p-6 mb-6 lg:mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-4">Account Information</h2>
             <div className="space-y-3">
               <div className="flex justify-between">
@@ -235,7 +239,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Role</span>
-                <span className="font-medium capitalize px-3 py-1 bg-[#fff7e9] rounded-full text-sm">
+                <span className="font-medium capitalize px-3 py-1 bg-[#f5f1ea] rounded-full text-sm">
                   {user.role}
                 </span>
               </div>
@@ -243,9 +247,9 @@ export default function SettingsPage() {
           </div>
 
           {/* Change Password Card */}
-          <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-border">
+          <div className="rounded-xl border border-border bg-[rgba(245,241,234,0.74)] p-4 shadow-sm backdrop-blur-md lg:p-6">
             <div className="flex items-center gap-2 mb-4 lg:mb-6">
-              <Lock className="h-5 w-5 text-[#bb3e00]" />
+              <Lock className="h-5 w-5 text-[#4a342a]" />
               <h2 className="text-base lg:text-lg font-semibold text-foreground">Change Password</h2>
             </div>
 
@@ -264,7 +268,7 @@ export default function SettingsPage() {
                     onCopy={(e) => e.preventDefault()}
                     onCut={(e) => e.preventDefault()}
                     placeholder="Enter current password"
-                    className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none pr-12"
                     required
                   />
                   <button
@@ -291,7 +295,7 @@ export default function SettingsPage() {
                     onCopy={(e) => e.preventDefault()}
                     onCut={(e) => e.preventDefault()}
                     placeholder="Enter new password"
-                    className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none pr-12"
                     required
                   />
                   <button
@@ -330,7 +334,7 @@ export default function SettingsPage() {
                     onCopy={(e) => e.preventDefault()}
                     onCut={(e) => e.preventDefault()}
                     placeholder="Confirm new password"
-                    className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none pr-12"
                     required
                   />
                   <button
@@ -342,20 +346,20 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 {confirmPassword && newPassword !== confirmPassword && (
-                  <p className="text-red-500 text-sm mt-2">Passwords do not match</p>
+                  <p className="text-[#f5f1ea]0 text-sm mt-2">Passwords do not match</p>
                 )}
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                <div className="p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg text-[#7d5a44] text-sm">
                   {error}
                 </div>
               )}
 
               {/* Success Message */}
               {success && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+                <div className="p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg text-[#7d5a44] text-sm">
                   {success}
                 </div>
               )}
@@ -364,7 +368,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={isLoading || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-                className="w-full py-3 bg-[#bb3e00] hover:bg-[#8f2f00] disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 bg-[#4a342a] hover:bg-[#7d5a44] disabled:bg-muted disabled:text-muted-foreground text-[#f5f1ea] font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -380,9 +384,9 @@ export default function SettingsPage() {
 
           {/* Admin Void Key Card - Only for Admin */}
           {user.role === "admin" && (
-            <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm border border-border mt-6 lg:mt-8">
+            <div className="mt-6 rounded-xl border border-border bg-[rgba(245,241,234,0.74)] p-4 shadow-sm backdrop-blur-md lg:mt-8 lg:p-6">
               <div className="flex items-center gap-2 mb-4 lg:mb-6">
-                <Key className="h-5 w-5 text-[#bb3e00]" />
+                <Key className="h-5 w-5 text-[#4a342a]" />
                 <h2 className="text-base lg:text-lg font-semibold text-foreground">Admin Void Key</h2>
               </div>
 
@@ -391,7 +395,7 @@ export default function SettingsPage() {
               </p>
 
               {/* Current Void Key */}
-              <div className="mb-6 p-4 bg-[#fff7e9] rounded-lg">
+              <div className="mb-6 p-4 bg-[#f5f1ea] rounded-lg">
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Current Void Key
                 </label>
@@ -426,7 +430,7 @@ export default function SettingsPage() {
                       onCopy={(e) => e.preventDefault()}
                       onCut={(e) => e.preventDefault()}
                       placeholder="Enter new void key (min 4 characters)"
-                      className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12 font-mono tracking-widest"
+                      className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none pr-12 font-mono tracking-widest"
                       minLength={4}
                       required
                     />
@@ -442,14 +446,14 @@ export default function SettingsPage() {
 
                 {/* Error Message */}
                 {voidKeyError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                  <div className="p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg text-[#7d5a44] text-sm">
                     {voidKeyError}
                   </div>
                 )}
 
                 {/* Success Message */}
                 {voidKeySuccess && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
+                  <div className="p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg text-[#7d5a44] text-sm">
                     {voidKeySuccess}
                   </div>
                 )}
@@ -458,7 +462,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={isLoadingVoidKey || !newVoidKey || newVoidKey.length < 4}
-                  className="w-full py-3 bg-[#bb3e00] hover:bg-[#8f2f00] disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-[#4a342a] hover:bg-[#7d5a44] disabled:bg-muted disabled:text-muted-foreground text-[#f5f1ea] font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   {isLoadingVoidKey ? (
                     <>
@@ -477,4 +481,5 @@ export default function SettingsPage() {
     </div>
   )
 }
+
 

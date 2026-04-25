@@ -91,17 +91,21 @@ function AddOnsPageContent() {
 
   if (mode === "add" || mode === "edit") {
     return (
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-transparent">
         <Sidebar />
-        <main className="flex-1 flex items-center justify-center p-4 pt-20 lg:pt-6 lg:p-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6 lg:p-8 w-full max-w-lg">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] text-center mb-6 lg:mb-8">
+        <main className="relative flex-1 flex items-center justify-center overflow-hidden p-4 pt-20 lg:pt-6 lg:p-6">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute left-4 top-8 h-56 w-56 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
+            <div className="absolute bottom-12 right-12 h-56 w-56 rounded-full bg-[#b2967d]/14 blur-3xl" />
+          </div>
+          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.76)] p-6 shadow-[0_24px_56px_rgba(74,52,42,0.08)] backdrop-blur-xl lg:p-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a] text-center mb-6 lg:mb-8">
               {mode === "add" ? "Add New Add-on" : "Edit Add-on"}
             </h1>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-[#8f2f00] mb-2">
+                <label className="block text-sm font-semibold text-[#7d5a44] mb-2">
                   Add-on Name
                 </label>
                 <input
@@ -109,13 +113,13 @@ function AddOnsPageContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Extra Shot, Pearl (Boba)"
-                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border border-[#b2967d]/50 focus:ring-2 focus:ring-[#4a342a] focus:border-[#4a342a] outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-[#8f2f00] mb-2">
+                <label className="block text-sm font-semibold text-[#7d5a44] mb-2">
                   Price (P)
                 </label>
                 <input
@@ -124,13 +128,13 @@ function AddOnsPageContent() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="0.00"
-                  className="w-full px-4 py-3 rounded-lg bg-[#fff1d7] border border-[#f7a645]/50 focus:ring-2 focus:ring-[#bb3e00] focus:border-[#bb3e00] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border border-[#b2967d]/50 focus:ring-2 focus:ring-[#4a342a] focus:border-[#4a342a] outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-[#8f2f00] mb-2">
+                <label className="block text-sm font-semibold text-[#7d5a44] mb-2">
                   Category
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -139,8 +143,8 @@ function AddOnsPageContent() {
                     onClick={() => setFormData({ ...formData, category: "drink" })}
                     className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${
                       formData.category === "drink"
-                        ? "border-[#bb3e00] bg-[#fff1d7] text-[#bb3e00]"
-                        : "border-border bg-white text-muted-foreground hover:border-[#f7a645]"
+                        ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
+                        : "border-border bg-[#f5f1ea] text-muted-foreground hover:border-[#b2967d]"
                     }`}
                   >
                     <Coffee className="h-5 w-5" />
@@ -151,8 +155,8 @@ function AddOnsPageContent() {
                     onClick={() => setFormData({ ...formData, category: "meal" })}
                     className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-colors ${
                       formData.category === "meal"
-                        ? "border-[#bb3e00] bg-[#fff1d7] text-[#bb3e00]"
-                        : "border-border bg-white text-muted-foreground hover:border-[#f7a645]"
+                        ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
+                        : "border-border bg-[#f5f1ea] text-muted-foreground hover:border-[#b2967d]"
                     }`}
                   >
                     <UtensilsCrossed className="h-5 w-5" />
@@ -165,8 +169,8 @@ function AddOnsPageContent() {
                 type="submit"
                 className={`w-full py-4 font-semibold rounded-lg transition-colors ${
                   mode === "add"
-                    ? "bg-[#bb3e00] hover:bg-[#8f2f00] text-white"
-                    : "bg-[#8f2f00] hover:bg-[#6a6315] text-white"
+                    ? "bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea]"
+                    : "bg-[#7d5a44] hover:bg-[#4a342a] text-[#f5f1ea]"
                 }`}
               >
                 {mode === "add" ? "ADD ADD-ON" : "SAVE CHANGES"}
@@ -187,12 +191,17 @@ function AddOnsPageContent() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-transparent">
       <Sidebar />
-      <main className="flex-1 p-4 pt-20 lg:pt-6 lg:p-6">
+      <main className="relative flex-1 overflow-hidden p-4 pt-20 lg:pt-6 lg:p-6">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-0 top-10 h-64 w-64 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
+          <div className="absolute right-8 top-24 h-52 w-52 rounded-full bg-[#7d5a44]/10 blur-3xl" />
+        </div>
+        <div className="relative z-10">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00]">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a]">
               Add-ons Management
             </h1>
             <p className="text-muted-foreground mt-1 text-sm lg:text-base">
@@ -202,7 +211,7 @@ function AddOnsPageContent() {
 
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
           >
             <Plus className="h-5 w-5" />
             Add New
@@ -216,7 +225,7 @@ function AddOnsPageContent() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search add-ons by name or type"
-            className="w-full rounded-2xl border border-white/55 bg-white/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-sm transition-all focus:border-[#f7a645] focus:ring-2 focus:ring-[#bb3e00]/15"
+            className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-sm transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
           />
         </div>
 
@@ -226,8 +235,8 @@ function AddOnsPageContent() {
             onClick={() => setCategoryFilter("all")}
             className={`px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base ${
               categoryFilter === "all"
-                ? "bg-[#bb3e00] text-white"
-                : "bg-white border border-border text-foreground hover:bg-muted"
+                ? "bg-[#4a342a] text-[#f5f1ea]"
+                : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
             }`}
           >
             All ({addOns.length})
@@ -236,8 +245,8 @@ function AddOnsPageContent() {
             onClick={() => setCategoryFilter("drink")}
             className={`px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex items-center gap-2 ${
               categoryFilter === "drink"
-                ? "bg-[#bb3e00] text-white"
-                : "bg-white border border-border text-foreground hover:bg-muted"
+                ? "bg-[#4a342a] text-[#f5f1ea]"
+                : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
             }`}
           >
             <Coffee className="h-4 w-4" />
@@ -247,8 +256,8 @@ function AddOnsPageContent() {
             onClick={() => setCategoryFilter("meal")}
             className={`px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex items-center gap-2 ${
               categoryFilter === "meal"
-                ? "bg-[#bb3e00] text-white"
-                : "bg-white border border-border text-foreground hover:bg-muted"
+                ? "bg-[#4a342a] text-[#f5f1ea]"
+                : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
             }`}
           >
             <UtensilsCrossed className="h-4 w-4" />
@@ -261,7 +270,7 @@ function AddOnsPageContent() {
             <p className="text-muted-foreground mb-4">No add-ons found</p>
             <button
               onClick={handleAdd}
-              className="inline-flex items-center gap-2 px-5 py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors"
             >
               <Plus className="h-5 w-5" />
               Add Your First Add-on
@@ -272,14 +281,14 @@ function AddOnsPageContent() {
             {filteredAddOns.map((addOn) => (
               <div
                 key={addOn.id}
-                className="bg-white rounded-lg border border-border p-4 hover:shadow-md transition-shadow"
+                className="rounded-lg border border-border bg-[rgba(245,241,234,0.74)] p-4 backdrop-blur-md transition-shadow hover:shadow-md"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-foreground truncate">{addOn.name}</h3>
                     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full mt-1 ${
                       addOn.category === "drink"
-                        ? "bg-blue-100 text-blue-700"
+                        ? "bg-[#d7c9b8] text-[#4a342a]"
                         : "bg-amber-100 text-amber-700"
                     }`}>
                       {addOn.category === "drink" ? (
@@ -290,7 +299,7 @@ function AddOnsPageContent() {
                       {addOn.category === "drink" ? "Drink" : "Meal"}
                     </span>
                   </div>
-                  <span className="text-lg font-bold text-[#bb3e00] ml-2">
+                  <span className="text-lg font-bold text-[#4a342a] ml-2">
                     P{addOn.price.toFixed(0)}
                   </span>
                 </div>
@@ -298,23 +307,24 @@ function AddOnsPageContent() {
                 <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-border">
                   <button
                     onClick={() => handleEdit(addOn)}
-                    className="p-2 hover:bg-[#fff1d7] rounded-lg transition-colors"
+                    className="p-2 hover:bg-[#f5f1ea] rounded-lg transition-colors"
                     title="Edit"
                   >
-                    <Pencil className="h-4 w-4 text-[#8f2f00]" />
+                    <Pencil className="h-4 w-4 text-[#7d5a44]" />
                   </button>
                   <button
                     onClick={() => handleDelete(addOn.id)}
-                    className="p-2 hover:bg-[#fff1d7] rounded-lg transition-colors"
+                    className="p-2 hover:bg-[#f5f1ea] rounded-lg transition-colors"
                     title="Delete"
                   >
-                    <Trash2 className="h-4 w-4 text-[#bb3e00]" />
+                    <Trash2 className="h-4 w-4 text-[#4a342a]" />
                   </button>
                 </div>
               </div>
             ))}
           </div>
         )}
+        </div>
       </main>
     </div>
   )
@@ -323,4 +333,6 @@ function AddOnsPageContent() {
 export default function AddOnsPage() {
   return <AddOnsPageContent />
 }
+
+
 

@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, CreditCard, Smartphone, Wallet, Percent } from "lucide-react"
-import { getProducts, saveProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns } from "@/lib/store"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil } from "lucide-react"
+import { getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { createClient } from "@/lib/supabase/client"
 import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, DrinkSize, CoffeeTemperature } from "@/lib/types"
@@ -75,9 +75,8 @@ export default function POSPage() {
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null)
 
   // Payment and discount state
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "card" | "grab_pay">("cash")
-  const [discountType, setDiscountType] = useState<"none" | "senior" | "pwd" | "custom">("none")
-  const [customDiscountPercent, setCustomDiscountPercent] = useState<string>("")
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
+  const [discountType, setDiscountType] = useState<"none" | "senior" | "pwd">("none")
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -458,30 +457,18 @@ export default function POSPage() {
     return { unavailable: false }
   }, [products, ingredients])
 
-  // Calculate subtotal (before VAT and discounts)
+  // Calculate subtotal and discounts
   const subtotal = cart.reduce((sum, item) => {
     return sum + getCartItemUnitPrice(item) * item.quantity
   }, 0)
 
-  // VAT calculation (12% - standard in Philippines, VAT is already included in price)
-  const vatRate = 0.12
-  const vatableAmount = subtotal / (1 + vatRate)
-  const vatAmount = subtotal - vatableAmount
-
-  // Discount calculation
-  const getDiscountPercent = () => {
-    if (discountType === "senior" || discountType === "pwd") return 20
-    if (discountType === "custom") return parseFloat(customDiscountPercent) || 0
-    return 0
-  }
-  const discountPercent = getDiscountPercent()
+  const discountPercent = discountType === "senior" || discountType === "pwd" ? 20 : 0
   const discountAmount = (subtotal * discountPercent) / 100
 
-  // Final total
   const total = subtotal - discountAmount
   const isCashPayment = paymentMethod === "cash"
   const cash = parseFloat(cashReceived) || 0
-  const change = cash - total
+  const change = isCashPayment && cash > total ? cash - total : 0
 
   useEffect(() => {
     if (isCashPayment) return
@@ -501,7 +488,6 @@ export default function POSPage() {
       id: `#${transactionId}`,
       items: cart,
       subtotal,
-      vatAmount,
       discountType,
       discountPercent,
       discountAmount,
@@ -515,22 +501,7 @@ export default function POSPage() {
       voided: false,
     }
 
-    // Deduct ingredients
-    const updatedIngredients = [...ingredients]
-    cart.forEach((cartItem) => {
-      const product = cartItem.product
-      if (product.ingredients) {
-        product.ingredients.forEach((pi) => {
-          const ingredientIndex = updatedIngredients.findIndex((i) => i.id === pi.ingredientId)
-          if (ingredientIndex !== -1) {
-            updatedIngredients[ingredientIndex] = {
-              ...updatedIngredients[ingredientIndex],
-              stock: Math.max(0, updatedIngredients[ingredientIndex].stock - (pi.quantity * cartItem.quantity))
-            }
-          }
-        })
-      }
-    })
+    const updatedIngredients = deductCartIngredients(cart, ingredients)
 
     saveIngredients(updatedIngredients)
     await saveTransaction(transaction)
@@ -548,7 +519,6 @@ export default function POSPage() {
     // Reset payment and discount state
     setPaymentMethod("cash")
     setDiscountType("none")
-    setCustomDiscountPercent("")
   }
 
   const openVoidModal = async () => {
@@ -622,14 +592,19 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-transparent">
       <Sidebar />
 
-      <main className="flex-1 p-4 pt-20 lg:pt-6 lg:p-6 pb-4 lg:pb-6">
+      <main className="relative flex-1 overflow-hidden p-4 pb-4 pt-20 lg:p-6 lg:pb-6 lg:pt-6">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-0 top-10 h-72 w-72 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
+          <div className="absolute right-8 top-24 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
+        </div>
+        <div className="relative z-10">
         <div className="flex flex-col xl:flex-row gap-4 lg:gap-6">
           {/* Menu Section */}
           <div className="flex-1">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#bb3e00] mb-4">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a] mb-4">
               AL FRESCO MENU
             </h1>
 
@@ -641,7 +616,7 @@ export default function POSPage() {
                 placeholder="Search deliciousness..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[#bb3e00] outline-none text-base"
+                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[#4a342a] outline-none text-base"
               />
             </div>
 
@@ -653,8 +628,8 @@ export default function POSPage() {
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 lg:px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex-shrink-0 ${
                     selectedCategory === cat
-                      ? "bg-[#bb3e00] text-white"
-                      : "bg-white border border-border text-foreground hover:bg-muted"
+                      ? "bg-[#4a342a] text-[#f5f1ea]"
+                      : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
                   }`}
                 >
                   {cat}
@@ -678,17 +653,17 @@ export default function POSPage() {
                       disabled={unavailable}
                       className={`p-3 lg:p-4 rounded-lg border text-left transition-all relative ${
                         unavailable
-                          ? "border-red-300 bg-red-50 cursor-not-allowed"
-                          : "border-[#8f2f00] bg-[#fff1d7] hover:border-[#bb3e00] hover:bg-[#fff1d7]"
+                          ? "border-[#b2967d] bg-[#f5f1ea] cursor-not-allowed"
+                          : "border-[#7d5a44] bg-[#f5f1ea] hover:border-[#4a342a] hover:bg-[#f5f1ea]"
                       }`}
                     >
                       <div className="absolute top-2 right-2">
-                        <span className="text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold bg-[#8f2f00] text-white">
+                        <span className="text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold bg-[#7d5a44] text-[#f5f1ea]">
                           COMBO
                         </span>
                       </div>
                       <div className="flex justify-between items-start">
-                        <h3 className={`font-semibold pr-12 lg:pr-16 text-sm lg:text-base ${unavailable ? "text-red-600" : "text-foreground"}`}>
+                        <h3 className={`font-semibold pr-12 lg:pr-16 text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-foreground"}`}>
                           {combo.name}
                         </h3>
                       </div>
@@ -696,19 +671,19 @@ export default function POSPage() {
                         {combo.description}
                       </p>
                       <div className="flex justify-between items-center mt-2">
-                        <p className={`font-bold text-sm lg:text-base ${unavailable ? "text-red-600" : "text-[#bb3e00]"}`}>
+                        <p className={`font-bold text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
                           P{combo.price.toFixed(2)}
                         </p>
                         <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold ${
                           unavailable
-                            ? "bg-red-100 text-red-700"
-                            : "bg-[#bb3e00] text-white"
+                            ? "bg-[#d7c9b8] text-[#4a342a]"
+                            : "bg-[#4a342a] text-[#f5f1ea]"
                         }`}>
                           {comboStock}
                         </span>
                       </div>
                       {unavailable && reason && (
-                        <p className="text-[10px] lg:text-xs text-red-600 mt-1">
+                        <p className="text-[10px] lg:text-xs text-[#7d5a44] mt-1">
                           {reason}
                         </p>
                       )}
@@ -730,32 +705,32 @@ export default function POSPage() {
                     disabled={isUnavailable}
                     className={`p-3 lg:p-4 rounded-lg border text-left transition-all relative ${
                       isUnavailable
-                        ? "border-red-300 bg-red-50 cursor-not-allowed"
+                        ? "border-[#b2967d] bg-[#f5f1ea] cursor-not-allowed"
                         : inCart
-                        ? "border-[#bb3e00] bg-[#fff1d7]"
-                        : "border-border bg-white hover:border-[#bb3e00]"
+                        ? "border-[#4a342a] bg-[#f5f1ea]"
+                        : "border-border bg-[#f5f1ea] hover:border-[#4a342a]"
                     }`}
                   >
                     {hasIngredientIssue && (
                       <div className="absolute top-2 right-2" title={unavailableProducts.get(product.id)?.join(", ")}>
-                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        <AlertTriangle className="h-4 w-4 text-[#b2967d]" />
                       </div>
                     )}
                     <div className="flex justify-between items-start gap-2">
-                      <h3 className={`font-semibold text-sm lg:text-base ${isUnavailable ? "text-red-600" : "text-foreground"}`}>{product.name}</h3>
+                      <h3 className={`font-semibold text-sm lg:text-base ${isUnavailable ? "text-[#7d5a44]" : "text-foreground"}`}>{product.name}</h3>
                       <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold flex-shrink-0 ${
                         isUnavailable
-                          ? "bg-red-100 text-red-700"
-                          : "bg-[#bb3e00] text-white"
+                          ? "bg-[#d7c9b8] text-[#4a342a]"
+                          : "bg-[#4a342a] text-[#f5f1ea]"
                       }`}>
                         {availableStock}
                       </span>
                     </div>
-                    <p className={`font-bold mt-2 text-sm lg:text-base ${isUnavailable ? "text-red-600" : "text-[#bb3e00]"}`}>
+                    <p className={`font-bold mt-2 text-sm lg:text-base ${isUnavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
                       P{product.price.toFixed(2)}
                     </p>
                     {hasIngredientIssue && (
-                      <p className="text-[10px] lg:text-xs text-yellow-600 mt-1">
+                      <p className="text-[10px] lg:text-xs text-[#7d5a44] mt-1">
                         Missing ingredients
                       </p>
                     )}
@@ -774,9 +749,9 @@ export default function POSPage() {
           </div>
 
           {/* Order Panel */}
-          <div className="w-full xl:w-80 bg-white rounded-lg border border-border p-4 flex-shrink-0">
+          <div className="w-full xl:w-80 rounded-lg border border-border bg-[rgba(245,241,234,0.74)] p-4 backdrop-blur-md flex-shrink-0">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg lg:text-xl font-bold text-[#bb3e00]">Current Order</h2>
+              <h2 className="text-lg lg:text-xl font-bold text-[#4a342a]">Current Order</h2>
               <button onClick={clearCart} className="p-2 hover:bg-muted rounded-lg">
                 <Trash2 className="h-5 w-5 text-muted-foreground" />
               </button>
@@ -816,7 +791,7 @@ export default function POSPage() {
                               ))}
                             </div>
                           )}
-                          <p className="text-xs text-[#f7a645] font-medium mt-1">
+                          <p className="text-xs text-[#b2967d] font-medium mt-1">
                             P{itemTotal.toFixed(2)} each
                           </p>
                         </div>
@@ -863,12 +838,10 @@ export default function POSPage() {
                       setCashReceived("")
                     }
                   }}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#bb3e00] outline-none text-sm"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-[#f5f1ea] text-foreground focus:ring-2 focus:ring-[#4a342a] outline-none text-sm"
                 >
                   <option value="cash">Cash</option>
-                  <option value="card">Card</option>
                   <option value="gcash">GCash</option>
-                  <option value="grab_pay">Grab Pay</option>
                 </select>
               </div>
 
@@ -878,30 +851,13 @@ export default function POSPage() {
                 <select
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-white text-foreground focus:ring-2 focus:ring-[#bb3e00] outline-none text-sm"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-[#f5f1ea] text-foreground focus:ring-2 focus:ring-[#4a342a] outline-none text-sm"
                 >
                   <option value="none">No Discount</option>
                   <option value="senior">Senior Citizen (20%)</option>
                   <option value="pwd">PWD (20%)</option>
-                  <option value="custom">Custom %</option>
                 </select>
               </div>
-
-              {/* Custom Discount Percent Input */}
-              {discountType === "custom" && (
-                <div>
-                  <label className="text-xs lg:text-sm text-muted-foreground block mb-2">Discount %</label>
-                  <input
-                    type="number"
-                    value={customDiscountPercent}
-                    onChange={(e) => setCustomDiscountPercent(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    max="100"
-                    className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#bb3e00] outline-none"
-                  />
-                </div>
-              )}
 
               {/* Breakdown */}
               <div className="space-y-1 text-sm">
@@ -910,21 +866,17 @@ export default function POSPage() {
                   <span className="font-medium">P{subtotal.toFixed(2)}</span>
                 </div>
                 {discountAmount > 0 && (
-                  <div className="flex justify-between py-1 text-[#bb3e00]">
+                  <div className="flex justify-between py-1 text-[#4a342a]">
                     <span className="text-muted-foreground">Discount</span>
                     <span className="font-medium">-P{discountAmount.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-foreground">VAT (12%)</span>
-                  <span className="font-medium">P{vatAmount.toFixed(2)}</span>
-                </div>
               </div>
 
               {/* Total Amount */}
               <div className="flex justify-between items-center pt-3 border-t border-border">
                 <span className="text-sm font-semibold text-foreground">Total Amount</span>
-                <span className="text-2xl font-bold text-[#bb3e00]">
+                <span className="text-2xl font-bold text-[#4a342a]">
                   P{total.toFixed(2)}
                 </span>
               </div>
@@ -940,26 +892,31 @@ export default function POSPage() {
                   onChange={(e) => setCashReceived(e.target.value)}
                   placeholder="0.00"
                   disabled={!isCashPayment}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#bb3e00] outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#4a342a] outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
                 />
                 {!isCashPayment && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Auto-filled for {paymentMethod === "gcash" ? "GCash" : paymentMethod === "grab_pay" ? "Grab Pay" : "card"} payments.
+                    Auto-filled for GCash payments.
                   </p>
                 )}
+              </div>
+
+              <div className="flex justify-between items-center rounded-lg bg-[#f5f1ea] px-3 py-3">
+                <span className="text-sm font-semibold text-foreground">Change</span>
+                <span className="text-xl font-bold text-[#4a342a]">P{change.toFixed(2)}</span>
               </div>
 
               <button
                 onClick={confirmSale}
                 disabled={cart.length === 0 || (isCashPayment && cash < total)}
-                className="w-full py-3 bg-[#bb3e00] hover:bg-[#8f2f00] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="w-full py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 CONFIRM SALE
               </button>
 
               <button
                 onClick={openVoidModal}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                className="w-full py-3 bg-[#7d5a44] hover:bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
               >
                 <Ban className="h-4 w-4" />
                 VOID TRANSACTION
@@ -967,16 +924,17 @@ export default function POSPage() {
             </div>
           </div>
         </div>
+        </div>
       </main>
 
       {/* Add-Ons Modal */}
       {showAddOnsModal && selectedProductForAddOns && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-[400px] max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-[#bb3e00] mb-2">
+          <div className="w-full max-w-[400px] max-h-[90vh] overflow-y-auto rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.82)] p-4 backdrop-blur-xl lg:p-6">
+            <h2 className="text-xl font-bold text-[#4a342a] mb-2">
               {selectedProductForAddOns.name}
             </h2>
-            <p className="text-[#f7a645] font-bold text-lg mb-4">
+            <p className="text-[#b2967d] font-bold text-lg mb-4">
               P{selectedProductForAddOns.price.toFixed(2)}
             </p>
 
@@ -993,7 +951,7 @@ export default function POSPage() {
                         onClick={() => setSelectedSize(size)}
                         className={`rounded-lg px-3 py-2 text-sm font-medium capitalize transition-colors ${
                           isSelected
-                            ? "bg-[#fff7e9] border-2 border-[#bb3e00] text-[#8f2f00]"
+                            ? "bg-[#f5f1ea] border-2 border-[#4a342a] text-[#7d5a44]"
                             : "bg-muted hover:bg-muted/80 border-2 border-transparent text-foreground"
                         }`}
                       >
@@ -1020,7 +978,7 @@ export default function POSPage() {
                         onClick={() => setSelectedTemperature(temperature)}
                         className={`rounded-lg px-3 py-2 text-sm font-medium capitalize transition-colors ${
                           isSelected
-                            ? "bg-[#fff7e9] border-2 border-[#bb3e00] text-[#8f2f00]"
+                            ? "bg-[#f5f1ea] border-2 border-[#4a342a] text-[#7d5a44]"
                             : "bg-muted hover:bg-muted/80 border-2 border-transparent text-foreground"
                         }`}
                       >
@@ -1044,12 +1002,12 @@ export default function POSPage() {
                         onClick={() => toggleAddOn(addon)}
                         className={`w-full p-3 rounded-lg text-left transition-colors flex justify-between items-center ${
                           isSelected
-                            ? "bg-[#fff7e9] border-2 border-[#bb3e00]"
+                            ? "bg-[#f5f1ea] border-2 border-[#4a342a]"
                             : "bg-muted hover:bg-muted/80 border-2 border-transparent"
                         }`}
                       >
                         <span className="font-medium">{addon.name}</span>
-                        <span className="text-[#f7a645] font-bold">+P{addon.price}</span>
+                        <span className="text-[#b2967d] font-bold">+P{addon.price}</span>
                       </button>
                     )
                   })}
@@ -1065,12 +1023,12 @@ export default function POSPage() {
                 <p className="text-sm font-medium text-muted-foreground mb-1">Selected Add-ons:</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedAddOns.map((addon) => (
-                    <span key={addon.id} className="text-xs bg-[#bb3e00] text-white px-2 py-1 rounded-full">
+                    <span key={addon.id} className="text-xs bg-[#4a342a] text-[#f5f1ea] px-2 py-1 rounded-full">
                       {addon.name}
                     </span>
                   ))}
                 </div>
-                <p className="text-right font-bold text-[#f7a645] mt-2">
+                <p className="text-right font-bold text-[#b2967d] mt-2">
                   Total: P{(
                     selectedProductForAddOns.price +
                     getDrinkSizePriceAdjustment(productSupportsSizes(selectedProductForAddOns) ? selectedSize : undefined) +
@@ -1109,7 +1067,7 @@ export default function POSPage() {
               </button>
               <button
                 onClick={editingCartIndex !== null ? saveEditedAddOns : confirmAddToCart}
-                className="flex-1 py-3 bg-[#1a1a2e] hover:bg-[#2a2a3e] text-white font-semibold rounded-lg transition-colors"
+                className="flex-1 py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors"
               >
                 {editingCartIndex !== null ? "Save Changes" : "Add to Order"}
               </button>
@@ -1121,7 +1079,7 @@ export default function POSPage() {
       {/* Receipt Modal */}
       {showReceipt && lastTransaction && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 lg:p-8 w-full max-w-sm lg:max-w-md">
+          <div className="w-full max-w-sm rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.84)] p-6 backdrop-blur-xl lg:max-w-md lg:p-8">
             <h2 className="text-2xl font-bold text-center mb-1">AL FRESCO CAFE</h2>
             <p className="text-center text-muted-foreground mb-1">Official Receipt</p>
             <p className="text-center text-sm font-medium mb-1">
@@ -1165,10 +1123,6 @@ export default function POSPage() {
                   <span>-P{lastTransaction.discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span>VAT 12%:</span>
-                <span>P{lastTransaction.vatAmount.toFixed(2)}</span>
-              </div>
               <div className="border-t border-dashed border-border pt-2 flex justify-between font-bold text-base">
                 <span>TOTAL:</span>
                 <span>P{lastTransaction.total.toFixed(2)}</span>
@@ -1183,7 +1137,7 @@ export default function POSPage() {
               </div>
               <div className="flex justify-between pt-2">
                 <span>MODE OF PAYMENT:</span>
-                <span className="capitalize">{lastTransaction.paymentMethod === 'grab_pay' ? 'Grab Pay' : lastTransaction.paymentMethod.charAt(0).toUpperCase() + lastTransaction.paymentMethod.slice(1)}</span>
+                <span className="capitalize">{lastTransaction.paymentMethod === "gcash" ? "GCash" : "Cash"}</span>
               </div>
             </div>
 
@@ -1193,7 +1147,7 @@ export default function POSPage() {
 
 <button
   onClick={closeReceipt}
-  className="w-full py-3 bg-[#1a1a2e] text-white font-semibold rounded-lg mt-4"
+  className="w-full py-3 bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg mt-4"
   >
   DONE
   </button>
@@ -1204,9 +1158,9 @@ export default function POSPage() {
       {/* Void Transaction Modal */}
       {showVoidModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.82)] p-4 backdrop-blur-xl lg:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-[#bb3e00] flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#4a342a] flex items-center gap-2">
                 <Ban className="h-5 w-5" />
                 Void Transaction
               </h2>
@@ -1239,7 +1193,7 @@ export default function POSPage() {
                       onClick={() => setSelectedTransactionToVoid(transaction)}
                       className={`w-full p-3 rounded-lg text-left transition-colors ${
                         selectedTransactionToVoid?.id === transaction.id
-                          ? "bg-red-50 border-2 border-red-300"
+                          ? "bg-[#f5f1ea] border-2 border-[#b2967d]"
                           : "bg-muted hover:bg-muted/80 border-2 border-transparent"
                       }`}
                     >
@@ -1250,7 +1204,7 @@ export default function POSPage() {
                             {transaction.date} {transaction.time}
                           </p>
                         </div>
-                        <p className="font-bold text-[#f7a645]">
+                        <p className="font-bold text-[#b2967d]">
                           P{transaction.total.toFixed(2)}
                         </p>
                       </div>
@@ -1265,8 +1219,8 @@ export default function POSPage() {
 
             {/* Selected Transaction Details */}
             {selectedTransactionToVoid && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm font-medium text-red-700 mb-2">
+              <div className="mb-4 p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg">
+                <p className="text-sm font-medium text-[#4a342a] mb-2">
                   Selected Transaction: {selectedTransactionToVoid.id}
                 </p>
                 <div className="space-y-1 text-sm">
@@ -1276,7 +1230,7 @@ export default function POSPage() {
                       <span>P{(getCartItemUnitPrice(item) * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between font-bold pt-2 border-t border-red-200">
+                  <div className="flex justify-between font-bold pt-2 border-t border-[#d7c9b8]">
                     <span>Total:</span>
                     <span>P{selectedTransactionToVoid.total.toFixed(2)}</span>
                   </div>
@@ -1295,7 +1249,7 @@ export default function POSPage() {
                   value={voidKeyInput}
                   onChange={(e) => setVoidKeyInput(e.target.value)}
                   placeholder="Enter admin void key"
-                  className="w-full px-4 py-3 rounded-lg bg-[#fff7e9] border-0 focus:ring-2 focus:ring-[#bb3e00] outline-none pr-12 font-mono tracking-widest"
+                  className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none pr-12 font-mono tracking-widest"
                 />
                 <button
                   type="button"
@@ -1312,7 +1266,7 @@ export default function POSPage() {
 
             {/* Error Message */}
             {voidError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              <div className="mb-4 p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg text-[#7d5a44] text-sm">
                 {voidError}
               </div>
             )}
@@ -1328,7 +1282,7 @@ export default function POSPage() {
               <button
                 onClick={handleVoidTransaction}
                 disabled={!selectedTransactionToVoid || !voidKeyInput || isVoiding}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:bg-muted disabled:text-muted-foreground text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-[#7d5a44] hover:bg-[#4a342a] disabled:bg-muted disabled:text-muted-foreground text-[#f5f1ea] font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isVoiding ? (
                   <>
@@ -1349,4 +1303,5 @@ export default function POSPage() {
   </div>
   )
   }
+
 

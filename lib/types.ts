@@ -2,10 +2,28 @@ export interface StockBatch {
   id: string
   quantity: number
   dateAdded: string // ISO date string when stock was added
+  expirationDate?: string | null
+}
+
+export interface IngredientExpirationSummary {
+  usableStock: number
+  expiredStock: number
+  nextBatchId: string | null
+  nextDateAdded: string | null
+  nextExpirationDate: string | null
+  nearExpirationBatches: StockBatch[]
+  expiredBatches: StockBatch[]
+}
+
+export interface InventoryAlerts {
+  lowStockIngredients: Ingredient[]
+  expiringSoonIngredients: Ingredient[]
+  expiredIngredients: Ingredient[]
 }
 
 export interface Ingredient {
   id: number
+  productId: string
   name: string
   unit: string
   stock: number
@@ -39,6 +57,7 @@ export interface ComboMeal {
   description: string
   price: number
   items: {
+    ingredientId?: number
     productId: number
     quantity: number
   }[]
@@ -59,12 +78,11 @@ export interface Transaction {
   id: string
   items: CartItem[]
   subtotal: number
-  vatAmount: number
-  discountType?: "none" | "senior" | "pwd" | "custom"
+  discountType?: "none" | "senior" | "pwd"
   discountPercent?: number
   discountAmount: number
   total: number
-  paymentMethod: "cash" | "gcash" | "card" | "grab_pay"
+  paymentMethod: "cash" | "gcash"
   cashReceived: number
   change: number
   processedBy: string

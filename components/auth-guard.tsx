@@ -53,7 +53,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-[#bb3e00]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#4a342a]" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>

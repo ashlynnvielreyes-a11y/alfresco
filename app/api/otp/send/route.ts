@@ -75,28 +75,28 @@ export async function POST(request: NextRequest) {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fffaf1; margin: 0; padding: 20px;">
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f1ea; margin: 0; padding: 20px;">
           <div style="max-width: 500px; margin: 0 auto; background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="background-color: #bb3e00; padding: 30px; text-align: center;">
+            <div style="background-color: #4a342a; padding: 30px; text-align: center;">
               <h1 style="color: white; margin: 0; font-size: 28px;">Al Fresco Cafe</h1>
             </div>
             <div style="padding: 40px;">
-              <h2 style="color: #333; margin-bottom: 20px; text-align: center;">Email Verification</h2>
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 10px; text-align: center;">
+              <h2 style="color: #4a342a; margin-bottom: 20px; text-align: center;">Email Verification</h2>
+              <p style="color: #7d5a44; font-size: 16px; line-height: 1.5; margin-bottom: 10px; text-align: center;">
                 <strong>Account:</strong> ${email}
               </p>
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 30px; text-align: center;">
+              <p style="color: #7d5a44; font-size: 16px; line-height: 1.5; margin-bottom: 30px; text-align: center;">
                 Use the following code to verify your email address. This code will expire in 10 minutes.
               </p>
-              <div style="background-color: #fff7e9; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 30px;">
-                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #bb3e00;">${otp}</span>
+              <div style="background-color: #f5f1ea; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 30px;">
+                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #4a342a;">${otp}</span>
               </div>
-              <p style="color: #999; font-size: 14px; text-align: center;">
+              <p style="color: #b2967d; font-size: 14px; text-align: center;">
                 If you did not request this code, please ignore this email.
               </p>
             </div>
-            <div style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eee;">
-              <p style="color: #999; font-size: 12px; margin: 0;">
+            <div style="background-color: #f5f1ea; padding: 20px; text-align: center; border-top: 1px solid #d7c9b8;">
+              <p style="color: #b2967d; font-size: 12px; margin: 0;">
                 &copy; ${new Date().getFullYear()} Al Fresco Cafe. All rights reserved.
               </p>
             </div>
