@@ -668,11 +668,14 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
 
 async function syncComboMealsToSupabase(combos: ComboMeal[]) {
   const supabase = await getSupabaseBrowserClient()
-  const comboRows = combos.map((combo) => ({
+  const baseComboRows = combos.map((combo) => ({
     id: combo.id,
     name: combo.name,
-    description: combo.description,
     price: combo.price,
+  }))
+  const comboRows = combos.map((combo) => ({
+    ...baseComboRows.find((row) => row.id === combo.id),
+    description: combo.description,
     updated_at: new Date().toISOString(),
   }))
 
@@ -685,7 +688,43 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
 
   if (comboRows.length > 0) {
     const { error } = await supabase.from("combo_meals").upsert(comboRows, { onConflict: "id" })
-    if (error) throw error
+    if (error) {
+      if (
+        !isSupabaseMissingColumnError(error, "description", "combo_meals") &&
+        !isSupabaseMissingColumnError(error, "updated_at", "combo_meals")
+      ) {
+        throw error
+      }
+
+      const fallbackRows = combos.map((combo) => ({
+        ...baseComboRows.find((row) => row.id === combo.id),
+        ...(isSupabaseMissingColumnError(error, "description", "combo_meals")
+          ? {}
+          : { description: combo.description }),
+        ...(isSupabaseMissingColumnError(error, "updated_at", "combo_meals")
+          ? {}
+          : { updated_at: new Date().toISOString() }),
+      }))
+
+      const fallbackResult = await supabase.from("combo_meals").upsert(fallbackRows, { onConflict: "id" })
+      if (fallbackResult.error) {
+        const fallbackError = fallbackResult.error
+
+        if (
+          (isSupabaseMissingColumnError(error, "description", "combo_meals") &&
+            isSupabaseMissingColumnError(fallbackError, "updated_at", "combo_meals")) ||
+          (isSupabaseMissingColumnError(error, "updated_at", "combo_meals") &&
+            isSupabaseMissingColumnError(fallbackError, "description", "combo_meals"))
+        ) {
+          const legacyRows = [...baseComboRows]
+          const legacyResult = await supabase.from("combo_meals").upsert(legacyRows, { onConflict: "id" })
+          if (legacyResult.error) throw legacyResult.error
+          return
+        }
+
+        throw fallbackError
+      }
+    }
   }
 
   if (removedIds.length > 0) {
@@ -826,7 +865,7 @@ export async function initializeSupabaseStore(): Promise<void> {
       supabase.from("ingredients").select("id, name, unit, stock, product_code, product_id, expiration_date").order("id"),
       supabase.from("ingredient_assignments").select("ingredient_id, product_id"),
       supabase.from("ingredient_batches").select("*"),
-      supabase.from("combo_meals").select("*").order("id"),
+      supabase.from("combo_meals").select("id, name, description, price").order("id"),
       supabase.from("combo_meal_items").select("*"),
       supabase.from("addons").select("*"),
     ])
@@ -930,6 +969,30 @@ export async function initializeSupabaseStore(): Promise<void> {
         saveComboMealsLocally(remoteCombos)
       } else if (localCombos.length > 0) {
         queueSupabaseSync(syncComboMealsToSupabase(localCombos), "combo meals")
+      }
+    } else if (isSupabaseMissingColumnError(comboMealsResponse.error, "description", "combo_meals")) {
+      const fallbackComboMealsResponse = await supabase.from("combo_meals").select("id, name, price").order("id")
+
+      if (!fallbackComboMealsResponse.error) {
+        const remoteCombos = (fallbackComboMealsResponse.data || []).map((combo: any) => ({
+          id: combo.id,
+          name: combo.name,
+          description: "",
+          price: Number(combo.price) || 0,
+          items: (comboMealItemsResponse.data || [])
+            .filter((item: any) => item.combo_id === combo.id)
+            .map((item: any) => ({
+              ingredientId: item.ingredient_id ?? undefined,
+              productId: item.product_id,
+              quantity: Number(item.quantity) || 1,
+            })),
+        }))
+
+        if (remoteCombos.length > 0) {
+          saveComboMealsLocally(remoteCombos)
+        } else if (localCombos.length > 0) {
+          queueSupabaseSync(syncComboMealsToSupabase(localCombos), "combo meals")
+        }
       }
     }
 
