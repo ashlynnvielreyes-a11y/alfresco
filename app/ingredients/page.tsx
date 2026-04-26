@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle } from "lucide-react"
+import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
 import type { Ingredient, Product } from "@/lib/types"
 
@@ -18,7 +19,9 @@ type IngredientFormState = {
 
 function formatDate(date?: string | null) {
   if (!date) return "No expiry set"
-  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return "Invalid expiry date"
+  return parsedDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
 function getExpirationStatus(date?: string | null) {
@@ -27,11 +30,14 @@ function getExpirationStatus(date?: string | null) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const expiration = new Date(date)
+  if (Number.isNaN(expiration.getTime())) {
+    return { text: "Invalid date", tone: "bg-[#e8ddd2] text-[#7d5a44]" }
+  }
   expiration.setHours(0, 0, 0, 0)
   const diffDays = Math.ceil((expiration.getTime() - today.getTime()) / 86400000)
 
   if (diffDays < 0) return { text: "Expired", tone: "bg-red-100 text-red-700" }
-  if (diffDays <= 3) return { text: "Near expiry", tone: "bg-yellow-100 text-yellow-700" }
+  if (diffDays <= 3) return { text: "Near Expiry", tone: "bg-yellow-100 text-yellow-700" }
   return { text: "Safe", tone: "bg-green-100 text-green-700" }
 }
 
@@ -379,7 +385,7 @@ function IngredientsPageContent() {
                   placeholder="e.g. ING-016"
                   className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none disabled:bg-muted disabled:text-muted-foreground"
                   required
-                  readOnly={mode === "add"}
+                  readOnly
                 />
                 {mode === "add" ? (
                   <p className="mt-2 text-xs text-muted-foreground">
@@ -475,6 +481,16 @@ function IngredientsPageContent() {
               >
                 {mode === "add" ? "SAVE INGREDIENT" : "SAVE CHANGES"}
               </button>
+
+              {mode === "edit" && editingIngredient ? (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(editingIngredient.id)}
+                  className="w-full rounded-lg border border-red-200 bg-red-50 py-4 font-semibold text-red-700 transition-colors hover:bg-red-100"
+                >
+                  Delete Ingredient
+                </button>
+              ) : null}
 
               <button type="button" onClick={resetForm} className="w-full text-center text-muted-foreground hover:text-foreground transition-colors">
                 Cancel and Go Back
@@ -585,7 +601,7 @@ function IngredientsPageContent() {
                 <th className="text-left px-6 py-4 font-semibold text-foreground">Next Batch</th>
                 <th className="text-left px-6 py-4 font-semibold text-foreground">Next Expiration</th>
                 <th className="text-center px-6 py-4 font-semibold text-foreground">Status</th>
-                <th className="text-center px-6 py-4 font-semibold text-foreground">Actions</th>
+                <th className="w-[84px] text-center px-3 py-4 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -613,29 +629,62 @@ function IngredientsPageContent() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span>{formatDate(nextExpiration)}</span>
-                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${expirationStatus.tone}`}>{expirationStatus.text}</span>
+                    <td className="px-6 py-4 align-middle">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">{formatDate(nextExpiration)}</span>
+                        <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expirationStatus.tone}`}>{expirationStatus.text}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${status.color}`}>{status.text}</span>
+                    <td className="px-6 py-4 text-center align-middle">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm whitespace-nowrap ${status.color}`}>{status.text}</span>
+                        {(expirationStatus.text === "Expired" || expirationStatus.text === "Near Expiry") ? (
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expirationStatus.tone}`}>
+                            {expirationStatus.text}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Add stock (FIFO)">
-                          <Plus className="h-5 w-5 text-[#7d5a44]" />
-                        </button>
-                        <button onClick={() => handleAssign(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Assign to products">
-                          <Link className="h-5 w-5 text-[#4a342a]" />
-                        </button>
-                        <button onClick={() => handleEdit(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors">
-                          <Pencil className="h-5 w-5 text-muted-foreground" />
-                        </button>
-                        <button onClick={() => handleDelete(ingredient.id)} className="p-2 hover:bg-muted rounded-lg transition-colors">
-                          <Trash2 className="h-5 w-5 text-[#4a342a]" />
-                        </button>
+                    <td className="px-3 py-3 text-center align-middle">
+                      <div className="flex items-center justify-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#7d5a44] transition-colors hover:bg-[#d7c9b8]/45 hover:text-[#4a342a]"
+                              aria-label={`Open actions for ${ingredient.name}`}
+                              title="Ingredient actions"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-40 rounded-xl border-[#d7c9b8] bg-[#f5f1ea]/98 p-1.5 shadow-[0_18px_36px_rgba(74,52,42,0.12)] backdrop-blur-xl"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => handleEdit(ingredient)}
+                              className="rounded-lg text-[#7d5a44] transition-colors focus:bg-[#d7c9b8]/45 focus:text-[#4a342a]"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span>Edit</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleRestock(ingredient)}
+                              className="rounded-lg text-[#4f8a63] transition-colors focus:bg-[#dcefdc] focus:text-[#2f7d32]"
+                            >
+                              <Plus className="h-4 w-4" />
+                              <span>Add Stock</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(ingredient.id)}
+                              variant="destructive"
+                              className="rounded-lg transition-colors focus:bg-red-50 focus:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>

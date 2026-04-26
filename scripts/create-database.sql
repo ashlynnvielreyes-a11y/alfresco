@@ -500,14 +500,23 @@ ALTER TABLE ingredient_assignments ENABLE ROW LEVEL SECURITY;
 -- Drop existing policies before recreating (prevents duplicates)
 DROP POLICY IF EXISTS "Allow public read access to products" ON products;
 DROP POLICY IF EXISTS "Allow public read access to categories" ON categories;
+DROP POLICY IF EXISTS "Allow public read access to product ingredients" ON product_ingredients;
+DROP POLICY IF EXISTS "Allow public read access to ingredients" ON ingredients;
+DROP POLICY IF EXISTS "Allow public manage ingredients" ON ingredients;
+DROP POLICY IF EXISTS "Allow public manage products" ON products;
+DROP POLICY IF EXISTS "Allow public manage product_ingredients" ON product_ingredients;
+DROP POLICY IF EXISTS "Allow public manage transactions" ON transactions;
+DROP POLICY IF EXISTS "Allow public manage transaction_items" ON transaction_items;
+DROP POLICY IF EXISTS "Allow authenticated read inventory_logs" ON inventory_logs;
+DROP POLICY IF EXISTS "Allow authenticated insert inventory_logs" ON inventory_logs;
+DROP POLICY IF EXISTS "Allow public read access to ingredient assignments" ON ingredient_assignments;
+DROP POLICY IF EXISTS "Allow public manage ingredient_assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow authenticated read access to ingredients" ON ingredients;
 DROP POLICY IF EXISTS "Allow authenticated manage ingredients" ON ingredients;
 DROP POLICY IF EXISTS "Allow authenticated manage products" ON products;
 DROP POLICY IF EXISTS "Allow authenticated manage product_ingredients" ON product_ingredients;
 DROP POLICY IF EXISTS "Allow authenticated manage transactions" ON transactions;
 DROP POLICY IF EXISTS "Allow authenticated manage transaction_items" ON transaction_items;
-DROP POLICY IF EXISTS "Allow authenticated read inventory_logs" ON inventory_logs;
-DROP POLICY IF EXISTS "Allow authenticated insert inventory_logs" ON inventory_logs;
 DROP POLICY IF EXISTS "Allow authenticated manage ingredient_assignments" ON ingredient_assignments;
 
 -- Public read access for products and categories (for menu display)
@@ -517,29 +526,29 @@ CREATE POLICY "Allow public read access to products" ON products
 CREATE POLICY "Allow public read access to categories" ON categories
     FOR SELECT USING (true);
 
--- Authenticated users can read ingredients
-CREATE POLICY "Allow authenticated read access to ingredients" ON ingredients
-    FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow public read access to product ingredients" ON product_ingredients
+    FOR SELECT USING (true);
 
--- Allow authenticated users to manage ingredients
-CREATE POLICY "Allow authenticated manage ingredients" ON ingredients
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access to ingredients" ON ingredients
+    FOR SELECT USING (true);
 
--- Allow authenticated users to manage products
-CREATE POLICY "Allow authenticated manage products" ON products
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access to ingredient assignments" ON ingredient_assignments
+    FOR SELECT USING (true);
 
--- Allow authenticated users to manage product ingredients
-CREATE POLICY "Allow authenticated manage product_ingredients" ON product_ingredients
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public manage ingredients" ON ingredients
+    FOR ALL USING (true) WITH CHECK (true);
 
--- Allow authenticated users to manage transactions
-CREATE POLICY "Allow authenticated manage transactions" ON transactions
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public manage products" ON products
+    FOR ALL USING (true) WITH CHECK (true);
 
--- Allow authenticated users to manage transaction items
-CREATE POLICY "Allow authenticated manage transaction_items" ON transaction_items
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public manage product_ingredients" ON product_ingredients
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public manage transactions" ON transactions
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public manage transaction_items" ON transaction_items
+    FOR ALL USING (true) WITH CHECK (true);
 
 -- Allow authenticated users to view inventory logs
 CREATE POLICY "Allow authenticated read inventory_logs" ON inventory_logs
@@ -549,9 +558,8 @@ CREATE POLICY "Allow authenticated read inventory_logs" ON inventory_logs
 CREATE POLICY "Allow authenticated insert inventory_logs" ON inventory_logs
     FOR INSERT TO authenticated WITH CHECK (true);
 
--- Allow authenticated users to manage ingredient assignments
-CREATE POLICY "Allow authenticated manage ingredient_assignments" ON ingredient_assignments
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public manage ingredient_assignments" ON ingredient_assignments
+    FOR ALL USING (true) WITH CHECK (true);
 
 -- =====================================================
 -- 18. SEED DATA - DEFAULT INGREDIENTS

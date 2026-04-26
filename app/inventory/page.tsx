@@ -4,9 +4,25 @@ import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X, Search } from "lucide-react"
 import { initializeSupabaseStore, getProducts, addProduct, updateProduct, deleteProduct, getIngredients, getProductAvailableStock } from "@/lib/store"
-import type { Product, Ingredient, ProductIngredient } from "@/lib/types"
+import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory, PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-categories"
+import type { Product, Ingredient, ProductIngredient, ProductCategory } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit"
+
+function CategoryBadge({ category }: { category: ProductCategory }) {
+  const normalizedCategory = normalizeProductCategory(category)
+
+  return (
+    <span
+      title={normalizedCategory}
+      className="inline-flex max-w-full items-center rounded-full border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-1 text-sm font-medium leading-none whitespace-nowrap text-[#7d5a44] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]"
+    >
+      <span className="block max-w-[11rem] overflow-hidden text-ellipsis whitespace-nowrap">
+        {normalizedCategory}
+      </span>
+    </span>
+  )
+}
 
 function InventoryPageContent() {
   const [products, setProducts] = useState<Product[]>([])
@@ -16,7 +32,7 @@ function InventoryPageContent() {
   const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     name: "",
-    category: "Coffee" as Product["category"],
+    category: DEFAULT_PRODUCT_CATEGORY as Product["category"],
     price: "",
   })
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([])
@@ -32,7 +48,7 @@ function InventoryPageContent() {
   }, [])
 
   const resetForm = () => {
-    setFormData({ name: "", category: "Coffee", price: "" })
+    setFormData({ name: "", category: DEFAULT_PRODUCT_CATEGORY, price: "" })
     setProductIngredients([])
     setEditingProduct(null)
     setMode("list")
@@ -40,7 +56,7 @@ function InventoryPageContent() {
 
   const handleAdd = () => {
     setMode("add")
-    setFormData({ name: "", category: "Coffee", price: "" })
+    setFormData({ name: "", category: DEFAULT_PRODUCT_CATEGORY, price: "" })
     setProductIngredients([])
   }
 
@@ -66,7 +82,7 @@ function InventoryPageContent() {
     e.preventDefault()
     const productData = {
       name: formData.name,
-      category: formData.category,
+      category: normalizeProductCategory(formData.category),
       price: parseFloat(formData.price) || 0,
       ingredients: productIngredients,
     }
@@ -172,13 +188,14 @@ function InventoryPageContent() {
                 </label>
                 <select
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as Product["category"] })}
+                  onChange={(e) => setFormData({ ...formData, category: normalizeProductCategory(e.target.value) as Product["category"] })}
                   className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border border-border focus:ring-2 focus:ring-[#4a342a] outline-none"
                 >
-                  <option value="Coffee">Coffee</option>
-                  <option value="Milk Tea">Milk Tea</option>
-                  <option value="Fruit Tea">Fruit Tea</option>
-                  <option value="Silog">Silog</option>
+                  {PRODUCT_CATEGORY_OPTIONS.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -344,9 +361,9 @@ function InventoryPageContent() {
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-foreground truncate">{product.name}</h3>
-                  <span className="inline-block px-2 py-0.5 border border-border rounded-full text-xs mt-1">
-                    {product.category}
-                  </span>
+                  <div className="mt-1 flex items-center">
+                    <CategoryBadge category={product.category} />
+                  </div>
                 </div>
                 <span className="inline-flex items-center justify-center w-8 h-8 bg-[#4a342a] text-[#f5f1ea] rounded-full font-medium text-sm flex-shrink-0">
                   {getProductAvailableStock(product, ingredients)}
@@ -410,10 +427,10 @@ function InventoryPageContent() {
               {filteredProducts.map((product) => (
                 <tr key={product.id} className="border-b border-border last:border-0">
                   <td className="px-6 py-4 font-medium">{product.name}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 border border-border rounded-full text-sm">
-                      {product.category}
-                    </span>
+                  <td className="px-6 py-4 align-middle">
+                    <div className="flex items-center">
+                      <CategoryBadge category={product.category} />
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {product.ingredients && product.ingredients.length > 0 ? (

@@ -11,6 +11,7 @@ import type {
   IngredientExpirationSummary,
   InventoryAlerts,
 } from "./types"
+import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory } from "./product-categories"
 
 const PRODUCTS_KEY = "alfresco_products"
 const TRANSACTIONS_KEY = "alfresco_transactions"
@@ -20,6 +21,179 @@ const CURRENT_USER_KEY = "currentUserData"
 const COMBOS_KEY = "alfresco_combos"
 const ADDONS_KEY = "alfresco_addons"
 const SUPABASE_SYNC_LOCK_KEY = "alfresco_supabase_sync_running"
+const SUPABASE_SYNC_ERROR_EVENT = "alfresco:supabase-sync-error"
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return "Unknown sync error"
+  }
+}
+
+function notifySupabaseSyncError(scope: string, error: unknown) {
+  const message = getErrorMessage(error)
+  console.log("[v0] Supabase catalog sync skipped:", scope, message)
+
+  if (typeof window === "undefined") return
+
+  window.dispatchEvent(
+    new CustomEvent(SUPABASE_SYNC_ERROR_EVENT, {
+      detail: {
+        title: "Supabase Sync Failed",
+        description: `${scope}: ${message}`,
+      },
+    })
+  )
+}
+
+function isSupabaseMissingColumnError(error: unknown, columnName: string, tableName: string) {
+  const message = getErrorMessage(error).toLowerCase()
+  return (
+    message.includes(`could not find the '${columnName.toLowerCase()}' column`) &&
+    message.includes(`'${tableName.toLowerCase()}'`)
+  )
+}
+
+function isSupabaseMissingTableError(error: unknown, tableName: string) {
+  const message = getErrorMessage(error).toLowerCase()
+  return (
+    message.includes(`relation "${tableName.toLowerCase()}" does not exist`) ||
+    message.includes(`could not find the table '${tableName.toLowerCase()}'`) ||
+    message.includes(`could not find the relation '${tableName.toLowerCase()}'`)
+  )
+}
+
+function isSupabaseRlsError(error: unknown, tableName: string) {
+  if (error && typeof error === "object") {
+    const code = "code" in error && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code.toLowerCase()
+      : ""
+    const message = "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.toLowerCase()
+      : ""
+
+    if (code === "42501" && message.includes("row-level security policy") && message.includes(tableName.toLowerCase())) {
+      return true
+    }
+  }
+
+  const message = getErrorMessage(error).toLowerCase()
+  return (
+    message.includes("row-level security policy") &&
+    (message.includes(`"${tableName.toLowerCase()}"`) ||
+      message.includes(`\\"${tableName.toLowerCase()}\\"`) ||
+      message.includes(tableName.toLowerCase()))
+  )
+}
+
+function isSupabaseIdentityColumnError(error: unknown, columnName: string) {
+  if (error && typeof error === "object") {
+    const details = "details" in error && typeof (error as { details?: unknown }).details === "string"
+      ? (error as { details: string }).details.toLowerCase()
+      : ""
+    const code = "code" in error && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code.toLowerCase()
+      : ""
+
+    if (code === "428c9" && details.includes("identity column")) {
+      return true
+    }
+  }
+
+  const message = getErrorMessage(error).toLowerCase()
+  return (
+    message.includes("identity column") &&
+    (message.includes(`column "${columnName.toLowerCase()}"`) ||
+      message.includes(`column \\\"${columnName.toLowerCase()}\\\"`))
+  )
+}
+
+async function upsertLegacyAddOnRow(
+  supabase: any,
+  existingRowId: number | null,
+  addOn: AddOn,
+  options?: {
+    includeCategory?: boolean
+    includeUpdatedAt?: boolean
+  }
+) {
+  const payload = {
+    name: addOn.name,
+    price: addOn.price,
+    ...(options?.includeCategory === false ? {} : { category: addOn.category }),
+    ...(options?.includeUpdatedAt === false ? {} : { updated_at: new Date().toISOString() }),
+  }
+
+  if (existingRowId !== null) {
+    return supabase.from("addons").update(payload).eq("id", existingRowId)
+  }
+
+  return supabase.from("addons").insert(payload)
+}
+
+async function syncLegacyAddOnsToSupabase(
+  supabase: any,
+  addOns: AddOn[],
+  existingAddOns: Array<{ id: number; name?: string }> | null | undefined
+) {
+  const existingByName = new Map(
+    (existingAddOns || [])
+      .filter((row) => typeof row.name === "string" && row.name.length > 0)
+      .map((row) => [row.name as string, row.id])
+  )
+
+  let includeCategory = true
+  let includeUpdatedAt = true
+
+  for (const addOn of addOns) {
+    const existingRowId = existingByName.get(addOn.name) ?? null
+    let result = await upsertLegacyAddOnRow(supabase, existingRowId, addOn, {
+      includeCategory,
+      includeUpdatedAt,
+    })
+
+    if (result.error) {
+      if (includeCategory && isSupabaseMissingColumnError(result.error, "category", "addons")) {
+        includeCategory = false
+        result = await upsertLegacyAddOnRow(supabase, existingRowId, addOn, {
+          includeCategory,
+          includeUpdatedAt,
+        })
+      }
+
+      if (result.error && includeUpdatedAt && isSupabaseMissingColumnError(result.error, "updated_at", "addons")) {
+        includeUpdatedAt = false
+        result = await upsertLegacyAddOnRow(supabase, existingRowId, addOn, {
+          includeCategory,
+          includeUpdatedAt,
+        })
+      }
+
+      if (result.error && includeCategory && isSupabaseMissingColumnError(result.error, "category", "addons")) {
+        includeCategory = false
+        result = await upsertLegacyAddOnRow(supabase, existingRowId, addOn, {
+          includeCategory,
+          includeUpdatedAt,
+        })
+      }
+
+      if (result.error) throw result.error
+    }
+  }
+
+  const localNames = new Set(addOns.map((addOn) => addOn.name))
+  const removedLegacyIds = (existingAddOns || [])
+    .filter((row) => row.name && !localNames.has(row.name))
+    .map((row) => row.id)
+
+  if (removedLegacyIds.length > 0) {
+    const { error } = await supabase.from("addons").delete().in("id", removedLegacyIds)
+    if (error) throw error
+  }
+}
 
 const defaultIngredients: Ingredient[] = [
   { id: 1, productId: "ING-001", name: "Rice", unit: "cups", stock: 100, assignedProducts: [7, 8, 9, 10, 11, 12] },
@@ -54,6 +228,14 @@ const defaultProducts: Product[] = [
   { id: 12, name: "Spamsilog", category: "Silog", price: 95.0, ingredients: [{ ingredientId: 1, quantity: 1 }, { ingredientId: 2, quantity: 1 }, { ingredientId: 8, quantity: 1 }] },
 ]
 
+function normalizeProduct(product: Product): Product {
+  return {
+    ...product,
+    category: normalizeProductCategory(product.category),
+    ingredients: product.ingredients || [],
+  }
+}
+
 function getAuthStorage(rememberMe: boolean): Storage {
   return rememberMe ? localStorage : sessionStorage
 }
@@ -78,24 +260,47 @@ function buildIngredientProductId(id: number) {
   return `ING-${String(id).padStart(3, "0")}`
 }
 
+function normalizeExpirationDate(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    console.warn("[expiration] Invalid expiration_date received:", value)
+    return null
+  }
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 function getStartOfDay(value: string | Date) {
   const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
   date.setHours(0, 0, 0, 0)
   return date
 }
 
 export function isBatchExpired(batch: StockBatch, referenceDate: Date = new Date()) {
-  if (!batch.expirationDate) return false
-  return getStartOfDay(batch.expirationDate).getTime() < getStartOfDay(referenceDate).getTime()
+  const expirationDate = normalizeExpirationDate(batch.expirationDate)
+  const normalizedExpiry = expirationDate ? getStartOfDay(expirationDate) : null
+  const normalizedReference = getStartOfDay(referenceDate)
+  if (!normalizedExpiry || !normalizedReference) return false
+  return normalizedReference.getTime() > normalizedExpiry.getTime()
 }
 
 export function isBatchNearExpiration(batch: StockBatch, thresholdDays: number = 3, referenceDate: Date = new Date()) {
-  if (!batch.expirationDate || isBatchExpired(batch, referenceDate)) return false
+  const expirationDate = normalizeExpirationDate(batch.expirationDate)
+  if (!expirationDate || isBatchExpired(batch, referenceDate)) return false
 
-  const today = getStartOfDay(referenceDate).getTime()
-  const expiry = getStartOfDay(batch.expirationDate).getTime()
+  const normalizedReference = getStartOfDay(referenceDate)
+  const normalizedExpiry = getStartOfDay(expirationDate)
+  if (!normalizedReference || !normalizedExpiry) return false
+
+  const today = normalizedReference.getTime()
+  const expiry = normalizedExpiry.getTime()
   const diffDays = Math.ceil((expiry - today) / 86400000)
-  return diffDays <= thresholdDays
+  return diffDays >= 0 && diffDays <= thresholdDays
 }
 
 function normalizeStockBatches(stock: number, stockBatches?: StockBatch[]) {
@@ -104,7 +309,7 @@ function normalizeStockBatches(stock: number, stockBatches?: StockBatch[]) {
       ...batch,
       id: batch.id || crypto.randomUUID(),
       dateAdded: batch.dateAdded || new Date().toISOString(),
-      expirationDate: batch.expirationDate ?? null,
+      expirationDate: normalizeExpirationDate(batch.expirationDate),
     }))
   }
 
@@ -123,17 +328,34 @@ function normalizeStockBatches(stock: number, stockBatches?: StockBatch[]) {
 }
 
 function normalizeIngredient(ingredient: Ingredient): Ingredient {
-  const normalizedBatches = normalizeStockBatches(ingredient.stock, ingredient.stockBatches)
+  const fallbackExpirationDate = normalizeExpirationDate(ingredient.expirationDate)
+  const seededBatches =
+    ingredient.stockBatches && ingredient.stockBatches.length > 0
+      ? ingredient.stockBatches
+      : ingredient.stock > 0
+        ? [
+            {
+              id: crypto.randomUUID(),
+              quantity: ingredient.stock,
+              dateAdded: new Date().toISOString(),
+              expirationDate: fallbackExpirationDate,
+            },
+          ]
+        : []
+  const normalizedBatches = normalizeStockBatches(ingredient.stock, seededBatches)
   const normalizedStock = normalizedBatches
     .filter((batch) => !isBatchExpired(batch))
     .reduce((sum, batch) => sum + batch.quantity, 0)
+  const nextKnownExpirationDate =
+    normalizedBatches.find((batch) => normalizeExpirationDate(batch.expirationDate))?.expirationDate || fallbackExpirationDate
 
   return {
     ...ingredient,
     productId: ingredient.productId || buildIngredientProductId(ingredient.id),
+    expirationDate: nextKnownExpirationDate,
     assignedProducts: [...new Set(ingredient.assignedProducts || [])].sort((a, b) => a - b),
     stockBatches: normalizedBatches,
-    stock: normalizedStock || ingredient.stock || 0,
+    stock: normalizedBatches.length > 0 ? normalizedStock : ingredient.stock || 0,
   }
 }
 
@@ -224,7 +446,7 @@ function getNormalizedTransactions(list: Transaction[]): Transaction[] {
 }
 
 function saveProductsLocally(products: Product[]): void {
-  writeLocalStorage(PRODUCTS_KEY, products)
+  writeLocalStorage(PRODUCTS_KEY, products.map(normalizeProduct))
 }
 
 function saveIngredientsLocally(ingredients: Ingredient[]): void {
@@ -244,7 +466,7 @@ async function syncProductsToSupabase(products: Product[]) {
   const normalizedProducts = products.map((product) => ({
     id: product.id,
     name: product.name,
-    category: product.category,
+    category: normalizeProductCategory(product.category),
     price: product.price,
     is_available: true,
     updated_at: new Date().toISOString(),
@@ -290,13 +512,17 @@ async function syncProductsToSupabase(products: Product[]) {
 async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
   const supabase = await getSupabaseBrowserClient()
   const normalizedIngredients = ingredients.map(normalizeIngredient)
-  const ingredientRows = normalizedIngredients.map((ingredient) => ({
+  const baseIngredientRows = normalizedIngredients.map((ingredient) => ({
     id: ingredient.id,
     name: ingredient.name,
     unit: ingredient.unit,
     stock: ingredient.stock,
-    product_code: ingredient.productId,
     updated_at: new Date().toISOString(),
+  }))
+  const ingredientRows = normalizedIngredients.map((ingredient) => ({
+    ...baseIngredientRows.find((row) => row.id === ingredient.id),
+    product_code: ingredient.productId,
+    expiration_date: normalizeExpirationDate(ingredient.expirationDate),
   }))
 
   const { data: existingIngredients, error: existingError } = await supabase.from("ingredients").select("id")
@@ -308,7 +534,37 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
 
   if (ingredientRows.length > 0) {
     const { error } = await supabase.from("ingredients").upsert(ingredientRows, { onConflict: "id" })
-    if (error) throw error
+    if (error) {
+      if (isSupabaseIdentityColumnError(error, "id")) {
+        return
+      }
+
+      if (
+        !isSupabaseMissingColumnError(error, "product_code", "ingredients") &&
+        !isSupabaseMissingColumnError(error, "expiration_date", "ingredients")
+      ) {
+        throw error
+      }
+
+      const fallbackRows = baseIngredientRows.map((row) => ({
+        ...row,
+        ...(isSupabaseMissingColumnError(error, "expiration_date", "ingredients")
+          ? {}
+          : {
+              expiration_date: normalizeExpirationDate(
+                normalizedIngredients.find((ingredient) => ingredient.id === row.id)?.expirationDate
+              ),
+            }),
+      }))
+      const fallbackResult = await supabase.from("ingredients").upsert(fallbackRows, { onConflict: "id" })
+      if (fallbackResult.error) {
+        if (isSupabaseIdentityColumnError(fallbackResult.error, "id")) {
+          return
+        }
+
+        throw fallbackResult.error
+      }
+    }
   }
 
   if (removedIds.length > 0) {
@@ -320,10 +576,18 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
     const ingredientIds = normalizedIngredients.map((ingredient) => ingredient.id)
 
     const { error: deleteAssignmentsError } = await supabase.from("ingredient_assignments").delete().in("ingredient_id", ingredientIds)
-    if (deleteAssignmentsError) throw deleteAssignmentsError
+    if (
+      deleteAssignmentsError &&
+      !isSupabaseMissingTableError(deleteAssignmentsError, "ingredient_assignments") &&
+      !isSupabaseRlsError(deleteAssignmentsError, "ingredient_assignments")
+    ) {
+      throw deleteAssignmentsError
+    }
 
     const { error: deleteBatchesError } = await supabase.from("ingredient_batches").delete().in("ingredient_id", ingredientIds)
-    if (deleteBatchesError) throw deleteBatchesError
+    if (deleteBatchesError && !isSupabaseMissingTableError(deleteBatchesError, "ingredient_batches")) {
+      throw deleteBatchesError
+    }
   }
 
   const assignmentRows = normalizedIngredients.flatMap((ingredient) =>
@@ -335,8 +599,24 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
 
   if (assignmentRows.length > 0) {
     const { error } = await supabase.from("ingredient_assignments").insert(assignmentRows)
-    if (error) throw error
+    if (
+      error &&
+      !isSupabaseMissingTableError(error, "ingredient_assignments") &&
+      !isSupabaseRlsError(error, "ingredient_assignments")
+    ) {
+      throw error
+    }
   }
+
+  const baseBatchRows = normalizedIngredients.flatMap((ingredient) =>
+    (ingredient.stockBatches || []).map((batch) => ({
+      id: batch.id,
+      ingredient_id: ingredient.id,
+      quantity: batch.quantity,
+      date_added: batch.dateAdded,
+      expiration_date: batch.expirationDate,
+    }))
+  )
 
   const batchRows = normalizedIngredients.flatMap((ingredient) =>
     (ingredient.stockBatches || []).map((batch) => ({
@@ -352,7 +632,37 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
 
   if (batchRows.length > 0) {
     const { error } = await supabase.from("ingredient_batches").upsert(batchRows, { onConflict: "id" })
-    if (error) throw error
+    if (error) {
+      if (isSupabaseIdentityColumnError(error, "id")) return
+
+      if (isSupabaseMissingTableError(error, "ingredient_batches")) return
+
+      if (
+        isSupabaseMissingColumnError(error, "date_added", "ingredient_batches") ||
+        isSupabaseMissingColumnError(error, "created_at", "ingredient_batches") ||
+        isSupabaseMissingColumnError(error, "updated_at", "ingredient_batches")
+      ) {
+        const fallbackBaseRows = baseBatchRows.map((row) => ({
+          id: row.id,
+          ingredient_id: row.ingredient_id,
+          quantity: row.quantity,
+          ...(isSupabaseMissingColumnError(error, "date_added", "ingredient_batches") ? {} : { date_added: row.date_added }),
+          expiration_date: row.expiration_date,
+        }))
+
+        const fallbackResult = await supabase.from("ingredient_batches").upsert(fallbackBaseRows, { onConflict: "id" })
+        if (fallbackResult.error) {
+          if (isSupabaseIdentityColumnError(fallbackResult.error, "id")) return
+
+          if (isSupabaseMissingTableError(fallbackResult.error, "ingredient_batches")) return
+
+          throw fallbackResult.error
+        }
+        return
+      }
+
+      throw error
+    }
   }
 }
 
@@ -406,16 +716,25 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
 
 async function syncAddOnsToSupabase(addOns: AddOn[]) {
   const supabase = await getSupabaseBrowserClient()
-  const addOnRows = addOns.map((addOn) => ({
+  const baseRows = addOns.map((addOn) => ({
     id: addOn.id,
     name: addOn.name,
     price: addOn.price,
+  }))
+  const addOnRows = addOns.map((addOn) => ({
+    ...baseRows.find((row) => row.id === addOn.id),
     category: addOn.category,
     updated_at: new Date().toISOString(),
   }))
 
-  const { data: existingAddOns, error: existingError } = await supabase.from("addons").select("id")
+  const { data: existingAddOns, error: existingError } = await supabase.from("addons").select("id, name")
   if (existingError) throw existingError
+
+  const legacyIdentityTable = (existingAddOns || []).some((row: { id: unknown }) => typeof row.id === "number")
+  if (legacyIdentityTable) {
+    await syncLegacyAddOnsToSupabase(supabase, addOns, existingAddOns as Array<{ id: number; name?: string }>)
+    return
+  }
 
   const existingIds = new Set((existingAddOns || []).map((row: { id: string }) => row.id))
   const localIds = new Set(addOns.map((addOn) => addOn.id))
@@ -423,7 +742,52 @@ async function syncAddOnsToSupabase(addOns: AddOn[]) {
 
   if (addOnRows.length > 0) {
     const { error } = await supabase.from("addons").upsert(addOnRows, { onConflict: "id" })
-    if (error) throw error
+
+    if (error) {
+      if (isSupabaseIdentityColumnError(error, "id")) {
+        await syncLegacyAddOnsToSupabase(supabase, addOns, existingAddOns as Array<{ id: number; name?: string }>)
+        return
+      }
+
+      if (
+        !isSupabaseMissingColumnError(error, "category", "addons") &&
+        !isSupabaseMissingColumnError(error, "updated_at", "addons")
+      ) {
+        throw error
+      }
+
+      const fallbackRows = addOns.map((addOn) => ({
+        ...baseRows.find((row) => row.id === addOn.id),
+        ...(isSupabaseMissingColumnError(error, "category", "addons") ? {} : { category: addOn.category }),
+        ...(isSupabaseMissingColumnError(error, "updated_at", "addons")
+          ? {}
+          : { updated_at: new Date().toISOString() }),
+      }))
+
+      const fallbackResult = await supabase.from("addons").upsert(fallbackRows, { onConflict: "id" })
+      if (fallbackResult.error) {
+        const fallbackError = fallbackResult.error
+
+        if (isSupabaseIdentityColumnError(fallbackError, "id")) {
+          await syncLegacyAddOnsToSupabase(supabase, addOns, existingAddOns as Array<{ id: number; name?: string }>)
+          return
+        }
+
+        if (
+          (isSupabaseMissingColumnError(error, "category", "addons") &&
+            isSupabaseMissingColumnError(fallbackError, "updated_at", "addons")) ||
+          (isSupabaseMissingColumnError(error, "updated_at", "addons") &&
+            isSupabaseMissingColumnError(fallbackError, "category", "addons"))
+        ) {
+          const legacyRows = [...baseRows]
+          const legacyResult = await supabase.from("addons").upsert(legacyRows, { onConflict: "id" })
+          if (legacyResult.error) throw legacyResult.error
+          return
+        }
+
+        throw fallbackError
+      }
+    }
   }
 
   if (removedIds.length > 0) {
@@ -432,9 +796,9 @@ async function syncAddOnsToSupabase(addOns: AddOn[]) {
   }
 }
 
-function queueSupabaseSync(task: Promise<unknown>) {
+function queueSupabaseSync(task: Promise<unknown>, scope: string) {
   void task.catch((error) => {
-    console.log("[v0] Supabase catalog sync skipped:", error)
+    notifySupabaseSyncError(scope, error)
   })
 }
 
@@ -459,7 +823,7 @@ export async function initializeSupabaseStore(): Promise<void> {
     ] = await Promise.all([
       supabase.from("products").select("*").order("id"),
       supabase.from("product_ingredients").select("product_id, ingredient_id, quantity"),
-      supabase.from("ingredients").select("*").order("id"),
+      supabase.from("ingredients").select("id, name, unit, stock, product_code, product_id, expiration_date").order("id"),
       supabase.from("ingredient_assignments").select("ingredient_id, product_id"),
       supabase.from("ingredient_batches").select("*"),
       supabase.from("combo_meals").select("*").order("id"),
@@ -476,7 +840,7 @@ export async function initializeSupabaseStore(): Promise<void> {
       const remoteProducts = (productsResponse.data || []).map((product: any) => ({
         id: product.id,
         name: product.name,
-        category: (product.category as string) === "Pastry" ? "Fruit Tea" : (product.category as Product["category"]) || "Coffee",
+        category: normalizeProductCategory((product.category as string) || DEFAULT_PRODUCT_CATEGORY),
         price: Number(product.price) || 0,
         ingredients: (productIngredientsResponse.data || [])
           .filter((ingredient: any) => ingredient.product_id === product.id)
@@ -484,7 +848,7 @@ export async function initializeSupabaseStore(): Promise<void> {
             ingredientId: ingredient.ingredient_id,
             quantity: Number(ingredient.quantity) || 0,
           })),
-      }))
+      })).map(normalizeProduct)
 
       const remoteIngredients = syncIngredientAssignmentsWithProducts(
         (ingredientsResponse.data || []).map((ingredient: any) =>
@@ -494,6 +858,7 @@ export async function initializeSupabaseStore(): Promise<void> {
             name: ingredient.name,
             unit: ingredient.unit,
             stock: Number(ingredient.stock) || 0,
+            expirationDate: normalizeExpirationDate(ingredient.expiration_date),
             assignedProducts: (ingredientAssignmentsResponse.data || [])
               .filter((assignment: any) => assignment.ingredient_id === ingredient.id)
               .map((assignment: any) => assignment.product_id),
@@ -503,23 +868,46 @@ export async function initializeSupabaseStore(): Promise<void> {
                 id: batch.id,
                 quantity: Number(batch.quantity) || 0,
                 dateAdded: batch.date_added || batch.created_at || new Date().toISOString(),
-                expirationDate: batch.expiration_date || null,
+                expirationDate: normalizeExpirationDate(batch.expiration_date),
               })),
           })
         ),
         remoteProducts
       )
 
+      console.log(
+        "[expiration] Supabase ingredients fetched:",
+        (ingredientsResponse.data || []).map((ingredient: any) => ({
+          id: ingredient.id,
+          name: ingredient.name,
+          expiration_date: ingredient.expiration_date ?? null,
+        }))
+      )
+      console.log(
+        "[expiration] Normalized ingredient expiry state:",
+        remoteIngredients.map((ingredient) => {
+          const summary = getIngredientExpirationSummary(ingredient)
+          return {
+            id: ingredient.id,
+            name: ingredient.name,
+            expirationDate: ingredient.expirationDate ?? null,
+            nextExpirationDate: summary.nextExpirationDate,
+            expiredBatches: summary.expiredBatches.length,
+            nearExpirationBatches: summary.nearExpirationBatches.length,
+          }
+        })
+      )
+
       if (remoteProducts.length > 0) {
         saveProductsLocally(remoteProducts)
       } else if (localProducts.length > 0) {
-        queueSupabaseSync(syncProductsToSupabase(localProducts))
+        queueSupabaseSync(syncProductsToSupabase(localProducts), "products")
       }
 
       if (remoteIngredients.length > 0) {
         saveIngredientsLocally(remoteIngredients)
       } else if (localIngredients.length > 0) {
-        queueSupabaseSync(syncIngredientsToSupabase(localIngredients))
+        queueSupabaseSync(syncIngredientsToSupabase(localIngredients), "ingredients")
       }
     }
 
@@ -541,29 +929,33 @@ export async function initializeSupabaseStore(): Promise<void> {
       if (remoteCombos.length > 0) {
         saveComboMealsLocally(remoteCombos)
       } else if (localCombos.length > 0) {
-        queueSupabaseSync(syncComboMealsToSupabase(localCombos))
+        queueSupabaseSync(syncComboMealsToSupabase(localCombos), "combo meals")
       }
     }
 
     if (!addOnsResponse.error) {
+      const localAddOnMetadata = new Map(
+        localAddOns.map((addOn) => [
+          addOn.id,
+          {
+            category: addOn.category,
+            ingredientId: addOn.ingredientId,
+            productId: addOn.productId,
+            quantity: addOn.quantity,
+          },
+        ])
+      )
+
       const remoteAddOns = (addOnsResponse.data || []).map((addOn: any) => ({
         id: addOn.id,
         name: addOn.name,
         price: Number(addOn.price) || 0,
-        category: (addOn.category === "meal" ? "meal" : "drink") as AddOn["category"],
+        category: (addOn.category === "meal"
+          ? "meal"
+          : localAddOnMetadata.get(addOn.id)?.category || "drink") as AddOn["category"],
       }))
 
       if (remoteAddOns.length > 0) {
-        const localAddOnMetadata = new Map(
-          localAddOns.map((addOn) => [
-            addOn.id,
-            {
-              ingredientId: addOn.ingredientId,
-              productId: addOn.productId,
-              quantity: addOn.quantity,
-            },
-          ])
-        )
         saveAddOnsLocally(
           remoteAddOns.map((addOn) => ({
             ...addOn,
@@ -571,7 +963,7 @@ export async function initializeSupabaseStore(): Promise<void> {
           }))
         )
       } else if (localAddOns.length > 0) {
-        queueSupabaseSync(syncAddOnsToSupabase(localAddOns))
+        queueSupabaseSync(syncAddOnsToSupabase(localAddOns), "add-ons")
       }
     }
   } catch (error) {
@@ -601,7 +993,7 @@ export function saveIngredients(ingredients: Ingredient[]): void {
   if (typeof window === "undefined") return
   const normalized = ingredients.map(normalizeIngredient)
   saveIngredientsLocally(normalized)
-  queueSupabaseSync(syncIngredientsToSupabase(normalized))
+  queueSupabaseSync(syncIngredientsToSupabase(normalized), "ingredients")
 }
 
 export function addIngredient(ingredient: Omit<Ingredient, "id">): Ingredient {
@@ -765,10 +1157,17 @@ export function checkIngredientAvailability(product: Product, quantity: number, 
 
   for (const pi of product.ingredients) {
     const ingredient = ingredients.find((i) => i.id === pi.ingredientId)
-    const availableStock = ingredient ? getIngredientExpirationSummary(ingredient).usableStock : 0
+    const summary = ingredient ? getIngredientExpirationSummary(ingredient) : null
+    const availableStock = summary ? summary.usableStock : 0
     if (!ingredient || availableStock < pi.quantity * quantity) {
       if (ingredient) {
-        missingIngredients.push(`${ingredient.name} (need ${pi.quantity * quantity} ${ingredient.unit}, have ${availableStock})`)
+        if (summary && summary.expiredBatches.length > 0 && availableStock <= 0) {
+          missingIngredients.push(`${ingredient.name} (expired)`)
+        } else if (summary && summary.nearExpirationBatches.length > 0 && availableStock > 0) {
+          missingIngredients.push(`${ingredient.name} (limited usable stock: ${availableStock} ${ingredient.unit})`)
+        } else {
+          missingIngredients.push(`${ingredient.name} (need ${pi.quantity * quantity} ${ingredient.unit}, have ${availableStock})`)
+        }
       }
     }
   }
@@ -781,29 +1180,31 @@ export function getProducts(): Product[] {
   if (typeof window === "undefined") return defaultProducts
   const stored = localStorage.getItem(PRODUCTS_KEY)
   if (!stored) {
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts))
+    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts.map(normalizeProduct)))
     return defaultProducts
   }
   const products = JSON.parse(stored) as Array<Product & { category?: string }>
-  const normalizedProducts = products.map((p) => ({
-    ...p,
-    category: (p.category as string) === "Pastry" ? "Fruit Tea" : p.category,
-    ingredients: p.ingredients || [],
-  }))
+  const normalizedProducts = products.map((p) =>
+    normalizeProduct({
+      ...p,
+      category: normalizeProductCategory(p.category),
+    } as Product)
+  )
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(normalizedProducts))
   return normalizedProducts
 }
 
 export function saveProducts(products: Product[]): void {
   if (typeof window === "undefined") return
-  saveProductsLocally(products)
-  queueSupabaseSync(syncProductsToSupabase(products))
+  const normalizedProducts = products.map(normalizeProduct)
+  saveProductsLocally(normalizedProducts)
+  queueSupabaseSync(syncProductsToSupabase(normalizedProducts), "products")
 }
 
 export function addProduct(product: Omit<Product, "id">): Product {
   const products = getProducts()
   const newId = Math.max(...products.map((p) => p.id), 0) + 1
-  const newProduct = { ...product, id: newId, ingredients: product.ingredients || [] }
+  const newProduct = normalizeProduct({ ...product, id: newId, ingredients: product.ingredients || [] })
   products.push(newProduct)
   saveProducts(products)
   return newProduct
@@ -813,7 +1214,7 @@ export function updateProduct(id: number, updates: Partial<Product>): Product | 
   const products = getProducts()
   const index = products.findIndex((p) => p.id === id)
   if (index === -1) return null
-  products[index] = { ...products[index], ...updates }
+  products[index] = normalizeProduct({ ...products[index], ...updates } as Product)
   saveProducts(products)
   return products[index]
 }
@@ -1257,7 +1658,7 @@ export function getComboMeals(): ComboMeal[] {
 export function saveComboMeals(combos: ComboMeal[]): void {
   if (typeof window === "undefined") return
   saveComboMealsLocally(combos)
-  queueSupabaseSync(syncComboMealsToSupabase(combos))
+  queueSupabaseSync(syncComboMealsToSupabase(combos), "combo meals")
 }
 
 export function addComboMeal(combo: Omit<ComboMeal, "id">): ComboMeal {
@@ -1317,7 +1718,7 @@ export function getAddOns(): AddOn[] {
 export function saveAddOns(addOns: AddOn[]): void {
   if (typeof window === "undefined") return
   saveAddOnsLocally(addOns)
-  queueSupabaseSync(syncAddOnsToSupabase(addOns))
+  queueSupabaseSync(syncAddOnsToSupabase(addOns), "add-ons")
 }
 
 export function addAddOn(addOn: Omit<AddOn, "id">): AddOn {

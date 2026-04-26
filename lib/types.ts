@@ -27,6 +27,7 @@ export interface Ingredient {
   name: string
   unit: string
   stock: number
+  expirationDate?: string | null
   stockBatches?: StockBatch[] // FIFO batches for stock tracking
   assignedProducts: number[] // Product IDs this ingredient is assigned to
 }
@@ -36,10 +37,13 @@ export interface ProductIngredient {
   quantity: number
 }
 
+export type KnownProductCategory = "Coffee" | "Milk Tea" | "Fruit Tea" | "Silog"
+export type ProductCategory = KnownProductCategory | (string & {})
+
 export interface Product {
   id: number
   name: string
-  category: "Coffee" | "Milk Tea" | "Fruit Tea" | "Silog"
+  category: ProductCategory
   price: number
   ingredients: ProductIngredient[]
 }

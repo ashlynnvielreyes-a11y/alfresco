@@ -493,6 +493,14 @@ export default function POSPage() {
     const isValidPayment = isCashPayment ? cash >= total : true
     if (cart.length === 0 || !isValidPayment) return
 
+    for (const cartItem of cart) {
+      const { available, missingIngredients } = checkIngredientAvailability(cartItem.product, cartItem.quantity, ingredients)
+      if (!available) {
+        alert(`Cannot process order. ${cartItem.product.name} uses unavailable ingredients: ${missingIngredients.join(", ")}`)
+        return
+      }
+    }
+
     const now = new Date()
     const transactions = await getTransactions()
     const transactionId = String(transactions.length + 1).padStart(5, "0")

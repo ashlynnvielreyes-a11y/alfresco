@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
+import { SalesSnapshotCard } from "@/components/sales-snapshot-card"
+import type { SalesSnapshotData } from "@/components/sales-snapshot-card"
 import { FileText, Calendar, Download, TrendingUp } from "lucide-react"
 import {
   initializeSupabaseStore,
@@ -96,6 +98,83 @@ function getWeekNumber(date: Date) {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
 }
 
+function formatDateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function addDays(date: Date, amount: number) {
+  const nextDate = new Date(date)
+  nextDate.setDate(nextDate.getDate() + amount)
+  return nextDate
+}
+
+function addMonths(date: Date, amount: number) {
+  const nextDate = new Date(date)
+  nextDate.setMonth(nextDate.getMonth() + amount)
+  return nextDate
+}
+
+function startOfWeek(date: Date) {
+  const nextDate = new Date(date)
+  const day = nextDate.getDay()
+  nextDate.setDate(nextDate.getDate() - day)
+  nextDate.setHours(0, 0, 0, 0)
+  return nextDate
+}
+
+function endOfWeek(date: Date) {
+  const nextDate = startOfWeek(date)
+  nextDate.setDate(nextDate.getDate() + 6)
+  nextDate.setHours(0, 0, 0, 0)
+  return nextDate
+}
+
+function buildTrendLabel(currentValue: number, previousValue: number) {
+  if (previousValue === 0) {
+    if (currentValue === 0) {
+      return {
+        trendDirection: "neutral" as const,
+        trendPercentage: 0,
+        trendLabel: "No change",
+      }
+    }
+
+    return {
+      trendDirection: "positive" as const,
+      trendPercentage: 100,
+      trendLabel: "+100% increase",
+    }
+  }
+
+  const rawPercentage = ((currentValue - previousValue) / previousValue) * 100
+  const roundedPercentage = Math.round(Math.abs(rawPercentage) * 10) / 10
+
+  if (rawPercentage > 0) {
+    return {
+      trendDirection: "positive" as const,
+      trendPercentage: roundedPercentage,
+      trendLabel: `+${roundedPercentage}% increase`,
+    }
+  }
+
+  if (rawPercentage < 0) {
+    return {
+      trendDirection: "negative" as const,
+      trendPercentage: roundedPercentage,
+      trendLabel: `-${roundedPercentage}% decrease`,
+    }
+  }
+
+  return {
+    trendDirection: "neutral" as const,
+    trendPercentage: 0,
+    trendLabel: "No change",
+  }
+}
+
 export default function SalesHistoryPage() {
   const defaults = getDefaultRange()
   const [fromDate, setFromDate] = useState(defaults.fromDate)
@@ -108,6 +187,48 @@ export default function SalesHistoryPage() {
   const [weeklySales, setWeeklySales] = useState(0)
   const [monthlySales, setMonthlySales] = useState(0)
   const [yearlySales, setYearlySales] = useState(0)
+  const [salesSnapshotData, setSalesSnapshotData] = useState<SalesSnapshotData>({
+    daily: {
+      label: "Daily Sales",
+      value: 0,
+      comparisonLabel: "Compared with yesterday",
+      trendLabel: "No change",
+      trendDirection: "neutral" as const,
+      trendPercentage: 0,
+      sparkline: [0, 0, 0, 0, 0, 0, 0],
+      sparklineLabel: "Last 7 days",
+    },
+    weekly: {
+      label: "Weekly Sales",
+      value: 0,
+      comparisonLabel: "Compared with last week",
+      trendLabel: "No change",
+      trendDirection: "neutral" as const,
+      trendPercentage: 0,
+      sparkline: [0, 0, 0, 0, 0, 0, 0, 0],
+      sparklineLabel: "Last 8 weeks",
+    },
+    monthly: {
+      label: "Monthly Sales",
+      value: 0,
+      comparisonLabel: "Compared with last month",
+      trendLabel: "No change",
+      trendDirection: "neutral" as const,
+      trendPercentage: 0,
+      sparkline: [0, 0, 0, 0, 0, 0],
+      sparklineLabel: "Last 6 months",
+    },
+    yearly: {
+      label: "Yearly Sales",
+      value: 0,
+      comparisonLabel: "Compared with last year",
+      trendLabel: "No change",
+      trendDirection: "neutral" as const,
+      trendPercentage: 0,
+      sparkline: [0, 0, 0, 0, 0],
+      sparklineLabel: "Last 5 years",
+    },
+  })
   const [salesOverTime, setSalesOverTime] = useState<SalesOverTimePoint[]>([])
   const [salesByCategory, setSalesByCategory] = useState<SalesByCategory[]>([])
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
@@ -121,17 +242,118 @@ export default function SalesHistoryPage() {
       const today = new Date()
 
       if (startDate > endDate) return
+      const todayKey = formatDateKey(today)
+      const previousDay = addDays(today, -1)
+      const previousWeekDate = addDays(today, -7)
+      const previousWeekStart = startOfWeek(previousWeekDate)
+      const previousWeekEnd = endOfWeek(previousWeekDate)
+      const previousMonthDate = addMonths(today, -1)
+      const previousYear = today.getFullYear() - 1
 
-      setTransactions(await getTransactionsByDateRange(fromDate, toDate))
-      setRangeTotal(await getSalesTotalByDateRange(fromDate, toDate))
-      setDailySales(await getDailySales(today.toISOString().split("T")[0]))
-      setWeeklySales(await getWeeklySales(today.getFullYear(), getWeekNumber(today)))
-      setMonthlySales(await getMonthlySales(today.getFullYear(), today.getMonth()))
-      setYearlySales(await getYearlySales(today.getFullYear()))
-      setSalesOverTime(await getSalesOverTime(startDate, endDate))
-      setSalesByCategory(await getSalesByCategory(startDate, endDate))
-      setTopProducts(await getTopProducts(startDate, endDate, 5))
-      setPeakHours(await getPeakHours(startDate, endDate))
+      const [
+        nextTransactions,
+        nextRangeTotal,
+        nextDailySales,
+        nextWeeklySales,
+        nextMonthlySales,
+        nextYearlySales,
+        nextSalesOverTime,
+        nextSalesByCategory,
+        nextTopProducts,
+        nextPeakHours,
+        previousDailySales,
+        previousWeeklySales,
+        previousMonthlySales,
+        previousYearlySales,
+        dailySparkline,
+        weeklySparkline,
+        monthlySparkline,
+        yearlySparkline,
+      ] = await Promise.all([
+        getTransactionsByDateRange(fromDate, toDate),
+        getSalesTotalByDateRange(fromDate, toDate),
+        getDailySales(todayKey),
+        getWeeklySales(today.getFullYear(), getWeekNumber(today)),
+        getMonthlySales(today.getFullYear(), today.getMonth()),
+        getYearlySales(today.getFullYear()),
+        getSalesOverTime(startDate, endDate),
+        getSalesByCategory(startDate, endDate),
+        getTopProducts(startDate, endDate, 5),
+        getPeakHours(startDate, endDate),
+        getDailySales(formatDateKey(previousDay)),
+        getSalesTotalByDateRange(formatDateKey(previousWeekStart), formatDateKey(previousWeekEnd)),
+        getMonthlySales(previousMonthDate.getFullYear(), previousMonthDate.getMonth()),
+        getYearlySales(previousYear),
+        Promise.all(
+          Array.from({ length: 7 }, (_, index) => {
+            const date = addDays(today, index - 6)
+            return getDailySales(formatDateKey(date))
+          })
+        ),
+        Promise.all(
+          Array.from({ length: 8 }, (_, index) => {
+            const weekAnchor = addDays(today, (index - 7) * 7)
+            const weekStart = startOfWeek(weekAnchor)
+            const weekEnd = endOfWeek(weekAnchor)
+            return getSalesTotalByDateRange(formatDateKey(weekStart), formatDateKey(weekEnd))
+          })
+        ),
+        Promise.all(
+          Array.from({ length: 6 }, (_, index) => {
+            const monthDate = addMonths(today, index - 5)
+            return getMonthlySales(monthDate.getFullYear(), monthDate.getMonth())
+          })
+        ),
+        Promise.all(
+          Array.from({ length: 5 }, (_, index) => getYearlySales(today.getFullYear() + index - 4))
+        ),
+      ])
+
+      setTransactions(nextTransactions)
+      setRangeTotal(nextRangeTotal)
+      setDailySales(nextDailySales)
+      setWeeklySales(nextWeeklySales)
+      setMonthlySales(nextMonthlySales)
+      setYearlySales(nextYearlySales)
+      setSalesOverTime(nextSalesOverTime)
+      setSalesByCategory(nextSalesByCategory)
+      setTopProducts(nextTopProducts)
+      setPeakHours(nextPeakHours)
+
+      setSalesSnapshotData({
+        daily: {
+          label: "Daily Sales",
+          value: nextDailySales,
+          comparisonLabel: "Compared with yesterday",
+          sparkline: dailySparkline,
+          sparklineLabel: "Last 7 days",
+          ...buildTrendLabel(nextDailySales, previousDailySales),
+        },
+        weekly: {
+          label: "Weekly Sales",
+          value: nextWeeklySales,
+          comparisonLabel: "Compared with last week",
+          sparkline: weeklySparkline,
+          sparklineLabel: "Last 8 weeks",
+          ...buildTrendLabel(nextWeeklySales, previousWeeklySales),
+        },
+        monthly: {
+          label: "Monthly Sales",
+          value: nextMonthlySales,
+          comparisonLabel: "Compared with last month",
+          sparkline: monthlySparkline,
+          sparklineLabel: "Last 6 months",
+          ...buildTrendLabel(nextMonthlySales, previousMonthlySales),
+        },
+        yearly: {
+          label: "Yearly Sales",
+          value: nextYearlySales,
+          comparisonLabel: "Compared with last year",
+          sparkline: yearlySparkline,
+          sparklineLabel: "Last 5 years",
+          ...buildTrendLabel(nextYearlySales, previousYearlySales),
+        },
+      })
     }
 
     loadData()
@@ -149,6 +371,43 @@ export default function SalesHistoryPage() {
     a.download = `sales-${fromDate}-to-${toDate}.csv`
     a.click()
   }
+
+  const averageTicket = transactions.length ? rangeTotal / transactions.length : 0
+  const topProductLabel = topProducts[0]?.name || "No sales yet"
+  const salesCards = [
+    {
+      label: "Range Sales",
+      value: `\u20B1${rangeTotal.toFixed(2)}`,
+      detail: `${fromDate} to ${toDate}`,
+      tint: "from-[#4a342a] via-[#7d5a44] to-[#b2967d]",
+      light: false,
+      span: "",
+    },
+    {
+      label: "Transactions",
+      value: String(transactions.length),
+      detail: "Completed orders in the selected range",
+      tint: "from-[#b2967d] via-[#d7c9b8] to-[#f5f1ea]",
+      light: true,
+      span: "",
+    },
+    {
+      label: "Top Product",
+      value: topProductLabel,
+      detail: topProducts[0] ? `${topProducts[0].quantity} sold in selected range` : "No recorded sales for this range",
+      tint: "from-[#7d5a44] via-[#b2967d] to-[#d7c9b8]",
+      light: false,
+      span: "",
+    },
+    {
+      label: "Average Ticket",
+      value: `\u20B1${averageTicket.toFixed(2)}`,
+      detail: "Average value per transaction",
+      tint: "from-[#f5f1ea] via-[#d7c9b8] to-[#b2967d]",
+      light: true,
+      span: "",
+    },
+  ]
 
   return (
     <div className="flex min-h-screen bg-transparent">
@@ -195,58 +454,28 @@ export default function SalesHistoryPage() {
           </div>
         </div>
 
-        <div className="relative mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:mb-8 lg:grid-cols-4 lg:gap-4">
-          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#4a342a] to-[#7d5a44] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
-            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
-              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Range Sales</p>
-              <p className="mt-2 text-xl font-bold lg:text-2xl">{`\u20B1${rangeTotal.toFixed(2)}`}</p>
-            </div>
-          </div>
+        <div className="relative mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 lg:mb-8 lg:gap-4">
+          {salesCards.map((card) => (
+            <div
+              key={card.label}
+              className={`group relative overflow-hidden rounded-[24px] border border-[#f5f1ea]/55 bg-gradient-to-br ${card.tint} p-[1px] shadow-[0_18px_36px_rgba(123,111,25,0.10)] ${card.span}`}
+            >
+              <div className={`relative h-full rounded-[23px] p-5 backdrop-blur-sm lg:p-6 ${card.light ? "bg-[#f5f1ea]/88 text-[#4a342a]" : "bg-[rgba(245,241,234,0.14)] text-[#f5f1ea]"}`}>
+                <div className="absolute inset-x-0 top-0 h-px bg-[#f5f1ea]/45" />
+                <div className={`absolute -right-6 -top-6 h-20 w-20 rounded-full ${card.light ? "bg-[#f5f1ea]/35" : "bg-[#f5f1ea]/10"} blur-sm transition-transform duration-300 group-hover:scale-110`} />
 
-          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#6f8a72] to-[#b7c8b5] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)] sm:col-span-2">
-            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
-              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Sales Snapshot</p>
-              <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Daily</p>
-                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${dailySales.toFixed(2)}`}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Weekly</p>
-                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${weeklySales.toFixed(2)}`}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Monthly</p>
-                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${monthlySales.toFixed(2)}`}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Yearly</p>
-                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${yearlySales.toFixed(2)}`}</p>
+                <div className="relative">
+                  <p className={`mb-1 text-sm ${card.light ? "text-[#7d5a44]" : "text-[#f5f1ea]/75"}`}>{card.label}</p>
+                  <p className={`text-2xl font-bold ${card.label === "Top Product" ? "lg:text-[2rem]" : "lg:text-3xl"}`}>{card.value}</p>
+                  <p className={`mt-3 text-xs leading-5 ${card.light ? "text-[#7d5a44]" : "text-[#f5f1ea]/70"}`}>{card.detail}</p>
                 </div>
               </div>
             </div>
-          </div>
+          ))}
+        </div>
 
-          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#b2967d] to-[#b2967d] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
-            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
-              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Transactions</p>
-              <p className="mt-2 text-xl font-bold lg:text-2xl">{String(transactions.length)}</p>
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#7d5a44] to-[#b2967d] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
-            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
-              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Top Product</p>
-              <p className="mt-2 text-xl font-bold lg:text-2xl">{topProducts[0]?.name || "No sales yet"}</p>
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#4a342a] to-[#b2967d] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
-            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
-              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Average Ticket</p>
-              <p className="mt-2 text-xl font-bold lg:text-2xl">{`\u20B1${(transactions.length ? rangeTotal / transactions.length : 0).toFixed(2)}`}</p>
-            </div>
-          </div>
+        <div className="relative mb-6 lg:mb-8">
+          <SalesSnapshotCard data={salesSnapshotData} />
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:mb-8 lg:grid-cols-2 lg:gap-8">

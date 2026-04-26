@@ -83,6 +83,32 @@ CREATE TABLE IF NOT EXISTS addons (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE addons
+  ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+
+ALTER TABLE addons
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE addons
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+UPDATE addons
+SET category = 'drink'
+WHERE category IS NULL;
+
+ALTER TABLE addons
+  ALTER COLUMN category SET DEFAULT 'drink';
+
+ALTER TABLE addons
+  ALTER COLUMN category SET NOT NULL;
+
+ALTER TABLE addons
+  DROP CONSTRAINT IF EXISTS addons_category_check;
+
+ALTER TABLE addons
+  ADD CONSTRAINT addons_category_check
+  CHECK (category IN ('drink', 'meal'));
+
 CREATE TABLE IF NOT EXISTS admin_settings (
   id INT PRIMARY KEY,
   void_key TEXT,
@@ -93,3 +119,41 @@ CREATE TABLE IF NOT EXISTS admin_settings (
 INSERT INTO admin_settings (id, void_key)
 VALUES (1, NULL)
 ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE ingredient_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE combo_meals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE combo_meal_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE addons ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read access to ingredient batches" ON ingredient_batches;
+DROP POLICY IF EXISTS "Allow public manage ingredient_batches" ON ingredient_batches;
+DROP POLICY IF EXISTS "Allow public read access to combo meals" ON combo_meals;
+DROP POLICY IF EXISTS "Allow public manage combo meals" ON combo_meals;
+DROP POLICY IF EXISTS "Allow public read access to combo meal items" ON combo_meal_items;
+DROP POLICY IF EXISTS "Allow public manage combo meal items" ON combo_meal_items;
+DROP POLICY IF EXISTS "Allow public read access to add-ons" ON addons;
+DROP POLICY IF EXISTS "Allow public manage add-ons" ON addons;
+
+CREATE POLICY "Allow public read access to ingredient batches" ON ingredient_batches
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage ingredient_batches" ON ingredient_batches
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to combo meals" ON combo_meals
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage combo meals" ON combo_meals
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to combo meal items" ON combo_meal_items
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage combo meal items" ON combo_meal_items
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to add-ons" ON addons
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage add-ons" ON addons
+  FOR ALL USING (true) WITH CHECK (true);
