@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X, Coffee, UtensilsCrossed, Search } from "lucide-react"
-import { getAddOns, addAddOn, updateAddOn, deleteAddOn } from "@/lib/store"
+import { initializeSupabaseStore, getAddOns, addAddOn, updateAddOn, deleteAddOn } from "@/lib/store"
 import type { AddOn } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit"
@@ -22,7 +22,12 @@ function AddOnsPageContent() {
   })
 
   useEffect(() => {
-    setAddOns(getAddOns())
+    const loadData = async () => {
+      await initializeSupabaseStore()
+      setAddOns(getAddOns())
+    }
+
+    void loadData()
   }, [])
 
   const resetForm = () => {

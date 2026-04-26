@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle } from "lucide-react"
-import { getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
+import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
 import type { Ingredient, Product } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit" | "assign" | "restock"
@@ -61,8 +61,13 @@ function IngredientsPageContent() {
   const [draftDateAdded, setDraftDateAdded] = useState("")
 
   useEffect(() => {
-    setIngredients(getIngredients())
-    setProducts(getProducts())
+    const loadData = async () => {
+      await initializeSupabaseStore()
+      setIngredients(getIngredients())
+      setProducts(getProducts())
+    }
+
+    void loadData()
   }, [])
 
   const resetForm = () => {

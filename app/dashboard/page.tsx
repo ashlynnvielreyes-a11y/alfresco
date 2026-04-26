@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { getProducts, getIngredients, getProductAvailableStock, verifyDataPersistence, getTransactionsByDateRange, getSalesTotalByDateRange, getTopProducts, getInventoryAlerts, getIngredientExpirationSummary } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, getIngredients, getProductAvailableStock, verifyDataPersistence, getTransactionsByDateRange, getSalesTotalByDateRange, getTopProducts, getInventoryAlerts, getIngredientExpirationSummary } from "@/lib/store"
 import type { Product, Transaction, Ingredient } from "@/lib/types"
 import { Package, ShoppingCart, TrendingUp, DollarSign, CalendarRange } from "lucide-react"
 
@@ -31,6 +31,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadData = async () => {
       verifyDataPersistence()
+      await initializeSupabaseStore()
 
       const startDate = new Date(fromDate)
       const endDate = new Date(toDate)

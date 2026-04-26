@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X } from "lucide-react"
-import { getComboMeals, addComboMeal, updateComboMeal, deleteComboMeal, getProducts, getIngredients } from "@/lib/store"
+import { initializeSupabaseStore, getComboMeals, addComboMeal, updateComboMeal, deleteComboMeal, getProducts, getIngredients } from "@/lib/store"
 import type { ComboMeal, Product, Ingredient } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit"
@@ -28,9 +28,14 @@ function ComboMealsPageContent() {
   const [selectedItems, setSelectedItems] = useState<ComboSelection[]>([])
 
   useEffect(() => {
-    setCombos(getComboMeals())
-    setProducts(getProducts())
-    setIngredients(getIngredients())
+    const loadData = async () => {
+      await initializeSupabaseStore()
+      setCombos(getComboMeals())
+      setProducts(getProducts())
+      setIngredients(getIngredients())
+    }
+
+    void loadData()
   }, [])
 
   const comboIngredients = useMemo(() => ingredients, [ingredients])

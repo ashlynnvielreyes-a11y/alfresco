@@ -19,6 +19,7 @@ const AUTH_KEY = "alfresco_auth"
 const CURRENT_USER_KEY = "currentUserData"
 const COMBOS_KEY = "alfresco_combos"
 const ADDONS_KEY = "alfresco_addons"
+const SUPABASE_SYNC_LOCK_KEY = "alfresco_supabase_sync_running"
 
 const defaultIngredients: Ingredient[] = [
   { id: 1, productId: "ING-001", name: "Rice", unit: "cups", stock: 100, assignedProducts: [7, 8, 9, 10, 11, 12] },
@@ -55,6 +56,16 @@ const defaultProducts: Product[] = [
 
 function getAuthStorage(rememberMe: boolean): Storage {
   return rememberMe ? localStorage : sessionStorage
+}
+
+async function getSupabaseBrowserClient() {
+  const { createClient } = await import("./supabase/client")
+  return createClient()
+}
+
+function writeLocalStorage(key: string, value: unknown) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(key, JSON.stringify(value))
 }
 
 function readStoredAuth(key: string): string | null {
@@ -212,6 +223,349 @@ function getNormalizedTransactions(list: Transaction[]): Transaction[] {
   }))
 }
 
+function saveProductsLocally(products: Product[]): void {
+  writeLocalStorage(PRODUCTS_KEY, products)
+}
+
+function saveIngredientsLocally(ingredients: Ingredient[]): void {
+  writeLocalStorage(INGREDIENTS_KEY, ingredients.map(normalizeIngredient))
+}
+
+function saveComboMealsLocally(combos: ComboMeal[]): void {
+  writeLocalStorage(COMBOS_KEY, combos)
+}
+
+function saveAddOnsLocally(addOns: AddOn[]): void {
+  writeLocalStorage(ADDONS_KEY, addOns)
+}
+
+async function syncProductsToSupabase(products: Product[]) {
+  const supabase = await getSupabaseBrowserClient()
+  const normalizedProducts = products.map((product) => ({
+    id: product.id,
+    name: product.name,
+    category: product.category,
+    price: product.price,
+    is_available: true,
+    updated_at: new Date().toISOString(),
+  }))
+
+  const { data: existingProducts, error: existingError } = await supabase.from("products").select("id")
+  if (existingError) throw existingError
+
+  const existingIds = new Set((existingProducts || []).map((row: { id: number }) => row.id))
+  const localIds = new Set(products.map((product) => product.id))
+  const removedIds = [...existingIds].filter((id) => !localIds.has(id))
+
+  if (normalizedProducts.length > 0) {
+    const { error } = await supabase.from("products").upsert(normalizedProducts, { onConflict: "id" })
+    if (error) throw error
+  }
+
+  if (removedIds.length > 0) {
+    const { error } = await supabase.from("products").delete().in("id", removedIds)
+    if (error) throw error
+  }
+
+  if (products.length > 0) {
+    const productIds = products.map((product) => product.id)
+    const { error: deleteIngredientsError } = await supabase.from("product_ingredients").delete().in("product_id", productIds)
+    if (deleteIngredientsError) throw deleteIngredientsError
+  }
+
+  const productIngredients = products.flatMap((product) =>
+    product.ingredients.map((ingredient) => ({
+      product_id: product.id,
+      ingredient_id: ingredient.ingredientId,
+      quantity: ingredient.quantity,
+    }))
+  )
+
+  if (productIngredients.length > 0) {
+    const { error } = await supabase.from("product_ingredients").insert(productIngredients)
+    if (error) throw error
+  }
+}
+
+async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
+  const supabase = await getSupabaseBrowserClient()
+  const normalizedIngredients = ingredients.map(normalizeIngredient)
+  const ingredientRows = normalizedIngredients.map((ingredient) => ({
+    id: ingredient.id,
+    name: ingredient.name,
+    unit: ingredient.unit,
+    stock: ingredient.stock,
+    product_code: ingredient.productId,
+    updated_at: new Date().toISOString(),
+  }))
+
+  const { data: existingIngredients, error: existingError } = await supabase.from("ingredients").select("id")
+  if (existingError) throw existingError
+
+  const existingIds = new Set((existingIngredients || []).map((row: { id: number }) => row.id))
+  const localIds = new Set(normalizedIngredients.map((ingredient) => ingredient.id))
+  const removedIds = [...existingIds].filter((id) => !localIds.has(id))
+
+  if (ingredientRows.length > 0) {
+    const { error } = await supabase.from("ingredients").upsert(ingredientRows, { onConflict: "id" })
+    if (error) throw error
+  }
+
+  if (removedIds.length > 0) {
+    const { error } = await supabase.from("ingredients").delete().in("id", removedIds)
+    if (error) throw error
+  }
+
+  if (normalizedIngredients.length > 0) {
+    const ingredientIds = normalizedIngredients.map((ingredient) => ingredient.id)
+
+    const { error: deleteAssignmentsError } = await supabase.from("ingredient_assignments").delete().in("ingredient_id", ingredientIds)
+    if (deleteAssignmentsError) throw deleteAssignmentsError
+
+    const { error: deleteBatchesError } = await supabase.from("ingredient_batches").delete().in("ingredient_id", ingredientIds)
+    if (deleteBatchesError) throw deleteBatchesError
+  }
+
+  const assignmentRows = normalizedIngredients.flatMap((ingredient) =>
+    ingredient.assignedProducts.map((productId) => ({
+      ingredient_id: ingredient.id,
+      product_id: productId,
+    }))
+  )
+
+  if (assignmentRows.length > 0) {
+    const { error } = await supabase.from("ingredient_assignments").insert(assignmentRows)
+    if (error) throw error
+  }
+
+  const batchRows = normalizedIngredients.flatMap((ingredient) =>
+    (ingredient.stockBatches || []).map((batch) => ({
+      id: batch.id,
+      ingredient_id: ingredient.id,
+      quantity: batch.quantity,
+      date_added: batch.dateAdded,
+      expiration_date: batch.expirationDate,
+      created_at: batch.dateAdded,
+      updated_at: new Date().toISOString(),
+    }))
+  )
+
+  if (batchRows.length > 0) {
+    const { error } = await supabase.from("ingredient_batches").upsert(batchRows, { onConflict: "id" })
+    if (error) throw error
+  }
+}
+
+async function syncComboMealsToSupabase(combos: ComboMeal[]) {
+  const supabase = await getSupabaseBrowserClient()
+  const comboRows = combos.map((combo) => ({
+    id: combo.id,
+    name: combo.name,
+    description: combo.description,
+    price: combo.price,
+    updated_at: new Date().toISOString(),
+  }))
+
+  const { data: existingCombos, error: existingError } = await supabase.from("combo_meals").select("id")
+  if (existingError) throw existingError
+
+  const existingIds = new Set((existingCombos || []).map((row: { id: number }) => row.id))
+  const localIds = new Set(combos.map((combo) => combo.id))
+  const removedIds = [...existingIds].filter((id) => !localIds.has(id))
+
+  if (comboRows.length > 0) {
+    const { error } = await supabase.from("combo_meals").upsert(comboRows, { onConflict: "id" })
+    if (error) throw error
+  }
+
+  if (removedIds.length > 0) {
+    const { error } = await supabase.from("combo_meals").delete().in("id", removedIds)
+    if (error) throw error
+  }
+
+  if (combos.length > 0) {
+    const comboIds = combos.map((combo) => combo.id)
+    const { error: deleteItemsError } = await supabase.from("combo_meal_items").delete().in("combo_id", comboIds)
+    if (deleteItemsError) throw deleteItemsError
+  }
+
+  const itemRows = combos.flatMap((combo) =>
+    combo.items.map((item) => ({
+      combo_id: combo.id,
+      ingredient_id: item.ingredientId ?? null,
+      product_id: item.productId,
+      quantity: item.quantity,
+    }))
+  )
+
+  if (itemRows.length > 0) {
+    const { error } = await supabase.from("combo_meal_items").insert(itemRows)
+    if (error) throw error
+  }
+}
+
+async function syncAddOnsToSupabase(addOns: AddOn[]) {
+  const supabase = await getSupabaseBrowserClient()
+  const addOnRows = addOns.map((addOn) => ({
+    id: addOn.id,
+    name: addOn.name,
+    price: addOn.price,
+    category: addOn.category,
+    updated_at: new Date().toISOString(),
+  }))
+
+  const { data: existingAddOns, error: existingError } = await supabase.from("addons").select("id")
+  if (existingError) throw existingError
+
+  const existingIds = new Set((existingAddOns || []).map((row: { id: string }) => row.id))
+  const localIds = new Set(addOns.map((addOn) => addOn.id))
+  const removedIds = [...existingIds].filter((id) => !localIds.has(id))
+
+  if (addOnRows.length > 0) {
+    const { error } = await supabase.from("addons").upsert(addOnRows, { onConflict: "id" })
+    if (error) throw error
+  }
+
+  if (removedIds.length > 0) {
+    const { error } = await supabase.from("addons").delete().in("id", removedIds)
+    if (error) throw error
+  }
+}
+
+function queueSupabaseSync(task: Promise<unknown>) {
+  void task.catch((error) => {
+    console.log("[v0] Supabase catalog sync skipped:", error)
+  })
+}
+
+export async function initializeSupabaseStore(): Promise<void> {
+  if (typeof window === "undefined") return
+  if (sessionStorage.getItem(SUPABASE_SYNC_LOCK_KEY) === "true") return
+
+  sessionStorage.setItem(SUPABASE_SYNC_LOCK_KEY, "true")
+
+  try {
+    const supabase = await getSupabaseBrowserClient()
+
+    const [
+      productsResponse,
+      productIngredientsResponse,
+      ingredientsResponse,
+      ingredientAssignmentsResponse,
+      ingredientBatchesResponse,
+      comboMealsResponse,
+      comboMealItemsResponse,
+      addOnsResponse,
+    ] = await Promise.all([
+      supabase.from("products").select("*").order("id"),
+      supabase.from("product_ingredients").select("product_id, ingredient_id, quantity"),
+      supabase.from("ingredients").select("*").order("id"),
+      supabase.from("ingredient_assignments").select("ingredient_id, product_id"),
+      supabase.from("ingredient_batches").select("*"),
+      supabase.from("combo_meals").select("*").order("id"),
+      supabase.from("combo_meal_items").select("*"),
+      supabase.from("addons").select("*"),
+    ])
+
+    const localProducts = getProducts()
+    const localIngredients = getIngredients()
+    const localCombos = getComboMeals()
+    const localAddOns = getAddOns()
+
+    if (!productsResponse.error && !ingredientsResponse.error) {
+      const remoteProducts = (productsResponse.data || []).map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        category: (product.category as string) === "Pastry" ? "Fruit Tea" : (product.category as Product["category"]) || "Coffee",
+        price: Number(product.price) || 0,
+        ingredients: (productIngredientsResponse.data || [])
+          .filter((ingredient: any) => ingredient.product_id === product.id)
+          .map((ingredient: any) => ({
+            ingredientId: ingredient.ingredient_id,
+            quantity: Number(ingredient.quantity) || 0,
+          })),
+      }))
+
+      const remoteIngredients = syncIngredientAssignmentsWithProducts(
+        (ingredientsResponse.data || []).map((ingredient: any) =>
+          normalizeIngredient({
+            id: ingredient.id,
+            productId: ingredient.product_code || ingredient.product_id || buildIngredientProductId(ingredient.id),
+            name: ingredient.name,
+            unit: ingredient.unit,
+            stock: Number(ingredient.stock) || 0,
+            assignedProducts: (ingredientAssignmentsResponse.data || [])
+              .filter((assignment: any) => assignment.ingredient_id === ingredient.id)
+              .map((assignment: any) => assignment.product_id),
+            stockBatches: (ingredientBatchesResponse.data || [])
+              .filter((batch: any) => batch.ingredient_id === ingredient.id)
+              .map((batch: any) => ({
+                id: batch.id,
+                quantity: Number(batch.quantity) || 0,
+                dateAdded: batch.date_added || batch.created_at || new Date().toISOString(),
+                expirationDate: batch.expiration_date || null,
+              })),
+          })
+        ),
+        remoteProducts
+      )
+
+      if (remoteProducts.length > 0) {
+        saveProductsLocally(remoteProducts)
+      } else if (localProducts.length > 0) {
+        queueSupabaseSync(syncProductsToSupabase(localProducts))
+      }
+
+      if (remoteIngredients.length > 0) {
+        saveIngredientsLocally(remoteIngredients)
+      } else if (localIngredients.length > 0) {
+        queueSupabaseSync(syncIngredientsToSupabase(localIngredients))
+      }
+    }
+
+    if (!comboMealsResponse.error && !comboMealItemsResponse.error) {
+      const remoteCombos = (comboMealsResponse.data || []).map((combo: any) => ({
+        id: combo.id,
+        name: combo.name,
+        description: combo.description || "",
+        price: Number(combo.price) || 0,
+        items: (comboMealItemsResponse.data || [])
+          .filter((item: any) => item.combo_id === combo.id)
+          .map((item: any) => ({
+            ingredientId: item.ingredient_id ?? undefined,
+            productId: item.product_id,
+            quantity: Number(item.quantity) || 1,
+          })),
+      }))
+
+      if (remoteCombos.length > 0) {
+        saveComboMealsLocally(remoteCombos)
+      } else if (localCombos.length > 0) {
+        queueSupabaseSync(syncComboMealsToSupabase(localCombos))
+      }
+    }
+
+    if (!addOnsResponse.error) {
+      const remoteAddOns = (addOnsResponse.data || []).map((addOn: any) => ({
+        id: addOn.id,
+        name: addOn.name,
+        price: Number(addOn.price) || 0,
+        category: (addOn.category === "meal" ? "meal" : "drink") as AddOn["category"],
+      }))
+
+      if (remoteAddOns.length > 0) {
+        saveAddOnsLocally(remoteAddOns)
+      } else if (localAddOns.length > 0) {
+        queueSupabaseSync(syncAddOnsToSupabase(localAddOns))
+      }
+    }
+  } catch (error) {
+    console.log("[v0] Initial Supabase store sync unavailable:", error)
+  } finally {
+    sessionStorage.removeItem(SUPABASE_SYNC_LOCK_KEY)
+  }
+}
+
 // Ingredients functions
 export function getIngredients(): Ingredient[] {
   if (typeof window === "undefined") return defaultIngredients.map(normalizeIngredient)
@@ -230,7 +584,9 @@ export function getIngredients(): Ingredient[] {
 
 export function saveIngredients(ingredients: Ingredient[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(INGREDIENTS_KEY, JSON.stringify(ingredients.map(normalizeIngredient)))
+  const normalized = ingredients.map(normalizeIngredient)
+  saveIngredientsLocally(normalized)
+  queueSupabaseSync(syncIngredientsToSupabase(normalized))
 }
 
 export function addIngredient(ingredient: Omit<Ingredient, "id">): Ingredient {
@@ -420,7 +776,8 @@ export function getProducts(): Product[] {
 
 export function saveProducts(products: Product[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products))
+  saveProductsLocally(products)
+  queueSupabaseSync(syncProductsToSupabase(products))
 }
 
 export function addProduct(product: Omit<Product, "id">): Product {
@@ -852,7 +1209,8 @@ export function getComboMeals(): ComboMeal[] {
 
 export function saveComboMeals(combos: ComboMeal[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(COMBOS_KEY, JSON.stringify(combos))
+  saveComboMealsLocally(combos)
+  queueSupabaseSync(syncComboMealsToSupabase(combos))
 }
 
 export function addComboMeal(combo: Omit<ComboMeal, "id">): ComboMeal {
@@ -908,7 +1266,8 @@ export function getAddOns(): AddOn[] {
 
 export function saveAddOns(addOns: AddOn[]): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(ADDONS_KEY, JSON.stringify(addOns))
+  saveAddOnsLocally(addOns)
+  queueSupabaseSync(syncAddOnsToSupabase(addOns))
 }
 
 export function addAddOn(addOn: Omit<AddOn, "id">): AddOn {

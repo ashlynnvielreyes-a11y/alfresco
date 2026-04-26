@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { FileText, Calendar, Download, TrendingUp } from "lucide-react"
 import {
+  initializeSupabaseStore,
   getTransactionsByDateRange,
   getSalesTotalByDateRange,
   getSalesOverTime,
@@ -45,6 +46,7 @@ export default function SalesHistoryPage() {
 
   useEffect(() => {
     const loadData = async () => {
+      await initializeSupabaseStore()
       const startDate = new Date(fromDate)
       const endDate = new Date(toDate)
 

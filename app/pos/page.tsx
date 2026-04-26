@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil } from "lucide-react"
-import { getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { createClient } from "@/lib/supabase/client"
 import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, DrinkSize, CoffeeTemperature } from "@/lib/types"
@@ -84,6 +84,7 @@ export default function POSPage() {
   useEffect(() => {
     // Initialize all data from localStorage and Supabase
     const initializeData = async () => {
+      await initializeSupabaseStore()
       setProducts(getProducts())
       setIngredients(getIngredients())
       setComboMeals(getComboMeals())

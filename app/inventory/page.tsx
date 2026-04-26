@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X, Search } from "lucide-react"
-import { getProducts, addProduct, updateProduct, deleteProduct, getIngredients, getProductAvailableStock } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, addProduct, updateProduct, deleteProduct, getIngredients, getProductAvailableStock } from "@/lib/store"
 import type { Product, Ingredient, ProductIngredient } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit"
@@ -22,8 +22,13 @@ function InventoryPageContent() {
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([])
 
   useEffect(() => {
-    setProducts(getProducts())
-    setIngredients(getIngredients())
+    const loadData = async () => {
+      await initializeSupabaseStore()
+      setProducts(getProducts())
+      setIngredients(getIngredients())
+    }
+
+    void loadData()
   }, [])
 
   const resetForm = () => {
