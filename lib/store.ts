@@ -522,7 +522,6 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
   const ingredientRows = normalizedIngredients.map((ingredient) => ({
     ...baseIngredientRows.find((row) => row.id === ingredient.id),
     product_code: ingredient.productId,
-    expiration_date: normalizeExpirationDate(ingredient.expirationDate),
   }))
 
   const { data: existingIngredients, error: existingError } = await supabase.from("ingredients").select("id")
@@ -540,22 +539,12 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
       }
 
       if (
-        !isSupabaseMissingColumnError(error, "product_code", "ingredients") &&
-        !isSupabaseMissingColumnError(error, "expiration_date", "ingredients")
+        !isSupabaseMissingColumnError(error, "product_code", "ingredients")
       ) {
         throw error
       }
 
-      const fallbackRows = baseIngredientRows.map((row) => ({
-        ...row,
-        ...(isSupabaseMissingColumnError(error, "expiration_date", "ingredients")
-          ? {}
-          : {
-              expiration_date: normalizeExpirationDate(
-                normalizedIngredients.find((ingredient) => ingredient.id === row.id)?.expirationDate
-              ),
-            }),
-      }))
+      const fallbackRows = [...baseIngredientRows]
       const fallbackResult = await supabase.from("ingredients").upsert(fallbackRows, { onConflict: "id" })
       if (fallbackResult.error) {
         if (isSupabaseIdentityColumnError(fallbackResult.error, "id")) {
@@ -862,7 +851,7 @@ export async function initializeSupabaseStore(): Promise<void> {
     ] = await Promise.all([
       supabase.from("products").select("*").order("id"),
       supabase.from("product_ingredients").select("product_id, ingredient_id, quantity"),
-      supabase.from("ingredients").select("id, name, unit, stock, product_code, product_id, expiration_date").order("id"),
+      supabase.from("ingredients").select("*").order("id"),
       supabase.from("ingredient_assignments").select("ingredient_id, product_id"),
       supabase.from("ingredient_batches").select("*"),
       supabase.from("combo_meals").select("id, name, description, price").order("id"),
@@ -897,7 +886,6 @@ export async function initializeSupabaseStore(): Promise<void> {
             name: ingredient.name,
             unit: ingredient.unit,
             stock: Number(ingredient.stock) || 0,
-            expirationDate: normalizeExpirationDate(ingredient.expiration_date),
             assignedProducts: (ingredientAssignmentsResponse.data || [])
               .filter((assignment: any) => assignment.ingredient_id === ingredient.id)
               .map((assignment: any) => assignment.product_id),
@@ -919,7 +907,9 @@ export async function initializeSupabaseStore(): Promise<void> {
         (ingredientsResponse.data || []).map((ingredient: any) => ({
           id: ingredient.id,
           name: ingredient.name,
-          expiration_date: ingredient.expiration_date ?? null,
+          batch_expiration_dates: (ingredientBatchesResponse.data || [])
+            .filter((batch: any) => batch.ingredient_id === ingredient.id)
+            .map((batch: any) => batch.expiration_date ?? null),
         }))
       )
       console.log(
@@ -929,7 +919,6 @@ export async function initializeSupabaseStore(): Promise<void> {
           return {
             id: ingredient.id,
             name: ingredient.name,
-            expirationDate: ingredient.expirationDate ?? null,
             nextExpirationDate: summary.nextExpirationDate,
             expiredBatches: summary.expiredBatches.length,
             nearExpirationBatches: summary.nearExpirationBatches.length,
