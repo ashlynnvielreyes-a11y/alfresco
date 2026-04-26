@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
-import type { Ingredient, Product } from "@/lib/types"
+import type { Ingredient, IngredientExpirationSummary, Product } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit" | "assign" | "restock"
 
@@ -39,6 +39,29 @@ function getExpirationStatus(date?: string | null) {
   if (diffDays < 0) return { text: "Expired", tone: "bg-red-100 text-red-700" }
   if (diffDays <= 3) return { text: "Near Expiry", tone: "bg-yellow-100 text-yellow-700" }
   return { text: "Safe", tone: "bg-green-100 text-green-700" }
+}
+
+function getExpirationPresentation(summary: IngredientExpirationSummary) {
+  if (summary.expiredBatches.length > 0) {
+    const latestExpiredBatch = summary.expiredBatches[0]
+    return {
+      date: latestExpiredBatch?.expirationDate || null,
+      status: { text: "Expired", tone: "bg-red-100 text-red-700" },
+    }
+  }
+
+  if (summary.nearExpirationBatches.length > 0) {
+    const nearExpiryBatch = summary.nearExpirationBatches[0]
+    return {
+      date: nearExpiryBatch?.expirationDate || summary.nextExpirationDate,
+      status: { text: "Near Expiry", tone: "bg-yellow-100 text-yellow-700" },
+    }
+  }
+
+  return {
+    date: summary.nextExpirationDate,
+    status: getExpirationStatus(summary.nextExpirationDate),
+  }
 }
 
 function getNextExpirationDate(ingredient: Ingredient) {
@@ -541,8 +564,7 @@ function IngredientsPageContent() {
           {filteredIngredients.map((ingredient) => {
             const status = getStockStatus(ingredient.stock)
             const summary = getIngredientExpirationSummary(ingredient)
-            const nextExpiration = summary.nextExpirationDate
-            const expirationStatus = getExpirationStatus(nextExpiration)
+            const expiration = getExpirationPresentation(summary)
 
             return (
               <div key={ingredient.id} className="rounded-lg border border-border bg-[rgba(245,241,234,0.74)] p-4 backdrop-blur-md">
@@ -558,15 +580,15 @@ function IngredientsPageContent() {
 
                 <div className="mb-3 flex items-center gap-2 flex-wrap">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${status.color}`}>{status.text}</span>
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${expirationStatus.tone}`}>
-                    {nextExpiration ? <AlertTriangle className="h-3 w-3" /> : null}
-                    {expirationStatus.text}
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${expiration.status.tone}`}>
+                    {expiration.date ? <AlertTriangle className="h-3 w-3" /> : null}
+                    {expiration.status.text}
                   </span>
                 </div>
 
                 <p className="text-xs text-muted-foreground">Next batch: {summary.nextBatchId || "No active batch"}</p>
                 <p className="text-xs text-muted-foreground">Date added: {summary.nextDateAdded ? formatDate(summary.nextDateAdded) : "No active batch"}</p>
-                <p className="text-xs text-muted-foreground mb-3">Next expiration: {formatDate(nextExpiration)}</p>
+                <p className="text-xs text-muted-foreground mb-3">Expiration: {formatDate(expiration.date)}</p>
 
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">{ingredient.stockBatches?.length || 0} batch(es)</span>
@@ -608,8 +630,7 @@ function IngredientsPageContent() {
               {filteredIngredients.map((ingredient) => {
                 const status = getStockStatus(ingredient.stock)
                 const summary = getIngredientExpirationSummary(ingredient)
-                const nextExpiration = summary.nextExpirationDate
-                const expirationStatus = getExpirationStatus(nextExpiration)
+                const expiration = getExpirationPresentation(summary)
 
                 return (
                   <tr key={ingredient.id} className="border-b border-border last:border-0">
@@ -631,16 +652,16 @@ function IngredientsPageContent() {
                     </td>
                     <td className="px-6 py-4 align-middle">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{formatDate(nextExpiration)}</span>
-                        <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expirationStatus.tone}`}>{expirationStatus.text}</span>
+                        <span className="truncate">{formatDate(expiration.date)}</span>
+                        <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expiration.status.tone}`}>{expiration.status.text}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2">
                         <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm whitespace-nowrap ${status.color}`}>{status.text}</span>
-                        {(expirationStatus.text === "Expired" || expirationStatus.text === "Near Expiry") ? (
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expirationStatus.tone}`}>
-                            {expirationStatus.text}
+                        {(expiration.status.text === "Expired" || expiration.status.text === "Near Expiry") ? (
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expiration.status.tone}`}>
+                            {expiration.status.text}
                           </span>
                         ) : null}
                       </div>
