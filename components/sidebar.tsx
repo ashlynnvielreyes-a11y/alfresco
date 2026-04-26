@@ -1,9 +1,10 @@
 "use client"
 
 import { memo, useCallback, useState, useEffect } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Coffee, Leaf, Settings, UtensilsCrossed, Menu, X, Plus } from "lucide-react"
+import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus } from "lucide-react"
 import { logout, getUserRole, getCurrentUser, type UserRole } from "@/lib/store"
 
 interface NavItem {
@@ -99,9 +100,8 @@ export const Sidebar = memo(function Sidebar() {
     <>
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 border-b border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.88)] backdrop-blur-xl px-4 py-3 flex items-center justify-between shadow-[0_10px_24px_rgba(74,52,42,0.08)]">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <Coffee className="h-7 w-7 text-[#4a342a]" />
-          <span className="brand-wordmark text-xl text-[#4a342a]">Al Fresco</span>
+        <Link href="/dashboard" className="flex items-center justify-center">
+          <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={210} height={86} className="h-12 w-auto object-contain" priority />
         </Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -163,15 +163,9 @@ export const Sidebar = memo(function Sidebar() {
 
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-64 h-screen bg-[rgba(245,241,234,0.88)] border-r border-[rgba(74,52,42,0.08)] flex-col sticky top-0 backdrop-blur-xl shadow-[20px_0_45px_rgba(74,52,42,0.08)]">
-        <div className="p-6">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4a342a] to-[#b2967d] text-[#f5f1ea] shadow-[0_12px_24px_rgba(74,52,42,0.2)]">
-              <Coffee className="h-6 w-6" />
-            </div>
-            <div>
-              <span className="brand-wordmark block text-2xl text-[#4a342a]">Al Fresco</span>
-              <span className="text-xs uppercase tracking-[0.24em] text-[#7d5a44]">Cafe Panel</span>
-            </div>
+        <div className="p-5 pb-3">
+          <Link href="/dashboard" className="flex items-center justify-center">
+            <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={240} height={100} className="h-16 w-auto object-contain" priority />
           </Link>
         </div>
 

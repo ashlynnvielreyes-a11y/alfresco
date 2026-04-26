@@ -1,10 +1,11 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { persistAuthSession } from "@/lib/store"
-import { Eye, EyeOff, Coffee } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -81,10 +82,7 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-md rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/55 p-8 shadow-[0_28px_70px_rgba(123,111,25,0.12),inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-xl lg:p-10">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4a342a] to-[#b2967d] text-[#f5f1ea] shadow-[0_18px_35px_rgba(187,62,0,0.18)]">
-            <Coffee className="h-8 w-8" />
-          </div>
-          <h1 className="brand-wordmark mb-2 text-4xl text-[#4a342a]">Al Fresco Café</h1>
+          <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={320} height={160} className="mx-auto mb-4 h-auto w-full max-w-[280px] object-contain" priority />
           <p className="text-sm text-muted-foreground">Sign in to access the cafe system.</p>
         </div>
 

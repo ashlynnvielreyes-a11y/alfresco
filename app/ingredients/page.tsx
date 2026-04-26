@@ -39,6 +39,16 @@ function getNextExpirationDate(ingredient: Ingredient) {
   return getIngredientExpirationSummary(ingredient).nextExpirationDate
 }
 
+function buildNextIngredientProductId(ingredients: Ingredient[]) {
+  const highestId = ingredients.reduce((max, ingredient) => {
+    const match = ingredient.productId.match(/ING-(\d+)/i)
+    const numericId = match ? parseInt(match[1], 10) : ingredient.id
+    return Math.max(max, numericId)
+  }, 0)
+
+  return `ING-${String(highestId + 1).padStart(3, "0")}`
+}
+
 function IngredientsPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -85,7 +95,7 @@ function IngredientsPageContent() {
 
   const handleAdd = () => {
     setMode("add")
-    setFormData({ productId: "", name: "", unit: "pcs", stock: "10", expirationDate: "" })
+    setFormData({ productId: buildNextIngredientProductId(getIngredients()), name: "", unit: "pcs", stock: "10", expirationDate: "" })
     setDraftBatchId(`BATCH-${crypto.randomUUID().slice(0, 8).toUpperCase()}`)
     setDraftDateAdded(new Date().toISOString())
   }
@@ -186,9 +196,9 @@ function IngredientsPageContent() {
   }
 
   const getStockStatus = (stock: number) => {
-    if (stock <= 0) return { text: "Out of Stock", color: "bg-red-500" }
-    if (stock <= 10) return { text: "Low Stock", color: "bg-yellow-500" }
-    return { text: "In Stock", color: "bg-green-500" }
+    if (stock <= 0) return { text: "Out of Stock", color: "bg-[#7f9882] text-[#f5f1ea]" }
+    if (stock <= 10) return { text: "Low Stock", color: "bg-[#97ad97] text-[#f5f1ea]" }
+    return { text: "In Stock", color: "bg-[#b7c8b5] text-[#4a342a]" }
   }
 
   const filteredIngredients = ingredients.filter((ingredient) => {
@@ -366,11 +376,16 @@ function IngredientsPageContent() {
                 <input
                   type="text"
                   value={formData.productId}
-                  onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
                   placeholder="e.g. ING-016"
-                  className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none"
+                  className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none disabled:bg-muted disabled:text-muted-foreground"
                   required
+                  readOnly={mode === "add"}
                 />
+                {mode === "add" ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Auto-generated when creating a new ingredient.
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -526,7 +541,7 @@ function IngredientsPageContent() {
                 </div>
 
                 <div className="mb-3 flex items-center gap-2 flex-wrap">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[#f5f1ea] text-xs ${status.color}`}>{status.text}</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${status.color}`}>{status.text}</span>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${expirationStatus.tone}`}>
                     {nextExpiration ? <AlertTriangle className="h-3 w-3" /> : null}
                     {expirationStatus.text}
@@ -605,7 +620,7 @@ function IngredientsPageContent() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[#f5f1ea] text-sm ${status.color}`}>{status.text}</span>
+                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${status.color}`}>{status.text}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center gap-2">

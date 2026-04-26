@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { validatePassword, validateEmail, persistAuthSession } from "@/lib/store"
@@ -18,6 +19,7 @@ export default function RegisterPage() {
   const [emailError, setEmailError] = useState("")
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
+  const [role, setRole] = useState<"admin" | "employee">("employee")
   const router = useRouter()
 
   // OTP states
@@ -173,14 +175,13 @@ export default function RegisterPage() {
           return
         }
 
-        // Insert new user as CASHIER
         const { data: newUser, error: insertError } = await supabase
           .from("users")
           .insert({
             username: username.toLowerCase(),
             email: email.toLowerCase(),
             password_hash: password,
-            role: "cashier", // Always register as cashier
+            role,
           })
           .select("id, username, email, role")
           .single()
@@ -347,9 +348,7 @@ export default function RegisterPage() {
         <div className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-[#4a342a]/10 blur-3xl" />
       </div>
       <div className="relative w-full max-w-md rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/55 p-10 shadow-[0_28px_70px_rgba(123,111,25,0.12),inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-xl">
-        <h1 className="brand-wordmark text-4xl text-[#4a342a] text-center mb-2">
-          Al Fresco Café
-        </h1>
+        <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={320} height={160} className="mx-auto mb-3 h-auto w-full max-w-[280px] object-contain" priority />
         <p className="text-[#7d5a44] text-center mb-8">Create a new account</p>
 
         <form onSubmit={handleContinue} className="space-y-6">
@@ -378,6 +377,36 @@ export default function RegisterPage() {
               className="w-full px-4 py-3 rounded-2xl bg-[#f5f1ea]/90 border border-[#f5f1ea]/60 focus:ring-2 focus:ring-[#4a342a]/15 focus:border-[#b2967d] outline-none text-foreground placeholder:text-[#7d5a44]/60"
             />
             {emailError && <p className="text-[#4a342a] text-xs mt-2">{emailError}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#7d5a44] mb-2">
+              Role
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRole("admin")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-colors ${
+                  role === "admin"
+                    ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
+                    : "border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-[#7d5a44]"
+                }`}
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole("employee")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-colors ${
+                  role === "employee"
+                    ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
+                    : "border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-[#7d5a44]"
+                }`}
+              >
+                Employee
+              </button>
+            </div>
           </div>
 
           <div>

@@ -14,7 +14,10 @@ const drinkSizes: DrinkSize[] = ["regular", "medium", "large"]
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 
 function getAddOnKey(addOns?: AddOn[]) {
-  return (addOns || []).map((a) => a.id).sort().join("-")
+  return (addOns || [])
+    .map((a) => `${a.id}:${a.selectedQuantity || 1}`)
+    .sort()
+    .join("-")
 }
 
 function getCartItemKey(item: CartItem) {
@@ -39,7 +42,7 @@ function getDrinkSizePriceAdjustment(size?: DrinkSize) {
 
 function getCartItemUnitPrice(item: CartItem) {
   const sizeAdjustment = getDrinkSizePriceAdjustment(item.size)
-  const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price, 0)
+  const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price * (addon.selectedQuantity || 1), 0)
   return item.product.price + sizeAdjustment + addOnsTotal
 }
 
@@ -223,13 +226,21 @@ export default function POSPage() {
     }
   }, [isProductAvailable, getAvailableAddOns, ingredients])
 
-  const toggleAddOn = useCallback((addOn: AddOn) => {
+  const updateSelectedAddOnQuantity = useCallback((addOn: AddOn, delta: number) => {
     setSelectedAddOns((prev) => {
-      const exists = prev.find((a) => a.id === addOn.id)
-      if (exists) {
-        return prev.filter((a) => a.id !== addOn.id)
+      const existingIndex = prev.findIndex((a) => a.id === addOn.id)
+      if (existingIndex === -1) {
+        if (delta <= 0) return prev
+        return [...prev, { ...addOn, selectedQuantity: 1 }]
       }
-      return [...prev, addOn]
+      const updated = [...prev]
+      const current = updated[existingIndex]
+      const nextQuantity = (current.selectedQuantity || 1) + delta
+      if (nextQuantity <= 0) {
+        return updated.filter((item) => item.id !== addOn.id)
+      }
+      updated[existingIndex] = { ...current, selectedQuantity: nextQuantity }
+      return updated
     })
   }, [])
 
@@ -470,6 +481,7 @@ export default function POSPage() {
   const isCashPayment = paymentMethod === "cash"
   const cash = parseFloat(cashReceived) || 0
   const change = isCashPayment && cash > total ? cash - total : 0
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
   useEffect(() => {
     if (isCashPayment) return
@@ -596,50 +608,79 @@ export default function POSPage() {
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
 
-      <main className="relative flex-1 overflow-hidden p-4 pb-4 pt-20 lg:p-6 lg:pb-6 lg:pt-6">
-        <div className="pointer-events-none absolute inset-0">
+      <main className="relative flex-1 overflow-y-auto p-4 pt-20 lg:p-8 lg:pt-8">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute left-0 top-10 h-72 w-72 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
           <div className="absolute right-8 top-24 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
         </div>
         <div className="relative z-10">
-        <div className="flex flex-col xl:flex-row gap-4 lg:gap-6">
+        <div className="mb-6 rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/38 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-xl lg:mb-8 lg:p-7">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="mb-2 text-xs uppercase tracking-[0.32em] text-[#7d5a44]">SERVICE STATION</p>
+              <h1 className="mb-2 text-2xl font-bold text-[#4a342a] lg:text-4xl">Point Of Sale</h1>
+              <p className="max-w-3xl text-sm text-muted-foreground lg:text-base">
+                Take orders quickly, manage add-ons, and complete checkout in one polished workflow.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#7d5a44]">Cashier</p>
+                <p className="mt-1 text-base font-bold text-[#4a342a]">{currentUser?.username || "Unknown"}</p>
+              </div>
+              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#7d5a44]">Items In Cart</p>
+                <p className="mt-1 text-base font-bold text-[#4a342a]">{cartItemCount}</p>
+              </div>
+              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#7d5a44]">Running Total</p>
+                <p className="mt-1 text-base font-bold text-[#4a342a]">P{total.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6 xl:flex-row lg:gap-8">
           {/* Menu Section */}
           <div className="flex-1">
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a] mb-4">
-              AL FRESCO MENU
-            </h1>
+            <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl lg:p-6">
+              <div className="mb-4">
+                <h2 className="text-lg font-bold text-foreground lg:text-xl">Al Fresco Menu</h2>
+                <p className="text-xs text-muted-foreground lg:text-sm">Browse categories, search products, and send selections to the live order panel.</p>
+              </div>
 
-            {/* Search */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search deliciousness..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[#4a342a] outline-none text-base"
-              />
-            </div>
+              {/* Search */}
+              <div className="relative mb-4">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search deliciousness..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-sm transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                />
+              </div>
 
-            {/* Category Filters */}
-            <div className="flex gap-2 mb-4 lg:mb-6 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-wrap scrollbar-hide">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 lg:px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex-shrink-0 ${
-                    selectedCategory === cat
-                      ? "bg-[#4a342a] text-[#f5f1ea]"
-                      : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+              {/* Category Filters */}
+              <div className="flex gap-2 mb-4 lg:mb-6 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-wrap scrollbar-hide">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 lg:px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex-shrink-0 ${
+                      selectedCategory === cat
+                        ? "bg-[#4a342a] text-[#f5f1ea]"
+                        : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
 
-            {/* Products Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
+              {/* Products Grid */}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 lg:gap-4">
               {/* Show combo meals when Combos category is selected */}
               {(selectedCategory === "Combos" || selectedCategory === "All Items") && comboMeals
                 .filter(combo => combo.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -652,10 +693,10 @@ export default function POSPage() {
                       key={`combo-${combo.id}`}
                       onClick={() => handleComboClick(combo)}
                       disabled={unavailable}
-                      className={`p-3 lg:p-4 rounded-lg border text-left transition-all relative ${
+                      className={`relative rounded-2xl border p-3 text-left transition-all lg:p-4 ${
                         unavailable
-                          ? "border-[#b2967d] bg-[#f5f1ea] cursor-not-allowed"
-                          : "border-[#7d5a44] bg-[#f5f1ea] hover:border-[#4a342a] hover:bg-[#f5f1ea]"
+                          ? "cursor-not-allowed border-[#b2967d]/60 bg-[rgba(245,241,234,0.68)]"
+                          : "border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.78)] shadow-[0_16px_30px_rgba(123,111,25,0.07),inset_0_1px_0_rgba(245,241,234,0.7)] hover:-translate-y-0.5 hover:border-[#7d5a44]/60"
                       }`}
                     >
                       <div className="absolute top-2 right-2">
@@ -704,12 +745,12 @@ export default function POSPage() {
                     key={product.id}
                     onClick={() => handleProductClick(product)}
                     disabled={isUnavailable}
-                    className={`p-3 lg:p-4 rounded-lg border text-left transition-all relative ${
+                    className={`relative rounded-2xl border p-3 text-left transition-all lg:p-4 ${
                       isUnavailable
-                        ? "border-[#b2967d] bg-[#f5f1ea] cursor-not-allowed"
+                        ? "cursor-not-allowed border-[#b2967d]/60 bg-[rgba(245,241,234,0.68)]"
                         : inCart
-                        ? "border-[#4a342a] bg-[#f5f1ea]"
-                        : "border-border bg-[#f5f1ea] hover:border-[#4a342a]"
+                        ? "border-[#4a342a] bg-[rgba(245,241,234,0.82)] shadow-[0_16px_30px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)]"
+                        : "border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.78)] shadow-[0_16px_30px_rgba(123,111,25,0.07),inset_0_1px_0_rgba(245,241,234,0.7)] hover:-translate-y-0.5 hover:border-[#7d5a44]/55"
                     }`}
                   >
                     {hasIngredientIssue && (
@@ -746,20 +787,24 @@ export default function POSPage() {
                   <p className="text-sm mt-2">Create combo meals in the Combos page.</p>
                 </div>
               )}
+              </div>
             </div>
           </div>
 
           {/* Order Panel */}
-          <div className="w-full xl:w-80 rounded-lg border border-border bg-[rgba(245,241,234,0.74)] p-4 backdrop-blur-md flex-shrink-0">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg lg:text-xl font-bold text-[#4a342a]">Current Order</h2>
+          <div className="w-full xl:w-[360px] rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl lg:p-6 flex-shrink-0">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-foreground lg:text-xl">Current Order</h2>
+                <p className="text-xs text-muted-foreground lg:text-sm">Live ticket summary with payment and discount controls.</p>
+              </div>
               <button onClick={clearCart} className="p-2 hover:bg-muted rounded-lg">
                 <Trash2 className="h-5 w-5 text-muted-foreground" />
               </button>
             </div>
 
             {/* Cart Items */}
-            <div className="space-y-3 mb-4 max-h-40 lg:max-h-60 overflow-y-auto">
+            <div className="cafe-scrollbar mb-4 max-h-40 space-y-3 overflow-y-auto rounded-2xl border border-[#f5f1ea]/45 bg-[rgba(245,241,234,0.3)] p-3 lg:max-h-60">
               {cart.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
                   Your cart is empty
@@ -773,7 +818,7 @@ export default function POSPage() {
                   const temperatureLabel = formatCoffeeTemperature(item.temperature)
                   
                   return (
-                    <div key={`${itemKey}-${index}`} className="border-b border-border pb-3 mb-3">
+                    <div key={`${itemKey}-${index}`} className="mb-3 rounded-2xl border border-[#f5f1ea]/45 bg-[rgba(245,241,234,0.55)] p-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)]">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <p className="font-medium text-sm">{item.product.name}</p>
@@ -788,7 +833,7 @@ export default function POSPage() {
                           {item.addOns && item.addOns.length > 0 && (
                             <div className="text-xs text-muted-foreground mt-1">
                               {item.addOns.map((addon) => (
-                                <span key={addon.id} className="block">+ {addon.name} (P{addon.price})</span>
+                                <span key={addon.id} className="block">+ {addon.name} x{addon.selectedQuantity || 1} (P{(addon.price * (addon.selectedQuantity || 1)).toFixed(2)})</span>
                               ))}
                             </div>
                           )}
@@ -826,7 +871,7 @@ export default function POSPage() {
               )}
             </div>
 
-            <div className="border-t border-border pt-4 space-y-4">
+            <div className="space-y-4 border-t border-[#f5f1ea]/45 pt-4">
               {/* Payment Method */}
               <div>
                 <label className="text-xs lg:text-sm text-muted-foreground block mb-2">Mode of Payment</label>
@@ -839,7 +884,7 @@ export default function POSPage() {
                       setCashReceived("")
                     }
                   }}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-[#f5f1ea] text-foreground focus:ring-2 focus:ring-[#4a342a] outline-none text-sm"
+                  className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/70 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
                 >
                   <option value="cash">Cash</option>
                   <option value="gcash">GCash</option>
@@ -852,7 +897,7 @@ export default function POSPage() {
                 <select
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-[#f5f1ea] text-foreground focus:ring-2 focus:ring-[#4a342a] outline-none text-sm"
+                  className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/70 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
                 >
                   <option value="none">No Discount</option>
                   <option value="senior">Senior Citizen (20%)</option>
@@ -902,7 +947,7 @@ export default function POSPage() {
                 )}
               </div>
 
-              <div className="flex justify-between items-center rounded-lg bg-[#f5f1ea] px-3 py-3">
+              <div className="flex justify-between items-center rounded-2xl bg-[#f5f1ea]/75 px-3 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.72)]">
                 <span className="text-sm font-semibold text-foreground">Change</span>
                 <span className="text-xl font-bold text-[#4a342a]">P{change.toFixed(2)}</span>
               </div>
@@ -996,20 +1041,41 @@ export default function POSPage() {
                 <h3 className="font-semibold text-foreground mb-3">Add extras:</h3>
                 <div className="cafe-scrollbar space-y-2 mb-4 max-h-60 overflow-y-auto pr-1">
                   {getAvailableAddOns(selectedProductForAddOns).map((addon) => {
-                    const isSelected = selectedAddOns.some((a) => a.id === addon.id)
+                    const selectedAddOn = selectedAddOns.find((a) => a.id === addon.id)
+                    const selectedQuantity = selectedAddOn?.selectedQuantity || 0
+                    const isSelected = selectedQuantity > 0
                     return (
-                      <button
+                      <div
                         key={addon.id}
-                        onClick={() => toggleAddOn(addon)}
-                        className={`w-full p-3 rounded-lg text-left transition-colors flex justify-between items-center ${
+                        className={`w-full p-3 rounded-lg transition-colors flex justify-between items-center ${
                           isSelected
                             ? "bg-[#f5f1ea] border-2 border-[#4a342a]"
-                            : "bg-muted hover:bg-muted/80 border-2 border-transparent"
+                            : "bg-muted border-2 border-transparent"
                         }`}
                       >
-                        <span className="font-medium">{addon.name}</span>
-                        <span className="text-[#b2967d] font-bold">+P{addon.price}</span>
-                      </button>
+                        <div>
+                          <span className="font-medium block">{addon.name}</span>
+                          <span className="text-[#b2967d] font-bold">+P{addon.price}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedAddOnQuantity(addon, -1)}
+                            className="h-8 w-8 rounded-full border border-[#b2967d]/50 text-[#4a342a] disabled:opacity-40"
+                            disabled={!isSelected}
+                          >
+                            -
+                          </button>
+                          <span className="min-w-6 text-center font-semibold text-foreground">{selectedQuantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedAddOnQuantity(addon, 1)}
+                            className="h-8 w-8 rounded-full border border-[#b2967d]/50 text-[#4a342a]"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
@@ -1025,7 +1091,7 @@ export default function POSPage() {
                 <div className="flex flex-wrap gap-1">
                   {selectedAddOns.map((addon) => (
                     <span key={addon.id} className="text-xs bg-[#4a342a] text-[#f5f1ea] px-2 py-1 rounded-full">
-                      {addon.name}
+                      {addon.name} x{addon.selectedQuantity || 1}
                     </span>
                   ))}
                 </div>
@@ -1033,7 +1099,7 @@ export default function POSPage() {
                   Total: P{(
                     selectedProductForAddOns.price +
                     getDrinkSizePriceAdjustment(productSupportsSizes(selectedProductForAddOns) ? selectedSize : undefined) +
-                    selectedAddOns.reduce((acc, a) => acc + a.price, 0)
+                    selectedAddOns.reduce((acc, a) => acc + a.price * (a.selectedQuantity || 1), 0)
                   ).toFixed(2)}
                 </p>
               </div>
@@ -1104,7 +1170,7 @@ export default function POSPage() {
                     {item.addOns && item.addOns.length > 0 && (
                       <div className="text-xs text-muted-foreground pl-2">
                         {item.addOns.map((addon) => (
-                          <div key={addon.id}>+ {addon.name}</div>
+                          <div key={addon.id}>+ {addon.name} x{addon.selectedQuantity || 1}</div>
                         ))}
                       </div>
                     )}

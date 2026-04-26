@@ -193,24 +193,29 @@
     letter-spacing: 0.015em;
     line-height: 1.12;
   }
+}
 
-  .cafe-scrollbar {
+@layer base {
+  * {
     scrollbar-width: thin;
     scrollbar-color: rgba(74, 52, 42, 0.78) rgba(245, 241, 234, 0.44);
+    scrollbar-gutter: stable;
   }
 
-  .cafe-scrollbar::-webkit-scrollbar {
+  *::-webkit-scrollbar {
     width: 9px;
+    height: 9px;
   }
 
-  .cafe-scrollbar::-webkit-scrollbar-track {
+  *::-webkit-scrollbar-track {
     background: linear-gradient(180deg, rgba(245, 241, 234, 0.52), rgba(251, 249, 244, 0.88));
     border-radius: 999px;
     border: 1px solid rgba(74, 52, 42, 0.08);
     backdrop-filter: blur(6px);
   }
 
-  .cafe-scrollbar::-webkit-scrollbar-thumb {
+  *::-webkit-scrollbar-thumb {
+    min-height: 44px;
     border-radius: 999px;
     border: 2px solid rgba(251, 249, 244, 0.88);
     background:
@@ -227,7 +232,7 @@
       opacity 180ms ease;
   }
 
-  .cafe-scrollbar::-webkit-scrollbar-thumb:hover {
+  *::-webkit-scrollbar-thumb:hover {
     background:
       linear-gradient(180deg, rgba(215, 201, 184, 1) 0%, rgba(125, 90, 68, 0.98) 100%);
     box-shadow:
@@ -237,7 +242,7 @@
     filter: saturate(1.05);
   }
 
-  .cafe-scrollbar::-webkit-scrollbar-thumb:active {
+  *::-webkit-scrollbar-thumb:active {
     background:
       linear-gradient(180deg, rgba(178, 150, 125, 1) 0%, rgba(74, 52, 42, 1) 100%);
     box-shadow:
@@ -246,69 +251,7 @@
       0 0 0 1px rgba(125, 90, 68, 0.2);
   }
 
-  .sidebar-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(74, 52, 42, 0.72) rgba(245, 241, 234, 0.4);
-    scrollbar-gutter: stable;
-  }
-
-  .sidebar-scrollbar::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  .sidebar-scrollbar::-webkit-scrollbar-track {
-    margin-block: 10px;
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgba(251, 249, 244, 0.86) 0%, rgba(245, 241, 234, 0.62) 100%);
-    border: 1px solid rgba(74, 52, 42, 0.1);
-    box-shadow:
-      inset 0 1px 0 rgba(245, 241, 234, 0.42),
-      inset 0 0 0 1px rgba(245, 241, 234, 0.18);
-    backdrop-filter: blur(8px) saturate(1.05);
-  }
-
-  .sidebar-scrollbar::-webkit-scrollbar-thumb {
-    min-height: 44px;
-    border-radius: 999px;
-    border: 1.5px solid rgba(251, 249, 244, 0.9);
-    background:
-      linear-gradient(180deg, rgba(178, 150, 125, 0.96) 0%, rgba(74, 52, 42, 0.94) 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(245, 241, 234, 0.3),
-      0 8px 18px rgba(74, 52, 42, 0.16),
-      0 0 0 1px rgba(125, 90, 68, 0.14);
-    transition:
-      background 180ms ease,
-      opacity 180ms ease,
-      filter 180ms ease,
-      box-shadow 180ms ease,
-      transform 180ms ease,
-      border-color 180ms ease;
-  }
-
-  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
-    background:
-      linear-gradient(180deg, rgba(215, 201, 184, 0.98) 0%, rgba(125, 90, 68, 0.98) 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(245, 241, 234, 0.34),
-      0 10px 20px rgba(74, 52, 42, 0.2),
-      0 0 0 1px rgba(125, 90, 68, 0.18);
-    filter: brightness(1.04) saturate(1.06);
-  }
-
-  .sidebar-scrollbar::-webkit-scrollbar-thumb:active {
-    background:
-      linear-gradient(180deg, rgba(178, 150, 125, 1) 0%, rgba(74, 52, 42, 1) 100%);
-    box-shadow:
-      inset 0 1px 2px rgba(245, 241, 234, 0.2),
-      0 5px 12px rgba(74, 52, 42, 0.18),
-      0 0 0 1px rgba(125, 90, 68, 0.22);
-    filter: brightness(1.07);
-    transform: scaleY(0.985);
-  }
-
-  .sidebar-scrollbar::-webkit-scrollbar-corner {
+  *::-webkit-scrollbar-corner {
     background: transparent;
   }
 }

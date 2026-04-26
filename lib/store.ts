@@ -554,7 +554,22 @@ export async function initializeSupabaseStore(): Promise<void> {
       }))
 
       if (remoteAddOns.length > 0) {
-        saveAddOnsLocally(remoteAddOns)
+        const localAddOnMetadata = new Map(
+          localAddOns.map((addOn) => [
+            addOn.id,
+            {
+              ingredientId: addOn.ingredientId,
+              productId: addOn.productId,
+              quantity: addOn.quantity,
+            },
+          ])
+        )
+        saveAddOnsLocally(
+          remoteAddOns.map((addOn) => ({
+            ...addOn,
+            ...localAddOnMetadata.get(addOn.id),
+          }))
+        )
       } else if (localAddOns.length > 0) {
         queueSupabaseSync(syncAddOnsToSupabase(localAddOns))
       }
@@ -709,6 +724,11 @@ export function deductCartIngredients(cartItems: CartItem[], ingredientsList: In
   cartItems.forEach((cartItem) => {
     cartItem.product.ingredients.forEach((pi) => {
       updatedIngredients = consumeIngredientBatches(updatedIngredients, pi.ingredientId, pi.quantity * cartItem.quantity)
+    })
+    ;(cartItem.addOns || []).forEach((addOn) => {
+      if (!addOn.ingredientId || !addOn.quantity) return
+      const selectedQuantity = addOn.selectedQuantity || 1
+      updatedIngredients = consumeIngredientBatches(updatedIngredients, addOn.ingredientId, addOn.quantity * selectedQuantity * cartItem.quantity)
     })
   })
 
@@ -1026,6 +1046,27 @@ export async function voidTransaction(transactionId: string, voidedBy: string, i
           })
         }
       })
+      ;(cartItem.addOns || []).forEach((addOn) => {
+        if (!addOn.ingredientId || !addOn.quantity) return
+        const ingredientIndex = updatedIngredients.findIndex((i) => i.id === addOn.ingredientId)
+        if (ingredientIndex !== -1) {
+          const selectedQuantity = addOn.selectedQuantity || 1
+          const restoredQuantity = addOn.quantity * selectedQuantity * cartItem.quantity
+          updatedIngredients[ingredientIndex] = normalizeIngredient({
+            ...updatedIngredients[ingredientIndex],
+            stock: updatedIngredients[ingredientIndex].stock + restoredQuantity,
+            stockBatches: [
+              ...(updatedIngredients[ingredientIndex].stockBatches || []),
+              {
+                id: crypto.randomUUID(),
+                quantity: restoredQuantity,
+                dateAdded: new Date().toISOString(),
+                expirationDate: null,
+              },
+            ],
+          })
+        }
+      })
     })
   }
 
@@ -1089,7 +1130,7 @@ export function validatePassword(password: string): { valid: boolean; errors: st
 }
 
 // Auth functions
-export type UserRole = "admin" | "cashier"
+export type UserRole = "admin" | "employee" | "cashier"
 
 export interface AuthUser {
   id: string
@@ -1128,7 +1169,7 @@ export function getCurrentUser(): AuthUser | null {
 
 export function getUserRole(): UserRole {
   const user = getCurrentUser()
-  return user?.role || "cashier"
+  return user?.role || "employee"
 }
 
 export function isAdmin(): boolean {
@@ -1156,7 +1197,13 @@ export function validateEmail(email: string): boolean {
   return emailRegex.test(email)
 }
 
-export function register(username: string, email: string, password: string, userId?: string): { success: boolean; error?: string } {
+export function register(
+  username: string,
+  email: string,
+  password: string,
+  userId?: string,
+  role: UserRole = "employee"
+): { success: boolean; error?: string } {
   if (username === "admin") {
     return { success: false, error: "Username already exists" }
   }
@@ -1175,7 +1222,7 @@ export function register(username: string, email: string, password: string, user
       id: userId || crypto.randomUUID(),
       username,
       email,
-      role: "cashier",
+      role,
     },
     true
   )
@@ -1240,7 +1287,7 @@ export function deleteComboMeal(id: number): boolean {
 }
 
 const defaultAddOns: AddOn[] = [
-  { id: "coffee-1", name: "Extra Shot", price: 30, category: "drink" },
+  { id: "coffee-1", name: "Extra Shot", price: 30, category: "drink", ingredientId: 9, productId: "ING-009", quantity: 2 },
   { id: "coffee-2", name: "Vanilla Syrup", price: 25, category: "drink" },
   { id: "coffee-3", name: "Caramel Drizzle", price: 25, category: "drink" },
   { id: "coffee-4", name: "Whipped Cream", price: 20, category: "drink" },
@@ -1248,8 +1295,8 @@ const defaultAddOns: AddOn[] = [
   { id: "milktea-2", name: "Nata de Coco", price: 15, category: "drink" },
   { id: "milktea-3", name: "Pudding", price: 25, category: "drink" },
   { id: "milktea-4", name: "Cream Cheese", price: 30, category: "drink" },
-  { id: "meal-1", name: "Extra Rice", price: 20, category: "meal" },
-  { id: "meal-2", name: "Extra Egg", price: 25, category: "meal" },
+  { id: "meal-1", name: "Extra Rice", price: 20, category: "meal", ingredientId: 1, productId: "ING-001", quantity: 1 },
+  { id: "meal-2", name: "Extra Egg", price: 25, category: "meal", ingredientId: 2, productId: "ING-002", quantity: 1 },
   { id: "meal-3", name: "Atchara", price: 15, category: "meal" },
   { id: "meal-4", name: "Gravy", price: 15, category: "meal" },
 ]
@@ -1261,7 +1308,10 @@ export function getAddOns(): AddOn[] {
     localStorage.setItem(ADDONS_KEY, JSON.stringify(defaultAddOns))
     return defaultAddOns
   }
-  return JSON.parse(stored)
+  return (JSON.parse(stored) as AddOn[]).map((addOn) => ({
+    ...addOn,
+    quantity: addOn.quantity ?? 0,
+  }))
 }
 
 export function saveAddOns(addOns: AddOn[]): void {
@@ -1367,7 +1417,9 @@ export async function getSalesByCategory(startDate: Date, endDate: Date): Promis
         const product = products.find((p) => p.id === item.product.id)
         if (product) {
           const category = product.category
-          const itemRevenue = item.quantity * (item.product.price + (item.addOns || []).reduce((sum, addon) => sum + addon.price, 0))
+          const itemRevenue =
+            item.quantity *
+            (item.product.price + (item.addOns || []).reduce((sum, addon) => sum + addon.price * (addon.selectedQuantity || 1), 0))
           categorySales[category] = (categorySales[category] || 0) + itemRevenue
         }
       })
@@ -1400,7 +1452,9 @@ export async function getTopProducts(startDate: Date, endDate: Date, limit: numb
             productSales[product.id] = { quantity: 0, revenue: 0, name: product.name }
           }
           productSales[product.id].quantity += item.quantity
-          productSales[product.id].revenue += item.quantity * (item.product.price + (item.addOns || []).reduce((sum, addon) => sum + addon.price, 0))
+          productSales[product.id].revenue +=
+            item.quantity *
+            (item.product.price + (item.addOns || []).reduce((sum, addon) => sum + addon.price * (addon.selectedQuantity || 1), 0))
         }
       })
     }

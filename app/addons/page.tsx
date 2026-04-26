@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, X, Coffee, UtensilsCrossed, Search } from "lucide-react"
-import { initializeSupabaseStore, getAddOns, addAddOn, updateAddOn, deleteAddOn } from "@/lib/store"
-import type { AddOn } from "@/lib/types"
+import { Plus, Pencil, Trash2, Coffee, UtensilsCrossed, Search } from "lucide-react"
+import { initializeSupabaseStore, getAddOns, addAddOn, updateAddOn, deleteAddOn, getIngredients } from "@/lib/store"
+import type { AddOn, Ingredient } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit"
 type CategoryFilter = "all" | "drink" | "meal"
 
 function AddOnsPageContent() {
   const [addOns, setAddOns] = useState<AddOn[]>([])
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingAddOn, setEditingAddOn] = useState<AddOn | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")
@@ -19,26 +20,30 @@ function AddOnsPageContent() {
     name: "",
     price: "",
     category: "drink" as "drink" | "meal",
+    ingredientId: "",
+    productId: "",
+    quantity: "1",
   })
 
   useEffect(() => {
     const loadData = async () => {
       await initializeSupabaseStore()
       setAddOns(getAddOns())
+      setIngredients(getIngredients())
     }
 
     void loadData()
   }, [])
 
   const resetForm = () => {
-    setFormData({ name: "", price: "", category: "drink" })
+    setFormData({ name: "", price: "", category: "drink", ingredientId: "", productId: "", quantity: "1" })
     setEditingAddOn(null)
     setMode("list")
   }
 
   const handleAdd = () => {
     setMode("add")
-    setFormData({ name: "", price: "", category: "drink" })
+    setFormData({ name: "", price: "", category: "drink", ingredientId: "", productId: "", quantity: "1" })
   }
 
   const handleEdit = (addOn: AddOn) => {
@@ -47,8 +52,21 @@ function AddOnsPageContent() {
       name: addOn.name,
       price: addOn.price.toString(),
       category: addOn.category,
+      ingredientId: addOn.ingredientId?.toString() || "",
+      productId: addOn.productId || "",
+      quantity: addOn.quantity?.toString() || "1",
     })
     setMode("edit")
+  }
+
+  const handleIngredientChange = (ingredientId: string) => {
+    const selectedIngredient = ingredients.find((ingredient) => ingredient.id === Number(ingredientId))
+    setFormData((prev) => ({
+      ...prev,
+      ingredientId,
+      productId: selectedIngredient?.productId || "",
+      quantity: ingredientId ? prev.quantity || "1" : "",
+    }))
   }
 
   const handleDelete = (id: string) => {
@@ -61,18 +79,27 @@ function AddOnsPageContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const price = parseFloat(formData.price) || 0
+    const quantity = parseFloat(formData.quantity) || 0
+    const ingredientId = formData.ingredientId ? parseInt(formData.ingredientId, 10) : undefined
+    const productId = formData.productId.trim() || undefined
 
     if (mode === "add") {
       addAddOn({
         name: formData.name,
         price,
         category: formData.category,
+        ingredientId,
+        productId,
+        quantity,
       })
     } else if (editingAddOn) {
       updateAddOn(editingAddOn.id, {
         name: formData.name,
         price,
         category: formData.category,
+        ingredientId,
+        productId,
+        quantity,
       })
     }
 
@@ -167,6 +194,57 @@ function AddOnsPageContent() {
                     <UtensilsCrossed className="h-5 w-5" />
                     <span className="font-medium">Meals</span>
                   </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#7d5a44] mb-2">
+                  Ingredient
+                </label>
+                <select
+                  value={formData.ingredientId}
+                  onChange={(e) => handleIngredientChange(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border border-[#b2967d]/50 focus:ring-2 focus:ring-[#4a342a] focus:border-[#4a342a] outline-none"
+                >
+                  <option value="">No ingredient link</option>
+                  {ingredients.map((ingredient) => (
+                    <option key={ingredient.id} value={ingredient.id}>
+                      {ingredient.productId} - {ingredient.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Choosing an ingredient auto-fills the product ID for inventory tracking.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-[#7d5a44] mb-2">
+                    Product ID
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.productId}
+                    readOnly
+                    placeholder="Auto-filled from ingredient"
+                    className="w-full px-4 py-3 rounded-lg bg-muted border border-[#b2967d]/30 outline-none text-muted-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[#7d5a44] mb-2">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                    placeholder="0"
+                    disabled={!formData.ingredientId}
+                    className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border border-[#b2967d]/50 focus:ring-2 focus:ring-[#4a342a] focus:border-[#4a342a] outline-none disabled:bg-muted disabled:text-muted-foreground"
+                  />
                 </div>
               </div>
 
@@ -308,6 +386,12 @@ function AddOnsPageContent() {
                     P{addOn.price.toFixed(0)}
                   </span>
                 </div>
+
+                {addOn.productId && addOn.quantity ? (
+                  <p className="text-xs text-muted-foreground">
+                    {addOn.productId} • Qty {addOn.quantity}
+                  </p>
+                ) : null}
 
                 <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-border">
                   <button

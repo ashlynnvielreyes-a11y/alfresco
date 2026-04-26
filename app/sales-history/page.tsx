@@ -6,7 +6,11 @@ import { FileText, Calendar, Download, TrendingUp } from "lucide-react"
 import {
   initializeSupabaseStore,
   getTransactionsByDateRange,
+  getDailySales,
   getSalesTotalByDateRange,
+  getWeeklySales,
+  getMonthlySales,
+  getYearlySales,
   getSalesOverTime,
   getSalesByCategory,
   getTopProducts,
@@ -31,6 +35,67 @@ function paymentMethodLabel(paymentMethod: Transaction["paymentMethod"]) {
   return paymentMethod === "gcash" ? "GCash" : "Cash"
 }
 
+function renderCategoryLabel({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+  category,
+}: {
+  cx?: number
+  cy?: number
+  midAngle?: number
+  innerRadius?: number
+  outerRadius?: number
+  percent?: number
+  category?: string
+}) {
+  if (
+    cx === undefined ||
+    cy === undefined ||
+    midAngle === undefined ||
+    innerRadius === undefined ||
+    outerRadius === undefined ||
+    percent === undefined ||
+    !category
+  ) {
+    return null
+  }
+
+  const RADIAN = Math.PI / 180
+  const radius = innerRadius + (outerRadius - innerRadius) * 1.24
+  const x = cx + radius * Math.cos(-midAngle * RADIAN)
+  const y = cy + radius * Math.sin(-midAngle * RADIAN) + (yNeedsLift(midAngle) ? -10 : 0)
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#7d5a44"
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize={14}
+      fontWeight={700}
+    >
+      {`${category} ${Math.round(percent * 100)}%`}
+    </text>
+  )
+}
+
+function yNeedsLift(midAngle: number) {
+  return midAngle > 45 && midAngle < 135
+}
+
+function getWeekNumber(date: Date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
 export default function SalesHistoryPage() {
   const defaults = getDefaultRange()
   const [fromDate, setFromDate] = useState(defaults.fromDate)
@@ -39,6 +104,10 @@ export default function SalesHistoryPage() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [rangeTotal, setRangeTotal] = useState(0)
+  const [dailySales, setDailySales] = useState(0)
+  const [weeklySales, setWeeklySales] = useState(0)
+  const [monthlySales, setMonthlySales] = useState(0)
+  const [yearlySales, setYearlySales] = useState(0)
   const [salesOverTime, setSalesOverTime] = useState<SalesOverTimePoint[]>([])
   const [salesByCategory, setSalesByCategory] = useState<SalesByCategory[]>([])
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
@@ -49,11 +118,16 @@ export default function SalesHistoryPage() {
       await initializeSupabaseStore()
       const startDate = new Date(fromDate)
       const endDate = new Date(toDate)
+      const today = new Date()
 
       if (startDate > endDate) return
 
       setTransactions(await getTransactionsByDateRange(fromDate, toDate))
       setRangeTotal(await getSalesTotalByDateRange(fromDate, toDate))
+      setDailySales(await getDailySales(today.toISOString().split("T")[0]))
+      setWeeklySales(await getWeeklySales(today.getFullYear(), getWeekNumber(today)))
+      setMonthlySales(await getMonthlySales(today.getFullYear(), today.getMonth()))
+      setYearlySales(await getYearlySales(today.getFullYear()))
       setSalesOverTime(await getSalesOverTime(startDate, endDate))
       setSalesByCategory(await getSalesByCategory(startDate, endDate))
       setTopProducts(await getTopProducts(startDate, endDate, 5))
@@ -75,13 +149,6 @@ export default function SalesHistoryPage() {
     a.download = `sales-${fromDate}-to-${toDate}.csv`
     a.click()
   }
-
-  const totalCards = [
-    { label: "Range Sales", value: `\u20B1${rangeTotal.toFixed(2)}`, tint: "from-[#4a342a] to-[#7d5a44]" },
-    { label: "Transactions", value: String(transactions.length), tint: "from-[#b2967d] to-[#b2967d]" },
-    { label: "Top Product", value: topProducts[0]?.name || "No sales yet", tint: "from-[#7d5a44] to-[#b2967d]" },
-    { label: "Average Ticket", value: `\u20B1${(transactions.length ? rangeTotal / transactions.length : 0).toFixed(2)}`, tint: "from-[#4a342a] to-[#b2967d]" },
-  ]
 
   return (
     <div className="flex min-h-screen bg-transparent">
@@ -129,14 +196,57 @@ export default function SalesHistoryPage() {
         </div>
 
         <div className="relative mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:mb-8 lg:grid-cols-4 lg:gap-4">
-          {totalCards.map((card) => (
-            <div key={card.label} className={`overflow-hidden rounded-[24px] bg-gradient-to-br ${card.tint} p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]`}>
-              <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
-                <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">{card.label}</p>
-                <p className="mt-2 text-xl font-bold lg:text-2xl">{card.value}</p>
+          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#4a342a] to-[#7d5a44] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
+            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
+              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Range Sales</p>
+              <p className="mt-2 text-xl font-bold lg:text-2xl">{`\u20B1${rangeTotal.toFixed(2)}`}</p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#6f8a72] to-[#b7c8b5] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)] sm:col-span-2">
+            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
+              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Sales Snapshot</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Daily</p>
+                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${dailySales.toFixed(2)}`}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Weekly</p>
+                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${weeklySales.toFixed(2)}`}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Monthly</p>
+                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${monthlySales.toFixed(2)}`}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#f5f1ea]/75">Yearly</p>
+                  <p className="mt-1 text-base font-bold lg:text-lg">{`\u20B1${yearlySales.toFixed(2)}`}</p>
+                </div>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#b2967d] to-[#b2967d] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
+            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
+              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Transactions</p>
+              <p className="mt-2 text-xl font-bold lg:text-2xl">{String(transactions.length)}</p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#7d5a44] to-[#b2967d] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
+            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
+              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Top Product</p>
+              <p className="mt-2 text-xl font-bold lg:text-2xl">{topProducts[0]?.name || "No sales yet"}</p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#4a342a] to-[#b2967d] p-[1px] shadow-[0_18px_34px_rgba(123,111,25,0.10)]">
+            <div className="rounded-[23px] bg-[rgba(245,241,234,0.14)] px-4 py-4 text-[#f5f1ea] backdrop-blur-sm lg:px-5 lg:py-5">
+              <p className="text-xs text-[#f5f1ea]/75 lg:text-sm">Average Ticket</p>
+              <p className="mt-2 text-xl font-bold lg:text-2xl">{`\u20B1${(transactions.length ? rangeTotal / transactions.length : 0).toFixed(2)}`}</p>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:mb-8 lg:grid-cols-2 lg:gap-8">
@@ -176,7 +286,16 @@ export default function SalesHistoryPage() {
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={salesByCategory} cx="50%" cy="50%" labelLine={false} label={({ category, percentage }) => `${category} ${percentage}%`} outerRadius={100} fill="#4a342a" dataKey="sales">
+                <Pie
+                  data={salesByCategory}
+                  cx="50%"
+                  cy="54%"
+                  labelLine={false}
+                  label={renderCategoryLabel}
+                  outerRadius={100}
+                  fill="#4a342a"
+                  dataKey="sales"
+                >
                   {salesByCategory.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}

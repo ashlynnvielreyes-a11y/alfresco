@@ -49,6 +49,10 @@ export interface AddOn {
   name: string
   price: number
   category: "drink" | "meal"
+  ingredientId?: number
+  productId?: string
+  quantity?: number
+  selectedQuantity?: number
 }
 
 export interface ComboMeal {
