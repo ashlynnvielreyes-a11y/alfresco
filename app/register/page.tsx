@@ -22,6 +22,10 @@ export default function RegisterPage() {
   const [role, setRole] = useState<"admin" | "employee">("employee")
   const router = useRouter()
 
+  const getDatabaseRole = () => {
+    return role === "employee" ? "cashier" : "admin"
+  }
+
   // OTP states
   const [step, setStep] = useState<"form" | "otp">("form")
   const [otp, setOtp] = useState(["", "", "", "", "", ""])
@@ -181,7 +185,7 @@ export default function RegisterPage() {
             username: username.toLowerCase(),
             email: email.toLowerCase(),
             password_hash: password,
-            role,
+            role: getDatabaseRole(),
           })
           .select("id, username, email, role")
           .single()
