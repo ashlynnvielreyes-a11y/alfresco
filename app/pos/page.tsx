@@ -25,7 +25,7 @@ function getComboProductId(comboId: number) {
 
 function getCartItemKey(item: CartItem) {
   if (item.comboMeal) {
-    return `combo:${item.comboMeal.id}`
+    return `combo:${item.comboMeal.id}::${getAddOnKey(item.addOns)}`
   }
   return `${item.product.id}::${item.temperature || "none"}::${getAddOnKey(item.addOns)}`
 }
@@ -36,8 +36,8 @@ function formatCoffeeTemperature(temperature?: CoffeeTemperature) {
 }
 
 function getCartItemUnitPrice(item: CartItem) {
-  if (item.comboMeal) return item.comboMeal.price
   const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price * (addon.selectedQuantity || 1), 0)
+  if (item.comboMeal) return item.comboMeal.price + addOnsTotal
   return item.product.price + addOnsTotal
 }
 
@@ -104,6 +104,7 @@ export default function POSPage() {
   // Add-ons modal state
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedProductForAddOns, setSelectedProductForAddOns] = useState<Product | null>(null)
+  const [selectedComboMealForAddOns, setSelectedComboMealForAddOns] = useState<ComboMeal | null>(null)
   const [selectedAddOns, setSelectedAddOns] = useState<AddOn[]>([])
   const [selectedTemperature, setSelectedTemperature] = useState<CoffeeTemperature>("hot")
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null)
@@ -197,7 +198,7 @@ export default function POSPage() {
   const getAvailableAddOns = useCallback((product: Product): AddOn[] => {
     if (product.category === "Coffee" || product.category === "Milk Tea" || product.category === "Fruit Tea") {
       return allAddOns.filter(a => a.category === "drink")
-    } else if (product.category === "Silog") {
+    } else if (product.category === "Silog" || product.category === "Combos") {
       return allAddOns.filter(a => a.category === "meal")
     }
     return []
@@ -216,6 +217,7 @@ export default function POSPage() {
     if (availableAddOns.length > 0) {
       // Open add-ons modal for drinks and meals
       setSelectedProductForAddOns(product)
+      setSelectedComboMealForAddOns(null)
       setSelectedAddOns([])
       setSelectedTemperature("hot")
       setEditingCartIndex(null)
@@ -275,9 +277,28 @@ export default function POSPage() {
     
     const product = selectedProductForAddOns
     const addOns = selectedAddOns
+    const comboMeal = selectedComboMealForAddOns
     const temperature = productSupportsTemperature(product) ? selectedTemperature : undefined
     
     setCart((prev) => {
+      if (comboMeal) {
+        const addOnKey = getAddOnKey(addOns)
+        const existing = prev.find((item) =>
+          item.comboMeal?.id === comboMeal.id &&
+          getAddOnKey(item.addOns) === addOnKey
+        )
+
+        if (existing) {
+          return prev.map((item) =>
+            item.comboMeal?.id === comboMeal.id && getAddOnKey(item.addOns) === addOnKey
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          )
+        }
+
+        return [...prev, { product, quantity: 1, comboMeal, addOns: addOns.length > 0 ? addOns : undefined }]
+      }
+
       // Create a unique key based on product + temperature + add-ons combination
       const addOnKey = getAddOnKey(addOns)
       const existing = prev.find((item) => 
@@ -314,10 +335,11 @@ export default function POSPage() {
     
     setShowAddOnsModal(false)
     setSelectedProductForAddOns(null)
+    setSelectedComboMealForAddOns(null)
     setSelectedAddOns([])
     setSelectedTemperature("hot")
     setEditingCartIndex(null)
-  }, [selectedProductForAddOns, selectedAddOns, selectedTemperature, ingredients, productSupportsTemperature])
+  }, [selectedProductForAddOns, selectedComboMealForAddOns, selectedAddOns, selectedTemperature, ingredients, productSupportsTemperature])
 
   const updateQuantity = useCallback((itemKey: string, delta: number) => {
     setCart((prev) =>
@@ -354,8 +376,9 @@ export default function POSPage() {
   // Edit add-ons for an existing cart item
   const handleEditAddOns = useCallback((cartIndex: number) => {
     const cartItem = cart[cartIndex]
-    if (!cartItem || cartItem.comboMeal) return
+    if (!cartItem) return
     setSelectedProductForAddOns(cartItem.product)
+    setSelectedComboMealForAddOns(cartItem.comboMeal || null)
     setSelectedAddOns(cartItem.addOns || [])
     setSelectedTemperature(cartItem.temperature || "hot")
     setEditingCartIndex(cartIndex)
@@ -406,6 +429,7 @@ export default function POSPage() {
     
     setShowAddOnsModal(false)
     setSelectedProductForAddOns(null)
+    setSelectedComboMealForAddOns(null)
     setSelectedAddOns([])
     setSelectedTemperature("hot")
     setEditingCartIndex(null)
@@ -422,6 +446,17 @@ export default function POSPage() {
     const { available, reason } = isProductAvailable(comboProduct)
     if (!available) {
       alert(`Cannot add combo: ${reason}`)
+      return
+    }
+
+    const availableAddOns = getAvailableAddOns(comboProduct)
+    if (availableAddOns.length > 0) {
+      setSelectedProductForAddOns(comboProduct)
+      setSelectedComboMealForAddOns(combo)
+      setSelectedAddOns([])
+      setSelectedTemperature("hot")
+      setEditingCartIndex(null)
+      setShowAddOnsModal(true)
       return
     }
 
@@ -442,7 +477,7 @@ export default function POSPage() {
 
       return [...prev, { product: comboProduct, quantity: 1, comboMeal: combo }]
     })
-  }, [products, ingredients, isProductAvailable])
+  }, [products, ingredients, isProductAvailable, getAvailableAddOns])
 
   // Get minimum available stock for a combo (based on limiting item)
   const getComboAvailableStock = useCallback((combo: ComboMeal): number => {
