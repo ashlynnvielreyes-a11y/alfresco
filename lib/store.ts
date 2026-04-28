@@ -111,6 +111,27 @@ function isSupabaseIdentityColumnError(error: unknown, columnName: string) {
   )
 }
 
+function isSupabaseForeignKeyConstraintError(error: unknown, constraintName: string) {
+  if (error && typeof error === "object") {
+    const code = "code" in error && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code.toLowerCase()
+      : ""
+    const message = "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.toLowerCase()
+      : ""
+    const details = "details" in error && typeof (error as { details?: unknown }).details === "string"
+      ? (error as { details: string }).details.toLowerCase()
+      : ""
+
+    if (code === "23503" && (message.includes(constraintName.toLowerCase()) || details.includes(constraintName.toLowerCase()))) {
+      return true
+    }
+  }
+
+  const serialized = getErrorMessage(error).toLowerCase()
+  return serialized.includes("violates foreign key constraint") && serialized.includes(constraintName.toLowerCase())
+}
+
 async function upsertLegacyAddOnRow(
   supabase: any,
   existingRowId: number | null,
@@ -772,7 +793,27 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
 
   if (itemRows.length > 0) {
     const { error } = await supabase.from("combo_meal_items").insert(itemRows)
-    if (error) throw error
+    if (error) {
+      if (isSupabaseMissingColumnError(error, "ingredient_id", "combo_meal_items")) {
+        const legacyItemRows = combos.flatMap((combo) =>
+          combo.items.map((item) => ({
+            combo_id: combo.id,
+            product_id: item.productId,
+            quantity: item.quantity,
+          }))
+        )
+
+        const legacyResult = await supabase.from("combo_meal_items").insert(legacyItemRows)
+        if (legacyResult.error) {
+          if (isSupabaseForeignKeyConstraintError(legacyResult.error, "combo_meal_items_product_id_fkey")) {
+            return
+          }
+          throw legacyResult.error
+        }
+      } else {
+        throw error
+      }
+    }
   }
 }
 
@@ -988,7 +1029,9 @@ export async function initializeSupabaseStore(): Promise<void> {
           })),
       }))
 
-      if (remoteCombos.length > 0) {
+      const hasRemoteComboItems = remoteCombos.some((combo) => combo.items.length > 0)
+
+      if (remoteCombos.length > 0 && (hasRemoteComboItems || localCombos.length === 0)) {
         saveComboMealsLocally(remoteCombos)
       } else if (localCombos.length > 0) {
         queueSupabaseSync(syncComboMealsToSupabase(localCombos), "combo meals")
@@ -1011,7 +1054,9 @@ export async function initializeSupabaseStore(): Promise<void> {
             })),
         }))
 
-        if (remoteCombos.length > 0) {
+        const hasRemoteComboItems = remoteCombos.some((combo) => combo.items.length > 0)
+
+        if (remoteCombos.length > 0 && (hasRemoteComboItems || localCombos.length === 0)) {
           saveComboMealsLocally(remoteCombos)
         } else if (localCombos.length > 0) {
           queueSupabaseSync(syncComboMealsToSupabase(localCombos), "combo meals")

@@ -50,6 +50,11 @@ function buildComboProduct(combo: ComboMeal, products: Product[]): Product | nul
       continue
     }
 
+    if (!products.find((product) => product.id === item.productId)) {
+      ingredientTotals.set(item.productId, (ingredientTotals.get(item.productId) || 0) + item.quantity)
+      continue
+    }
+
     const sourceProduct = products.find((product) => product.id === item.productId)
     if (!sourceProduct) return null
 

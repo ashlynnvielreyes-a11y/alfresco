@@ -58,7 +58,8 @@ function ComboMealsPageContent() {
         const fallbackIngredient =
           item.ingredientId !== undefined
             ? getIngredientById(item.ingredientId)
-            : comboIngredients.find((ingredient) => ingredient.assignedProducts.includes(item.productId))
+            : getIngredientById(item.productId) ??
+              comboIngredients.find((ingredient) => ingredient.assignedProducts.includes(item.productId))
 
         if (!fallbackIngredient) return null
 
@@ -167,7 +168,8 @@ function ComboMealsPageContent() {
     const ingredient =
       item.ingredientId !== undefined
         ? getIngredientById(item.ingredientId)
-        : comboIngredients.find((entry) => entry.assignedProducts.includes(item.productId))
+        : getIngredientById(item.productId) ??
+          comboIngredients.find((entry) => entry.assignedProducts.includes(item.productId))
 
     return {
       ingredientLabel: ingredient ? `${ingredient.productId} • ${ingredient.name}` : "Unknown ingredient",
