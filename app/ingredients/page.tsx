@@ -647,17 +647,17 @@ function IngredientsPageContent() {
           })}
         </div>
 
-        <div className="hidden lg:block rounded-lg border border-border bg-[rgba(245,241,234,0.74)] overflow-hidden backdrop-blur-md">
-          <table className="w-full">
+        <div className="hidden lg:block overflow-x-auto rounded-lg border border-border bg-[rgba(245,241,234,0.74)] backdrop-blur-md">
+          <table className="min-w-[980px] w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-6 py-4 font-semibold text-foreground">Product ID</th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">Ingredient Name</th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">Unit</th>
-                <th className="text-center px-6 py-4 font-semibold text-foreground">Stock</th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">Next Batch</th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">Next Expiration</th>
-                <th className="text-center px-6 py-4 font-semibold text-foreground">Status</th>
+                <th className="w-[110px] text-left px-4 py-4 font-semibold text-foreground">Product ID</th>
+                <th className="w-[170px] text-left px-4 py-4 font-semibold text-foreground">Ingredient Name</th>
+                <th className="w-[90px] text-left px-4 py-4 font-semibold text-foreground">Unit</th>
+                <th className="w-[100px] text-center px-4 py-4 font-semibold text-foreground">Stock</th>
+                <th className="w-[170px] text-left px-4 py-4 font-semibold text-foreground">Next Batch</th>
+                <th className="w-[210px] text-left px-4 py-4 font-semibold text-foreground">Next Expiration</th>
+                <th className="w-[170px] text-center px-4 py-4 font-semibold text-foreground">Status</th>
                 <th className="w-[84px] text-center px-3 py-4 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
@@ -669,30 +669,30 @@ function IngredientsPageContent() {
 
                 return (
                   <tr key={ingredient.id} className="border-b border-border last:border-0">
-                    <td className="px-6 py-4 font-medium text-[#7d5a44]">{ingredient.productId}</td>
-                    <td className="px-6 py-4 font-medium">{ingredient.name}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{ingredient.unit}</td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-4 font-medium text-[#7d5a44]">{ingredient.productId}</td>
+                    <td className="px-4 py-4 font-medium">{ingredient.name}</td>
+                    <td className="px-4 py-4 text-muted-foreground">{ingredient.unit}</td>
+                    <td className="px-4 py-4 text-center">
                       <span className="inline-flex items-center justify-center min-w-[60px] px-3 py-1 bg-[#4a342a] text-[#f5f1ea] rounded-full font-medium">
                         {ingredient.stock}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-4 text-sm">
                       <div className="space-y-1">
-                        <p className="font-medium">{summary.nextBatchId || "No active batch"}</p>
+                        <p className="break-all font-medium">{summary.nextBatchId || "No active batch"}</p>
                         <p className="text-muted-foreground">
                           {summary.nextDateAdded ? formatDate(summary.nextDateAdded) : "No active batch"}
                         </p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 align-middle">
+                    <td className="px-4 py-4 align-middle">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate">{formatDate(expiration.date)}</span>
                         <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expiration.status.tone}`}>{expiration.status.text}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center align-middle">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-4 py-4 text-center align-middle">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
                         <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm whitespace-nowrap ${status.color}`}>{status.text}</span>
                         {(expiration.status.text === "Expired" || expiration.status.text === "Near Expiry") ? (
                           <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${expiration.status.tone}`}>
