@@ -1117,9 +1117,10 @@ export default function POSPage() {
 
       {/* Receipt Modal */}
       {showReceipt && lastTransaction && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-sm flex-col rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.84)] p-6 backdrop-blur-xl lg:max-w-md lg:p-8">
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4">
+          <div className="flex min-h-full items-start justify-center py-4">
+            <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-sm flex-col rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.84)] p-6 backdrop-blur-xl lg:max-w-md lg:p-8">
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-2">
               <h2 className="text-2xl font-bold text-center mb-1">AL FRESCO CAFE</h2>
               <p className="text-center text-muted-foreground mb-1">Official Receipt</p>
               <p className="text-center text-sm font-medium mb-1">
@@ -1198,14 +1199,15 @@ export default function POSPage() {
               <div className="text-center text-xs text-muted-foreground py-3 border-t border-dashed border-border">
                 <p>PROCESSED BY: {lastTransaction.processedBy.toUpperCase()}</p>
               </div>
-            </div>
+              </div>
 
-            <button
-              onClick={closeReceipt}
-              className="mt-4 w-full shrink-0 rounded-lg bg-[#4a342a] py-3 font-semibold text-[#f5f1ea]"
-            >
-              DONE
-            </button>
+              <button
+                onClick={closeReceipt}
+                className="mt-4 w-full shrink-0 rounded-lg bg-[#4a342a] py-3 font-semibold text-[#f5f1ea]"
+              >
+                DONE
+              </button>
+            </div>
           </div>
         </div>
   )}
