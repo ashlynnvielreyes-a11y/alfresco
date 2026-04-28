@@ -1118,92 +1118,96 @@ export default function POSPage() {
       {/* Receipt Modal */}
       {showReceipt && lastTransaction && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.84)] p-6 backdrop-blur-xl lg:max-w-md lg:p-8">
-            <h2 className="text-2xl font-bold text-center mb-1">AL FRESCO CAFE</h2>
-            <p className="text-center text-muted-foreground mb-1">Official Receipt</p>
-            <p className="text-center text-sm font-medium mb-1">
-              Order No: {lastTransaction.id}
-            </p>
-            <p className="text-center text-sm text-muted-foreground mb-4">
-              {lastTransaction.date} {lastTransaction.time}
-            </p>
+          <div className="flex max-h-[90vh] w-full max-w-sm flex-col rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.84)] p-6 backdrop-blur-xl lg:max-w-md lg:p-8">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <h2 className="text-2xl font-bold text-center mb-1">AL FRESCO CAFE</h2>
+              <p className="text-center text-muted-foreground mb-1">Official Receipt</p>
+              <p className="text-center text-sm font-medium mb-1">
+                Order No: {lastTransaction.id}
+              </p>
+              <p className="text-center text-sm text-muted-foreground mb-4">
+                {lastTransaction.date} {lastTransaction.time}
+              </p>
 
-            <div className="border-t border-dashed border-border py-4 space-y-2 font-mono text-sm">
-              {lastTransaction.items.map((item, index) => {
-                const itemTotal = getCartItemUnitPrice(item) * item.quantity
-                const temperatureLabel = formatCoffeeTemperature(item.temperature)
-                return (
-                  <div key={`${getCartItemKey(item)}-${index}`}>
-                    <div className="flex justify-between">
-                      <span>{item.product.name}{temperatureLabel ? ` (${temperatureLabel})` : ""} x{item.quantity}</span>
-                      <span>P{itemTotal.toFixed(2)}</span>
+              <div className="border-t border-dashed border-border py-4 space-y-2 font-mono text-sm">
+                {lastTransaction.items.map((item, index) => {
+                  const itemTotal = getCartItemUnitPrice(item) * item.quantity
+                  const temperatureLabel = formatCoffeeTemperature(item.temperature)
+                  return (
+                    <div key={`${getCartItemKey(item)}-${index}`}>
+                      <div className="flex justify-between gap-3">
+                        <span className="min-w-0 break-words">
+                          {item.product.name}{temperatureLabel ? ` (${temperatureLabel})` : ""} x{item.quantity}
+                        </span>
+                        <span className="shrink-0">P{itemTotal.toFixed(2)}</span>
+                      </div>
+                      {item.comboMeal && (
+                        <div className="text-xs text-muted-foreground pl-2">
+                          {item.comboMeal.items.map((comboItem, comboIndex) => {
+                            const ingredient = ingredients.find((entry) => entry.id === comboItem.ingredientId)
+                            const label = ingredient ? ingredient.name : `Ingredient ${comboItem.ingredientId ?? comboItem.productId}`
+                            return (
+                              <div key={`${item.comboMeal?.id}-${comboIndex}`}>
+                                {comboItem.quantity} x {label}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {item.addOns && item.addOns.length > 0 && (
+                        <div className="text-xs text-muted-foreground pl-2">
+                          {item.addOns.map((addon) => (
+                            <div key={addon.id}>+ {addon.name} x{addon.selectedQuantity || 1}</div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {item.comboMeal && (
-                      <div className="text-xs text-muted-foreground pl-2">
-                        {item.comboMeal.items.map((comboItem, comboIndex) => {
-                          const ingredient = ingredients.find((entry) => entry.id === comboItem.ingredientId)
-                          const label = ingredient ? ingredient.name : `Ingredient ${comboItem.ingredientId ?? comboItem.productId}`
-                          return (
-                            <div key={`${item.comboMeal?.id}-${comboIndex}`}>
-                              {comboItem.quantity} x {label}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                    {item.addOns && item.addOns.length > 0 && (
-                      <div className="text-xs text-muted-foreground pl-2">
-                        {item.addOns.map((addon) => (
-                          <div key={addon.id}>+ {addon.name} x{addon.selectedQuantity || 1}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="border-t border-dashed border-border py-4 space-y-2 font-mono text-sm">
-              <div className="flex justify-between">
-                <span>SUBTOTAL:</span>
-                <span>P{lastTransaction.subtotal.toFixed(2)}</span>
+                  )
+                })}
               </div>
-              {lastTransaction.discountAmount > 0 && (
+
+              <div className="border-t border-dashed border-border py-4 space-y-2 font-mono text-sm">
                 <div className="flex justify-between">
-                  <span>DISCOUNT:</span>
-                  <span>-P{lastTransaction.discountAmount.toFixed(2)}</span>
+                  <span>SUBTOTAL:</span>
+                  <span>P{lastTransaction.subtotal.toFixed(2)}</span>
                 </div>
-              )}
-              <div className="border-t border-dashed border-border pt-2 flex justify-between font-bold text-base">
-                <span>TOTAL:</span>
-                <span>P{lastTransaction.total.toFixed(2)}</span>
+                {lastTransaction.discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span>DISCOUNT:</span>
+                    <span>-P{lastTransaction.discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="border-t border-dashed border-border pt-2 flex justify-between font-bold text-base">
+                  <span>TOTAL:</span>
+                  <span>P{lastTransaction.total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span>CASH:</span>
+                  <span>P{lastTransaction.cashReceived.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>CHANGE:</span>
+                  <span>P{lastTransaction.change.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-2 gap-3">
+                  <span>MODE OF PAYMENT:</span>
+                  <span className="capitalize text-right">{lastTransaction.paymentMethod === "gcash" ? "GCash" : "Cash"}</span>
+                </div>
               </div>
-              <div className="flex justify-between pt-2">
-                <span>CASH:</span>
-                <span>P{lastTransaction.cashReceived.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between font-semibold">
-                <span>CHANGE:</span>
-                <span>P{lastTransaction.change.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between pt-2">
-                <span>MODE OF PAYMENT:</span>
-                <span className="capitalize">{lastTransaction.paymentMethod === "gcash" ? "GCash" : "Cash"}</span>
+
+              <div className="text-center text-xs text-muted-foreground py-3 border-t border-dashed border-border">
+                <p>PROCESSED BY: {lastTransaction.processedBy.toUpperCase()}</p>
               </div>
             </div>
 
-            <div className="text-center text-xs text-muted-foreground py-3 border-t border-dashed border-border">
-              <p>PROCESSED BY: {lastTransaction.processedBy.toUpperCase()}</p>
-            </div>
-
-<button
-  onClick={closeReceipt}
-  className="w-full py-3 bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg mt-4"
-  >
-  DONE
-  </button>
-  </div>
-  </div>
+            <button
+              onClick={closeReceipt}
+              className="mt-4 w-full shrink-0 rounded-lg bg-[#4a342a] py-3 font-semibold text-[#f5f1ea]"
+            >
+              DONE
+            </button>
+          </div>
+        </div>
   )}
 
       {/* Void Transaction Modal */}
