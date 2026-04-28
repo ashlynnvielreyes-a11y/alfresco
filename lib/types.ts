@@ -81,6 +81,7 @@ export interface CartItem {
   quantity: number
   temperature?: CoffeeTemperature
   addOns?: AddOn[]
+  comboMeal?: ComboMeal
 }
 
 export interface Transaction {

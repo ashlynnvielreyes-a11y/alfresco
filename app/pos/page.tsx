@@ -10,6 +10,7 @@ import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, Coff
 
 const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Tea", "Silog", "Combos"] as const
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
+const comboProductIdOffset = 100000
 
 function getAddOnKey(addOns?: AddOn[]) {
   return (addOns || [])
@@ -18,7 +19,14 @@ function getAddOnKey(addOns?: AddOn[]) {
     .join("-")
 }
 
+function getComboProductId(comboId: number) {
+  return comboProductIdOffset + comboId
+}
+
 function getCartItemKey(item: CartItem) {
+  if (item.comboMeal) {
+    return `combo:${item.comboMeal.id}`
+  }
   return `${item.product.id}::${item.temperature || "none"}::${getAddOnKey(item.addOns)}`
 }
 
@@ -28,8 +36,41 @@ function formatCoffeeTemperature(temperature?: CoffeeTemperature) {
 }
 
 function getCartItemUnitPrice(item: CartItem) {
+  if (item.comboMeal) return item.comboMeal.price
   const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price * (addon.selectedQuantity || 1), 0)
   return item.product.price + addOnsTotal
+}
+
+function buildComboProduct(combo: ComboMeal, products: Product[]): Product | null {
+  const ingredientTotals = new Map<number, number>()
+
+  for (const item of combo.items) {
+    if (item.ingredientId !== undefined) {
+      ingredientTotals.set(item.ingredientId, (ingredientTotals.get(item.ingredientId) || 0) + item.quantity)
+      continue
+    }
+
+    const sourceProduct = products.find((product) => product.id === item.productId)
+    if (!sourceProduct) return null
+
+    for (const ingredient of sourceProduct.ingredients) {
+      ingredientTotals.set(
+        ingredient.ingredientId,
+        (ingredientTotals.get(ingredient.ingredientId) || 0) + ingredient.quantity * item.quantity
+      )
+    }
+  }
+
+  return {
+    id: getComboProductId(combo.id),
+    name: combo.name,
+    category: "Combos",
+    price: combo.price,
+    ingredients: Array.from(ingredientTotals.entries()).map(([ingredientId, quantity]) => ({
+      ingredientId,
+      quantity,
+    })),
+  }
 }
 
 export default function POSPage() {
@@ -308,7 +349,7 @@ export default function POSPage() {
   // Edit add-ons for an existing cart item
   const handleEditAddOns = useCallback((cartIndex: number) => {
     const cartItem = cart[cartIndex]
-    if (!cartItem) return
+    if (!cartItem || cartItem.comboMeal) return
     setSelectedProductForAddOns(cartItem.product)
     setSelectedAddOns(cartItem.addOns || [])
     setSelectedTemperature(cartItem.temperature || "hot")
@@ -367,76 +408,51 @@ export default function POSPage() {
 
   // Handle adding a combo meal to cart - adds all items as a bundle
   const handleComboClick = useCallback((combo: ComboMeal) => {
-    // Check availability of all items in the combo
-    for (const comboItem of combo.items) {
-      const product = products.find(p => p.id === comboItem.productId)
-      if (!product) {
-        alert(`Product in combo not found`)
-        return
-      }
-      const { available, reason } = isProductAvailable(product, comboItem.quantity)
-      if (!available) {
-        alert(`Cannot add combo: ${product.name} - ${reason}`)
-        return
-      }
+    const comboProduct = buildComboProduct(combo, products)
+    if (!comboProduct) {
+      alert("Combo ingredients could not be resolved")
+      return
     }
 
-    // Add each item in the combo to the cart
-    setCart((prev) => {
-      const newCart = [...prev]
-      
-      for (const comboItem of combo.items) {
-        const product = products.find(p => p.id === comboItem.productId)
-        if (!product) continue
+    const { available, reason } = isProductAvailable(comboProduct)
+    if (!available) {
+      alert(`Cannot add combo: ${reason}`)
+      return
+    }
 
-        const existingIndex = newCart.findIndex((item) => 
-          item.product.id === product.id && 
-          (!item.addOns || item.addOns.length === 0)
-        )
-        
-        if (existingIndex !== -1) {
-          const newQuantity = newCart[existingIndex].quantity + comboItem.quantity
-          const availableStock = getProductAvailableStock(product, ingredients)
-          if (newQuantity <= availableStock) {
-            newCart[existingIndex] = { ...newCart[existingIndex], quantity: newQuantity }
-          }
-        } else {
-          newCart.push({ product, quantity: comboItem.quantity })
+    setCart((prev) => {
+      const existing = prev.find((item) => item.comboMeal?.id === combo.id)
+      if (existing) {
+        const nextQuantity = existing.quantity + 1
+        const { available: comboAvailable } = checkIngredientAvailability(comboProduct, nextQuantity, ingredients)
+        if (!comboAvailable) {
+          alert("Not enough ingredients for additional combo quantity")
+          return prev
         }
+
+        return prev.map((item) =>
+          item.comboMeal?.id === combo.id ? { ...item, quantity: nextQuantity } : item
+        )
       }
-      
-      return newCart
+
+      return [...prev, { product: comboProduct, quantity: 1, comboMeal: combo }]
     })
   }, [products, ingredients, isProductAvailable])
 
   // Get minimum available stock for a combo (based on limiting item)
   const getComboAvailableStock = useCallback((combo: ComboMeal): number => {
-    let minStock = Infinity
-    
-    for (const comboItem of combo.items) {
-      const product = products.find(p => p.id === comboItem.productId)
-      if (!product) return 0
-      
-      const productStock = getProductAvailableStock(product, ingredients)
-      const comboQuantityPossible = Math.floor(productStock / comboItem.quantity)
-      minStock = Math.min(minStock, comboQuantityPossible)
-    }
-    
-    return minStock === Infinity ? 0 : minStock
+    const comboProduct = buildComboProduct(combo, products)
+    if (!comboProduct) return 0
+    return getProductAvailableStock(comboProduct, ingredients)
   }, [products, ingredients])
 
   // Check if combo has any unavailable items
   const isComboUnavailable = useCallback((combo: ComboMeal): { unavailable: boolean; reason?: string } => {
-    for (const comboItem of combo.items) {
-      const product = products.find(p => p.id === comboItem.productId)
-      if (!product) {
-        return { unavailable: true, reason: "Missing product" }
-      }
-      
-      const availableStock = getProductAvailableStock(product, ingredients)
-      if (availableStock < comboItem.quantity) {
-        return { unavailable: true, reason: `${product.name} out of stock` }
-      }
+    const comboProduct = buildComboProduct(combo, products)
+    if (!comboProduct) return { unavailable: true, reason: "Missing combo ingredients" }
+    const { available, missingIngredients } = checkIngredientAvailability(comboProduct, 1, ingredients)
+    if (!available) {
+      return { unavailable: true, reason: missingIngredients[0] || "Out of stock" }
     }
     return { unavailable: false }
   }, [products, ingredients])
@@ -800,6 +816,19 @@ export default function POSPage() {
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <p className="font-medium text-sm">{item.product.name}</p>
+                          {item.comboMeal && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {item.comboMeal.items.map((comboItem, comboIndex) => {
+                                const ingredient = ingredients.find((entry) => entry.id === comboItem.ingredientId)
+                                const label = ingredient ? ingredient.name : `Ingredient ${comboItem.ingredientId ?? comboItem.productId}`
+                                return (
+                                  <span key={`${item.comboMeal?.id}-${comboIndex}`} className="block">
+                                    {comboItem.quantity} x {label}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          )}
                           {temperatureLabel && (
                             <p className="text-xs text-muted-foreground mt-1">Served: {temperatureLabel}</p>
                           )}
@@ -814,12 +843,14 @@ export default function POSPage() {
                             P{itemTotal.toFixed(2)} each
                           </p>
                         </div>
-                        <button
-                          onClick={() => handleEditAddOns(index)}
-                          className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground ml-2"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
+                        {!item.comboMeal && (
+                          <button
+                            onClick={() => handleEditAddOns(index)}
+                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground ml-2"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
@@ -1102,6 +1133,19 @@ export default function POSPage() {
                       <span>{item.product.name}{temperatureLabel ? ` (${temperatureLabel})` : ""} x{item.quantity}</span>
                       <span>P{itemTotal.toFixed(2)}</span>
                     </div>
+                    {item.comboMeal && (
+                      <div className="text-xs text-muted-foreground pl-2">
+                        {item.comboMeal.items.map((comboItem, comboIndex) => {
+                          const ingredient = ingredients.find((entry) => entry.id === comboItem.ingredientId)
+                          const label = ingredient ? ingredient.name : `Ingredient ${comboItem.ingredientId ?? comboItem.productId}`
+                          return (
+                            <div key={`${item.comboMeal?.id}-${comboIndex}`}>
+                              {comboItem.quantity} x {label}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                     {item.addOns && item.addOns.length > 0 && (
                       <div className="text-xs text-muted-foreground pl-2">
                         {item.addOns.map((addon) => (

@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X } from "lucide-react"
-import { initializeSupabaseStore, getComboMeals, addComboMeal, updateComboMeal, deleteComboMeal, getProducts, getIngredients } from "@/lib/store"
-import type { ComboMeal, Product, Ingredient } from "@/lib/types"
+import { initializeSupabaseStore, getComboMeals, addComboMeal, updateComboMeal, deleteComboMeal, getIngredients } from "@/lib/store"
+import type { ComboMeal, Ingredient } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit"
 
@@ -16,7 +16,6 @@ type ComboSelection = {
 
 function ComboMealsPageContent() {
   const [combos, setCombos] = useState<ComboMeal[]>([])
-  const [products, setProducts] = useState<Product[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingCombo, setEditingCombo] = useState<ComboMeal | null>(null)
@@ -31,7 +30,6 @@ function ComboMealsPageContent() {
     const loadData = async () => {
       await initializeSupabaseStore()
       setCombos(getComboMeals())
-      setProducts(getProducts())
       setIngredients(getIngredients())
     }
 
@@ -43,25 +41,13 @@ function ComboMealsPageContent() {
   const getIngredientById = (ingredientId: number) =>
     comboIngredients.find((ingredient) => ingredient.id === ingredientId)
 
-  const getLinkedProducts = (ingredientId: number) => {
-    const ingredient = getIngredientById(ingredientId)
-    if (!ingredient) return []
-
-    return ingredient.assignedProducts
-      .map((productId) => products.find((product) => product.id === productId))
-      .filter((product): product is Product => Boolean(product))
-  }
-
   const buildDefaultSelection = (): ComboSelection | null => {
     const ingredient = comboIngredients[0]
     if (!ingredient) return null
 
-    const linkedProduct = getLinkedProducts(ingredient.id)[0]
-    if (!linkedProduct) return null
-
     return {
       ingredientId: ingredient.id,
-      productId: linkedProduct.id,
+      productId: ingredient.id,
       quantity: 1,
     }
   }
@@ -76,15 +62,9 @@ function ComboMealsPageContent() {
 
         if (!fallbackIngredient) return null
 
-        const linkedProducts = getLinkedProducts(fallbackIngredient.id)
-        const resolvedProduct =
-          linkedProducts.find((product) => product.id === item.productId) || linkedProducts[0]
-
-        if (!resolvedProduct) return null
-
         return {
           ingredientId: fallbackIngredient.id,
-          productId: resolvedProduct.id,
+          productId: item.productId || fallbackIngredient.id,
           quantity: item.quantity,
         }
       })
@@ -161,16 +141,17 @@ function ComboMealsPageContent() {
 
   const updateIngredientSelection = (index: number, ingredientId: number) => {
     const updated = [...selectedItems]
-    const linkedProduct = getLinkedProducts(ingredientId)[0]
 
     updated[index] = {
       ingredientId,
-      productId: linkedProduct?.id || updated[index].productId,
+      productId: ingredientId,
       quantity: updated[index].quantity,
     }
 
     setSelectedItems(updated)
   }
+
+  const hasInvalidSelections = false
 
   const updateProductQuantity = (index: number, quantity: number) => {
     const updated = [...selectedItems]
@@ -192,8 +173,6 @@ function ComboMealsPageContent() {
       ingredientLabel: ingredient ? `${ingredient.productId} • ${ingredient.name}` : "Unknown ingredient",
     }
   }
-
-  const hasUnlinkedSelections = selectedItems.some((item) => getLinkedProducts(item.ingredientId).length === 0)
 
   const pageShellClass =
     "rounded-[28px] border border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.72)] shadow-[0_24px_60px_rgba(74,52,42,0.08)] backdrop-blur-xl"
@@ -284,15 +263,9 @@ function ComboMealsPageContent() {
                             {comboIngredients.map((ingredient) => (
                               <option key={ingredient.id} value={ingredient.id}>
                                 {ingredient.productId} • {ingredient.name}
-                                {ingredient.assignedProducts.length === 0 ? " (not linked)" : ""}
                               </option>
                             ))}
                           </select>
-                          {getLinkedProducts(item.ingredientId).length === 0 && (
-                            <p className="mt-2 text-xs text-[#7d5a44]">
-                              This ingredient is visible here, but it still needs a linked POS product before this combo can be saved.
-                            </p>
-                          )}
                         </div>
 
                         <div>
@@ -321,7 +294,7 @@ function ComboMealsPageContent() {
                     ))}
                   </div>
                 )}
-                {hasUnlinkedSelections && (
+                {hasInvalidSelections && (
                   <div className="rounded-xl border border-[#d7c9b8] bg-[rgba(245,241,234,0.72)] px-4 py-3 text-sm text-[#7d5a44]">
                     Some selected ingredients do not have linked POS products yet. They are now visible in the picker, but you’ll need to assign them first before saving this combo.
                   </div>
@@ -330,7 +303,7 @@ function ComboMealsPageContent() {
 
               <button
                 type="submit"
-                disabled={selectedItems.length === 0 || hasUnlinkedSelections}
+                disabled={selectedItems.length === 0 || hasInvalidSelections}
                 className="w-full rounded-2xl bg-[#4a342a] py-4 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {mode === "add" ? "CREATE COMBO MEAL" : "SAVE CHANGES"}
