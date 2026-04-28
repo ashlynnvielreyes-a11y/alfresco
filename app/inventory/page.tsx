@@ -3,6 +3,16 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X, Search } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { initializeSupabaseStore, getProducts, addProduct, updateProduct, deleteProduct, getIngredients, getProductAvailableStock } from "@/lib/store"
 import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory, PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-categories"
 import type { Product, Ingredient, ProductIngredient, ProductCategory } from "@/lib/types"
@@ -29,6 +39,7 @@ function InventoryPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     name: "",
@@ -72,10 +83,16 @@ function InventoryPageContent() {
   }
 
   const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this product?")) {
-      deleteProduct(id)
-      setProducts(getProducts())
-    }
+    const product = products.find((entry) => entry.id === id)
+    if (!product) return
+    setProductToDelete(product)
+  }
+
+  const confirmDelete = () => {
+    if (!productToDelete) return
+    deleteProduct(productToDelete.id)
+    setProducts(getProducts())
+    setProductToDelete(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -483,6 +500,30 @@ function InventoryPageContent() {
           </table>
         </div>
         </div>
+
+        <AlertDialog open={Boolean(productToDelete)} onOpenChange={(open) => !open && setProductToDelete(null)}>
+          <AlertDialogContent className="border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-[#4a342a]">Delete Product</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#7d5a44]">
+                {productToDelete
+                  ? `Remove ${productToDelete.name} from inventory? This action cannot be undone.`
+                  : "Remove this product from inventory? This action cannot be undone."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-[#d7c9b8] bg-[#f5f1ea] text-[#4a342a] hover:bg-[#ede3d8]">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )
