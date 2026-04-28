@@ -3,6 +3,16 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
 import type { Ingredient, IngredientExpirationSummary, Product } from "@/lib/types"
@@ -81,6 +91,7 @@ function IngredientsPageContent() {
   const [products, setProducts] = useState<Product[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
+  const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null)
   const [assigningIngredient, setAssigningIngredient] = useState<Ingredient | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
@@ -175,6 +186,9 @@ function IngredientsPageContent() {
   }
 
   const handleDelete = (id: number) => {
+    const ingredient = ingredients.find((entry) => entry.id === id)
+    if (!ingredient) return
+
     const productsUsingIngredient = getProducts().filter((product) => product.ingredients.some((pi) => pi.ingredientId === id))
 
     if (productsUsingIngredient.length > 0) {
@@ -182,10 +196,14 @@ function IngredientsPageContent() {
       return
     }
 
-    if (confirm("Are you sure you want to delete this ingredient?")) {
-      deleteIngredient(id)
-      setIngredients(getIngredients())
-    }
+    setIngredientToDelete(ingredient)
+  }
+
+  const confirmDelete = () => {
+    if (!ingredientToDelete) return
+    deleteIngredient(ingredientToDelete.id)
+    setIngredients(getIngredients())
+    setIngredientToDelete(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -735,6 +753,26 @@ function IngredientsPageContent() {
           </table>
         </div>
         </div>
+        <AlertDialog open={Boolean(ingredientToDelete)} onOpenChange={(open) => !open && setIngredientToDelete(null)}>
+          <AlertDialogContent className="border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-[#4a342a]">Delete Ingredient</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#7d5a44]">
+                {ingredientToDelete
+                  ? `Remove ${ingredientToDelete.name}? This action cannot be undone.`
+                  : "Remove this ingredient? This action cannot be undone."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-[#d7c9b8] bg-[#f5f1ea] text-[#4a342a] hover:bg-[#ede3d8]">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )

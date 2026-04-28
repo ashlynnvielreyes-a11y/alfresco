@@ -3,6 +3,16 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, Coffee, UtensilsCrossed, Search } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { initializeSupabaseStore, getAddOns, addAddOn, updateAddOn, deleteAddOn, getIngredients } from "@/lib/store"
 import type { AddOn, Ingredient } from "@/lib/types"
 
@@ -14,6 +24,7 @@ function AddOnsPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingAddOn, setEditingAddOn] = useState<AddOn | null>(null)
+  const [addOnToDelete, setAddOnToDelete] = useState<AddOn | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
@@ -70,10 +81,16 @@ function AddOnsPageContent() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this add-on?")) {
-      deleteAddOn(id)
-      setAddOns(getAddOns())
-    }
+    const addOn = addOns.find((entry) => entry.id === id)
+    if (!addOn) return
+    setAddOnToDelete(addOn)
+  }
+
+  const confirmDelete = () => {
+    if (!addOnToDelete) return
+    deleteAddOn(addOnToDelete.id)
+    setAddOns(getAddOns())
+    setAddOnToDelete(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -414,6 +431,26 @@ function AddOnsPageContent() {
           </div>
         )}
         </div>
+        <AlertDialog open={Boolean(addOnToDelete)} onOpenChange={(open) => !open && setAddOnToDelete(null)}>
+          <AlertDialogContent className="border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-[#4a342a]">Delete Add-on</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#7d5a44]">
+                {addOnToDelete
+                  ? `Remove ${addOnToDelete.name}? This action cannot be undone.`
+                  : "Remove this add-on? This action cannot be undone."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-[#d7c9b8] bg-[#f5f1ea] text-[#4a342a] hover:bg-[#ede3d8]">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )

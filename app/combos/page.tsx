@@ -3,6 +3,16 @@
 import { useState, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, X } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { initializeSupabaseStore, getComboMeals, addComboMeal, updateComboMeal, deleteComboMeal, getIngredients } from "@/lib/store"
 import type { ComboMeal, Ingredient } from "@/lib/types"
 
@@ -19,6 +29,7 @@ function ComboMealsPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingCombo, setEditingCombo] = useState<ComboMeal | null>(null)
+  const [comboToDelete, setComboToDelete] = useState<ComboMeal | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -98,10 +109,16 @@ function ComboMealsPageContent() {
   }
 
   const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this combo meal?")) {
-      deleteComboMeal(id)
-      setCombos(getComboMeals())
-    }
+    const combo = combos.find((entry) => entry.id === id)
+    if (!combo) return
+    setComboToDelete(combo)
+  }
+
+  const confirmDelete = () => {
+    if (!comboToDelete) return
+    deleteComboMeal(comboToDelete.id)
+    setCombos(getComboMeals())
+    setComboToDelete(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -417,6 +434,26 @@ function ComboMealsPageContent() {
             </div>
           )}
         </div>
+        <AlertDialog open={Boolean(comboToDelete)} onOpenChange={(open) => !open && setComboToDelete(null)}>
+          <AlertDialogContent className="border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-[#4a342a]">Delete Combo Meal</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#7d5a44]">
+                {comboToDelete
+                  ? `Remove ${comboToDelete.name}? This action cannot be undone.`
+                  : "Remove this combo meal? This action cannot be undone."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-[#d7c9b8] bg-[#f5f1ea] text-[#4a342a] hover:bg-[#ede3d8]">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )
