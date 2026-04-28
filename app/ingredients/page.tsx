@@ -42,25 +42,23 @@ function getExpirationStatus(date?: string | null) {
 }
 
 function getExpirationPresentation(summary: IngredientExpirationSummary) {
-  if (summary.expiredBatches.length > 0) {
-    const latestExpiredBatch = summary.expiredBatches[0]
+  if (summary.expirationStatus === "expired") {
     return {
-      date: latestExpiredBatch?.expirationDate || null,
+      date: summary.displayExpirationDate,
       status: { text: "Expired", tone: "bg-red-100 text-red-700" },
     }
   }
 
-  if (summary.nearExpirationBatches.length > 0) {
-    const nearExpiryBatch = summary.nearExpirationBatches[0]
+  if (summary.expirationStatus === "near-expiry") {
     return {
-      date: nearExpiryBatch?.expirationDate || summary.nextExpirationDate,
+      date: summary.displayExpirationDate,
       status: { text: "Near Expiry", tone: "bg-yellow-100 text-yellow-700" },
     }
   }
 
   return {
-    date: summary.nextExpirationDate,
-    status: getExpirationStatus(summary.nextExpirationDate),
+    date: summary.displayExpirationDate,
+    status: getExpirationStatus(summary.displayExpirationDate),
   }
 }
 
@@ -668,10 +666,11 @@ function IngredientsPageContent() {
                     </td>
                     <td className="px-3 py-3 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <button
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#7d5a44] transition-colors hover:bg-[#d7c9b8]/45 hover:text-[#4a342a]"
+                              type="button"
+                              className="relative z-10 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-[#7d5a44] transition-colors hover:bg-[#d7c9b8]/45 hover:text-[#4a342a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4a342a]/20"
                               aria-label={`Open actions for ${ingredient.name}`}
                               title="Ingredient actions"
                             >
@@ -679,7 +678,9 @@ function IngredientsPageContent() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
-                            align="end"
+                            side="left"
+                            align="start"
+                            sideOffset={8}
                             className="w-40 rounded-xl border-[#d7c9b8] bg-[#f5f1ea]/98 p-1.5 shadow-[0_18px_36px_rgba(74,52,42,0.12)] backdrop-blur-xl"
                           >
                             <DropdownMenuItem

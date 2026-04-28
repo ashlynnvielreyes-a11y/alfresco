@@ -398,6 +398,22 @@ export function getIngredientExpirationSummary(
   const expiredBatches = sortedBatches.filter((batch) => isBatchExpired(batch, referenceDate))
   const nearExpirationBatches = usableBatches.filter((batch) => isBatchNearExpiration(batch, thresholdDays, referenceDate))
   const nextBatch = usableBatches[0] || null
+  const expiredReferenceBatch = expiredBatches[0] || null
+  const nearExpiryReferenceBatch = nearExpirationBatches[0] || null
+  const displayBatch =
+    expiredReferenceBatch ||
+    nearExpiryReferenceBatch ||
+    nextBatch ||
+    sortedBatches.find((batch) => normalizeExpirationDate(batch.expirationDate)) ||
+    null
+  const expirationStatus: IngredientExpirationSummary["expirationStatus"] =
+    expiredReferenceBatch
+      ? "expired"
+      : nearExpiryReferenceBatch
+        ? "near-expiry"
+        : nextBatch?.expirationDate
+          ? "safe"
+          : "none"
 
   return {
     usableStock: usableBatches.reduce((sum, batch) => sum + batch.quantity, 0),
@@ -405,6 +421,9 @@ export function getIngredientExpirationSummary(
     nextBatchId: nextBatch?.id || null,
     nextDateAdded: nextBatch?.dateAdded || null,
     nextExpirationDate: nextBatch?.expirationDate || null,
+    displayBatchId: displayBatch?.id || null,
+    displayExpirationDate: displayBatch?.expirationDate || null,
+    expirationStatus,
     nearExpirationBatches,
     expiredBatches,
   }
@@ -473,7 +492,10 @@ async function syncProductsToSupabase(products: Product[]) {
   }))
 
   const { data: existingProducts, error: existingError } = await supabase.from("products").select("id")
-  if (existingError) throw existingError
+  if (existingError) {
+    if (isSupabaseRlsError(existingError, "products")) return
+    throw existingError
+  }
 
   const existingIds = new Set((existingProducts || []).map((row: { id: number }) => row.id))
   const localIds = new Set(products.map((product) => product.id))
@@ -481,18 +503,27 @@ async function syncProductsToSupabase(products: Product[]) {
 
   if (normalizedProducts.length > 0) {
     const { error } = await supabase.from("products").upsert(normalizedProducts, { onConflict: "id" })
-    if (error) throw error
+    if (error) {
+      if (isSupabaseRlsError(error, "products")) return
+      throw error
+    }
   }
 
   if (removedIds.length > 0) {
     const { error } = await supabase.from("products").delete().in("id", removedIds)
-    if (error) throw error
+    if (error) {
+      if (isSupabaseRlsError(error, "products")) return
+      throw error
+    }
   }
 
   if (products.length > 0) {
     const productIds = products.map((product) => product.id)
     const { error: deleteIngredientsError } = await supabase.from("product_ingredients").delete().in("product_id", productIds)
-    if (deleteIngredientsError) throw deleteIngredientsError
+    if (deleteIngredientsError) {
+      if (isSupabaseRlsError(deleteIngredientsError, "product_ingredients")) return
+      throw deleteIngredientsError
+    }
   }
 
   const productIngredients = products.flatMap((product) =>
@@ -505,7 +536,10 @@ async function syncProductsToSupabase(products: Product[]) {
 
   if (productIngredients.length > 0) {
     const { error } = await supabase.from("product_ingredients").insert(productIngredients)
-    if (error) throw error
+    if (error) {
+      if (isSupabaseRlsError(error, "product_ingredients")) return
+      throw error
+    }
   }
 }
 

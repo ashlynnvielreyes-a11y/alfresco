@@ -11,6 +11,9 @@ export interface IngredientExpirationSummary {
   nextBatchId: string | null
   nextDateAdded: string | null
   nextExpirationDate: string | null
+  displayBatchId: string | null
+  displayExpirationDate: string | null
+  expirationStatus: "expired" | "near-expiry" | "safe" | "none"
   nearExpirationBatches: StockBatch[]
   expiredBatches: StockBatch[]
 }

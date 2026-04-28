@@ -6,11 +6,9 @@ import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, 
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { createClient } from "@/lib/supabase/client"
-import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, DrinkSize, CoffeeTemperature } from "@/lib/types"
+import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, CoffeeTemperature } from "@/lib/types"
 
 const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Tea", "Silog", "Combos"] as const
-const drinkCategoriesWithSizes: Product["category"][] = ["Coffee", "Milk Tea", "Fruit Tea"]
-const drinkSizes: DrinkSize[] = ["regular", "medium", "large"]
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 
 function getAddOnKey(addOns?: AddOn[]) {
@@ -21,12 +19,7 @@ function getAddOnKey(addOns?: AddOn[]) {
 }
 
 function getCartItemKey(item: CartItem) {
-  return `${item.product.id}::${item.size || "none"}::${item.temperature || "none"}::${getAddOnKey(item.addOns)}`
-}
-
-function formatDrinkSize(size?: DrinkSize) {
-  if (!size) return null
-  return size.charAt(0).toUpperCase() + size.slice(1)
+  return `${item.product.id}::${item.temperature || "none"}::${getAddOnKey(item.addOns)}`
 }
 
 function formatCoffeeTemperature(temperature?: CoffeeTemperature) {
@@ -34,16 +27,9 @@ function formatCoffeeTemperature(temperature?: CoffeeTemperature) {
   return temperature.charAt(0).toUpperCase() + temperature.slice(1)
 }
 
-function getDrinkSizePriceAdjustment(size?: DrinkSize) {
-  if (size === "medium") return 10
-  if (size === "large") return 20
-  return 0
-}
-
 function getCartItemUnitPrice(item: CartItem) {
-  const sizeAdjustment = getDrinkSizePriceAdjustment(item.size)
   const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price * (addon.selectedQuantity || 1), 0)
-  return item.product.price + sizeAdjustment + addOnsTotal
+  return item.product.price + addOnsTotal
 }
 
 export default function POSPage() {
@@ -73,7 +59,6 @@ export default function POSPage() {
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedProductForAddOns, setSelectedProductForAddOns] = useState<Product | null>(null)
   const [selectedAddOns, setSelectedAddOns] = useState<AddOn[]>([])
-  const [selectedSize, setSelectedSize] = useState<DrinkSize>("regular")
   const [selectedTemperature, setSelectedTemperature] = useState<CoffeeTemperature>("hot")
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null)
 
@@ -159,10 +144,6 @@ export default function POSPage() {
     return { available: true }
   }, [ingredients, cart])
 
-  const productSupportsSizes = useCallback((product: Product) => {
-    return drinkCategoriesWithSizes.includes(product.category)
-  }, [])
-
   const productSupportsTemperature = useCallback((product: Product) => {
     return product.category === "Coffee"
   }, [])
@@ -190,7 +171,6 @@ export default function POSPage() {
       // Open add-ons modal for drinks and meals
       setSelectedProductForAddOns(product)
       setSelectedAddOns([])
-      setSelectedSize("regular")
       setSelectedTemperature("hot")
       setEditingCartIndex(null)
       setShowAddOnsModal(true)
@@ -249,15 +229,13 @@ export default function POSPage() {
     
     const product = selectedProductForAddOns
     const addOns = selectedAddOns
-    const size = productSupportsSizes(product) ? selectedSize : undefined
     const temperature = productSupportsTemperature(product) ? selectedTemperature : undefined
     
     setCart((prev) => {
-      // Create a unique key based on product + size + temperature + add-ons combination
+      // Create a unique key based on product + temperature + add-ons combination
       const addOnKey = getAddOnKey(addOns)
       const existing = prev.find((item) => 
         item.product.id === product.id && 
-        item.size === size &&
         item.temperature === temperature &&
         getAddOnKey(item.addOns) === addOnKey
       )
@@ -279,23 +257,21 @@ export default function POSPage() {
         
         return prev.map((item) =>
           item.product.id === product.id && 
-          item.size === size &&
           item.temperature === temperature &&
           getAddOnKey(item.addOns) === addOnKey
             ? { ...item, quantity: newQuantity }
             : item
         )
       }
-      return [...prev, { product, quantity: 1, size, temperature, addOns: addOns.length > 0 ? addOns : undefined }]
+      return [...prev, { product, quantity: 1, temperature, addOns: addOns.length > 0 ? addOns : undefined }]
     })
     
     setShowAddOnsModal(false)
     setSelectedProductForAddOns(null)
     setSelectedAddOns([])
-    setSelectedSize("regular")
     setSelectedTemperature("hot")
     setEditingCartIndex(null)
-  }, [selectedProductForAddOns, selectedAddOns, selectedSize, selectedTemperature, ingredients, productSupportsSizes, productSupportsTemperature])
+  }, [selectedProductForAddOns, selectedAddOns, selectedTemperature, ingredients, productSupportsTemperature])
 
   const updateQuantity = useCallback((itemKey: string, delta: number) => {
     setCart((prev) =>
@@ -335,7 +311,6 @@ export default function POSPage() {
     if (!cartItem) return
     setSelectedProductForAddOns(cartItem.product)
     setSelectedAddOns(cartItem.addOns || [])
-    setSelectedSize(cartItem.size || "regular")
     setSelectedTemperature(cartItem.temperature || "hot")
     setEditingCartIndex(cartIndex)
     setShowAddOnsModal(true)
@@ -354,7 +329,6 @@ export default function POSPage() {
       // Update the item with the new add-ons
       newCart[editingCartIndex] = {
         ...currentItem,
-        size: productSupportsSizes(currentItem.product) ? selectedSize : undefined,
         temperature: productSupportsTemperature(currentItem.product) ? selectedTemperature : undefined,
         addOns: selectedAddOns.length > 0 ? selectedAddOns : undefined
       }
@@ -363,11 +337,10 @@ export default function POSPage() {
       const updatedItem = newCart[editingCartIndex]
       const updatedAddOnKey = getAddOnKey(updatedItem.addOns)
       
-      // Find if there's another item with the same product, size, and add-on combination
+      // Find if there's another item with the same product, temperature, and add-on combination
       const duplicateIndex = newCart.findIndex((item, idx) => 
         idx !== editingCartIndex &&
         item.product.id === updatedItem.product.id &&
-        item.size === updatedItem.size &&
         item.temperature === updatedItem.temperature &&
         getAddOnKey(item.addOns) === updatedAddOnKey
       )
@@ -388,10 +361,9 @@ export default function POSPage() {
     setShowAddOnsModal(false)
     setSelectedProductForAddOns(null)
     setSelectedAddOns([])
-    setSelectedSize("regular")
     setSelectedTemperature("hot")
     setEditingCartIndex(null)
-  }, [editingCartIndex, selectedProductForAddOns, selectedAddOns, selectedSize, selectedTemperature, productSupportsSizes, productSupportsTemperature])
+  }, [editingCartIndex, selectedProductForAddOns, selectedAddOns, selectedTemperature, productSupportsTemperature])
 
   // Handle adding a combo meal to cart - adds all items as a bundle
   const handleComboClick = useCallback((combo: ComboMeal) => {
@@ -820,9 +792,7 @@ export default function POSPage() {
               ) : (
                 cart.map((item, index) => {
                   const itemKey = getCartItemKey(item)
-                  const sizeAdjustment = getDrinkSizePriceAdjustment(item.size)
                   const itemTotal = getCartItemUnitPrice(item)
-                  const sizeLabel = formatDrinkSize(item.size)
                   const temperatureLabel = formatCoffeeTemperature(item.temperature)
                   
                   return (
@@ -832,11 +802,6 @@ export default function POSPage() {
                           <p className="font-medium text-sm">{item.product.name}</p>
                           {temperatureLabel && (
                             <p className="text-xs text-muted-foreground mt-1">Served: {temperatureLabel}</p>
-                          )}
-                          {sizeLabel && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Size: {sizeLabel}{sizeAdjustment > 0 ? ` (+P${sizeAdjustment})` : ""}
-                            </p>
                           )}
                           {item.addOns && item.addOns.length > 0 && (
                             <div className="text-xs text-muted-foreground mt-1">
@@ -992,34 +957,6 @@ export default function POSPage() {
               P{selectedProductForAddOns.price.toFixed(2)}
             </p>
 
-            {productSupportsSizes(selectedProductForAddOns) && (
-              <div className="mb-4">
-                <h3 className="font-semibold text-foreground mb-3">Choose size:</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {drinkSizes.map((size) => {
-                    const isSelected = selectedSize === size
-                    const sizeAdjustment = getDrinkSizePriceAdjustment(size)
-                    return (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`rounded-lg px-3 py-2 text-sm font-medium capitalize transition-colors ${
-                          isSelected
-                            ? "bg-[#f5f1ea] border-2 border-[#4a342a] text-[#7d5a44]"
-                            : "bg-muted hover:bg-muted/80 border-2 border-transparent text-foreground"
-                        }`}
-                      >
-                        <span className="block capitalize">{size}</span>
-                        <span className="block text-[11px] opacity-80">
-                          {sizeAdjustment > 0 ? `+P${sizeAdjustment}` : "Base"}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
             {productSupportsTemperature(selectedProductForAddOns) && (
               <div className="mb-4">
                 <h3 className="font-semibold text-foreground mb-3">Serve it:</h3>
@@ -1106,18 +1043,10 @@ export default function POSPage() {
                 <p className="text-right font-bold text-[#b2967d] mt-2">
                   Total: P{(
                     selectedProductForAddOns.price +
-                    getDrinkSizePriceAdjustment(productSupportsSizes(selectedProductForAddOns) ? selectedSize : undefined) +
                     selectedAddOns.reduce((acc, a) => acc + a.price * (a.selectedQuantity || 1), 0)
                   ).toFixed(2)}
                 </p>
               </div>
-            )}
-
-            {productSupportsSizes(selectedProductForAddOns) && (
-              <p className="text-sm text-muted-foreground mb-4">
-                Selected size: <span className="font-medium text-foreground">{formatDrinkSize(selectedSize)}</span>
-                {getDrinkSizePriceAdjustment(selectedSize) > 0 ? ` (+P${getDrinkSizePriceAdjustment(selectedSize)})` : ""}
-              </p>
             )}
 
             {productSupportsTemperature(selectedProductForAddOns) && (
@@ -1132,7 +1061,6 @@ export default function POSPage() {
                   setShowAddOnsModal(false)
                   setSelectedProductForAddOns(null)
                   setSelectedAddOns([])
-                  setSelectedSize("regular")
                   setSelectedTemperature("hot")
                   setEditingCartIndex(null)
                 }}
@@ -1167,12 +1095,11 @@ export default function POSPage() {
             <div className="border-t border-dashed border-border py-4 space-y-2 font-mono text-sm">
               {lastTransaction.items.map((item, index) => {
                 const itemTotal = getCartItemUnitPrice(item) * item.quantity
-                const sizeLabel = formatDrinkSize(item.size)
                 const temperatureLabel = formatCoffeeTemperature(item.temperature)
                 return (
                   <div key={`${getCartItemKey(item)}-${index}`}>
                     <div className="flex justify-between">
-                      <span>{item.product.name}{temperatureLabel ? ` (${temperatureLabel})` : ""}{sizeLabel ? ` (${sizeLabel})` : ""} x{item.quantity}</span>
+                      <span>{item.product.name}{temperatureLabel ? ` (${temperatureLabel})` : ""} x{item.quantity}</span>
                       <span>P{itemTotal.toFixed(2)}</span>
                     </div>
                     {item.addOns && item.addOns.length > 0 && (
@@ -1284,7 +1211,7 @@ export default function POSPage() {
                         </p>
                       </div>
                       <div className="mt-2 text-xs text-muted-foreground">
-                        {transaction.items.map((item) => item.product.name + (item.temperature ? ` (${formatCoffeeTemperature(item.temperature)})` : "") + (item.size ? ` (${formatDrinkSize(item.size)})` : "")).join(", ")}
+                        {transaction.items.map((item) => item.product.name + (item.temperature ? ` (${formatCoffeeTemperature(item.temperature)})` : "")).join(", ")}
                       </div>
                     </button>
                   ))
@@ -1301,7 +1228,7 @@ export default function POSPage() {
                 <div className="space-y-1 text-sm">
                   {selectedTransactionToVoid.items.map((item) => (
                     <div key={getCartItemKey(item)} className="flex justify-between">
-                      <span>{item.product.name}{item.temperature ? ` (${formatCoffeeTemperature(item.temperature)})` : ""}{item.size ? ` (${formatDrinkSize(item.size)})` : ""} x{item.quantity}</span>
+                      <span>{item.product.name}{item.temperature ? ` (${formatCoffeeTemperature(item.temperature)})` : ""} x{item.quantity}</span>
                       <span>P{(getCartItemUnitPrice(item) * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}

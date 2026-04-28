@@ -251,7 +251,7 @@ export default function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium lg:text-base">{ingredient.name}</p>
                         <p className="text-xs text-yellow-700 lg:text-sm">
-                          Batch {summary.nextBatchId || "pending"} expires {summary.nextExpirationDate || "soon"}
+                          Batch {summary.displayBatchId || summary.nextBatchId || "pending"} expires {summary.displayExpirationDate || summary.nextExpirationDate || "soon"}
                         </p>
                       </div>
                       <span className="ml-2 flex-shrink-0 rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-700 lg:px-3 lg:text-sm">
