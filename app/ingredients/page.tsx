@@ -128,13 +128,14 @@ function IngredientsPageContent() {
   }
 
   const handleEdit = (ingredient: Ingredient) => {
+    const summary = getIngredientExpirationSummary(ingredient)
     setEditingIngredient(ingredient)
     setFormData({
       productId: ingredient.productId,
       name: ingredient.name,
       unit: ingredient.unit,
       stock: ingredient.stock.toString(),
-      expirationDate: "",
+      expirationDate: summary.displayExpirationDate || ingredient.expirationDate || "",
     })
     setMode("edit")
   }
@@ -210,11 +211,17 @@ function IngredientsPageContent() {
             : [],
       })
     } else if (mode === "edit" && editingIngredient) {
+      const updatedExpirationDate = formData.expirationDate || null
       updateIngredient(editingIngredient.id, {
         productId: formData.productId.trim(),
         name: formData.name,
         unit: formData.unit,
+        expirationDate: updatedExpirationDate,
         assignedProducts: editingIngredient.assignedProducts || [],
+        stockBatches: (editingIngredient.stockBatches || []).map((batch) => ({
+          ...batch,
+          expirationDate: batch.expirationDate || updatedExpirationDate,
+        })),
       })
     }
 
@@ -491,9 +498,21 @@ function IngredientsPageContent() {
                   </div>
                 </>
               ) : (
-                <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-                  Use Restock to add a new FIFO batch with its own expiration date.
-                </p>
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Expiration Date</label>
+                    <input
+                      type="date"
+                      value={formData.expirationDate}
+                      onChange={(e) => setFormData({ ...formData, expirationDate: e.target.value })}
+                      className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none"
+                    />
+                  </div>
+
+                  <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+                    Editing this date updates the ingredient fallback expiry and fills missing batch expirations. Use Restock to add a new FIFO batch with its own expiration date.
+                  </p>
+                </>
               )}
 
               <button

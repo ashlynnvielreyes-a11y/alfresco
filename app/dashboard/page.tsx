@@ -50,13 +50,28 @@ export default function DashboardPage() {
     loadData()
   }, [fromDate, toDate])
 
-  const { lowStockItems, itemsSold, ingredientAlerts } = useMemo(() => {
+  const { lowStockItems, itemsSold, ingredientAlerts, criticalIngredients } = useMemo(() => {
     const low = products.filter((product) => getProductAvailableStock(product, ingredients) < 15)
     const sold = transactions.reduce((sum, transaction) => sum + transaction.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0)
+    const criticalById = new Map<number, Ingredient>()
+
+    products.forEach((product) => {
+      product.ingredients.forEach((productIngredient) => {
+        const ingredient = ingredients.find((entry) => entry.id === productIngredient.ingredientId)
+        if (!ingredient) return
+
+        const usableStock = getIngredientExpirationSummary(ingredient).usableStock
+        if (usableStock < productIngredient.quantity) {
+          criticalById.set(ingredient.id, ingredient)
+        }
+      })
+    })
+
     return {
       lowStockItems: low,
       itemsSold: sold,
       ingredientAlerts: getInventoryAlerts(ingredients, { lowStockThreshold: 10, expiringThresholdDays: 3 }),
+      criticalIngredients: Array.from(criticalById.values()),
     }
   }, [products, ingredients, transactions])
 
@@ -87,8 +102,8 @@ export default function DashboardPage() {
     },
     {
       label: "Low Stock Items",
-      value: String(ingredientAlerts.lowStockIngredients.length),
-      detail: ingredientAlerts.lowStockIngredients.length > 0 ? `${ingredientAlerts.lowStockIngredients[0]?.name} needs action` : "Stock levels look healthy",
+      value: String(lowStockItems.length),
+      detail: lowStockItems.length > 0 ? `${lowStockItems[0]?.name} needs action` : "Stock levels look healthy",
       icon: TrendingUp,
       tint: "from-[#f5f1ea] via-[#d7c9b8] to-[#b2967d]",
       light: true,
@@ -201,11 +216,11 @@ export default function DashboardPage() {
               <span className="rounded-full bg-[#d7c9b8] px-3 py-1 text-xs font-medium text-[#7d5a44]">Monitor</span>
             </div>
 
-            {ingredientAlerts.lowStockIngredients.length === 0 ? (
+            {criticalIngredients.length === 0 && ingredientAlerts.lowStockIngredients.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground lg:py-8 lg:text-base">All items are well stocked</p>
             ) : (
               <div className="space-y-2 lg:space-y-3">
-                {ingredientAlerts.lowStockIngredients.map((ingredient) => (
+                {[...criticalIngredients, ...ingredientAlerts.lowStockIngredients.filter((ingredient) => !criticalIngredients.some((critical) => critical.id === ingredient.id))].map((ingredient) => (
                   <div key={ingredient.id} className="flex items-center justify-between rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/55 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.75)]">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium lg:text-base">{ingredient.name}</p>
@@ -213,6 +228,31 @@ export default function DashboardPage() {
                     </div>
                     <span className="ml-2 flex-shrink-0 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700 lg:px-3 lg:text-sm">
                       {getIngredientExpirationSummary(ingredient).usableStock} left
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/52 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.68)] backdrop-blur-xl lg:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-bold text-foreground lg:text-lg">Low Stock Products</h2>
+              <span className="rounded-full bg-[#d7c9b8] px-3 py-1 text-xs font-medium text-[#7d5a44]">POS Sync</span>
+            </div>
+
+            {lowStockItems.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground lg:py-8 lg:text-base">All products are well stocked</p>
+            ) : (
+              <div className="space-y-2 lg:space-y-3">
+                {lowStockItems.map((product) => (
+                  <div key={product.id} className="flex items-center justify-between rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/55 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.75)]">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium lg:text-base">{product.name}</p>
+                      <p className="text-xs text-muted-foreground lg:text-sm">{product.category}</p>
+                    </div>
+                    <span className="ml-2 flex-shrink-0 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700 lg:px-3 lg:text-sm">
+                      {getProductAvailableStock(product, ingredients)} left
                     </span>
                   </div>
                 ))}

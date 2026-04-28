@@ -957,26 +957,35 @@ export async function initializeSupabaseStore(): Promise<void> {
       })).map(normalizeProduct)
 
       const remoteIngredients = syncIngredientAssignmentsWithProducts(
-        (ingredientsResponse.data || []).map((ingredient: any) =>
-          normalizeIngredient({
+        (ingredientsResponse.data || []).map((ingredient: any) => {
+          const localIngredient = localIngredients.find((entry) => entry.id === ingredient.id)
+          const remoteBatches = (ingredientBatchesResponse.data || [])
+            .filter((batch: any) => batch.ingredient_id === ingredient.id)
+            .map((batch: any) => ({
+              id: batch.id,
+              quantity: Number(batch.quantity) || 0,
+              dateAdded: batch.date_added || batch.created_at || new Date().toISOString(),
+              expirationDate: normalizeExpirationDate(batch.expiration_date),
+            }))
+
+          const hasRemoteExpirationData = remoteBatches.some((batch) => Boolean(batch.expirationDate))
+          const fallbackBatches = !hasRemoteExpirationData && localIngredient?.stockBatches?.length
+            ? localIngredient.stockBatches
+            : remoteBatches
+
+          return normalizeIngredient({
             id: ingredient.id,
             productId: ingredient.product_code || ingredient.product_id || buildIngredientProductId(ingredient.id),
             name: ingredient.name,
             unit: ingredient.unit,
             stock: Number(ingredient.stock) || 0,
+            expirationDate: ingredient.expiration_date || localIngredient?.expirationDate || null,
             assignedProducts: (ingredientAssignmentsResponse.data || [])
               .filter((assignment: any) => assignment.ingredient_id === ingredient.id)
               .map((assignment: any) => assignment.product_id),
-            stockBatches: (ingredientBatchesResponse.data || [])
-              .filter((batch: any) => batch.ingredient_id === ingredient.id)
-              .map((batch: any) => ({
-                id: batch.id,
-                quantity: Number(batch.quantity) || 0,
-                dateAdded: batch.date_added || batch.created_at || new Date().toISOString(),
-                expirationDate: normalizeExpirationDate(batch.expiration_date),
-              })),
+            stockBatches: fallbackBatches,
           })
-        ),
+        }),
         remoteProducts
       )
 
