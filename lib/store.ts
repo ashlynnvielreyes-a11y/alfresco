@@ -461,7 +461,10 @@ export function getInventoryAlerts(
   const normalized = ingredients.map(normalizeIngredient)
 
   return {
-    lowStockIngredients: normalized.filter((ingredient) => ingredient.stock > 0 && ingredient.stock <= lowStockThreshold),
+    lowStockIngredients: normalized.filter((ingredient) => {
+      const summary = getIngredientExpirationSummary(ingredient, { thresholdDays: expiringThresholdDays, referenceDate })
+      return summary.usableStock <= lowStockThreshold
+    }),
     expiringSoonIngredients: normalized.filter(
       (ingredient) => getIngredientExpirationSummary(ingredient, { thresholdDays: expiringThresholdDays, referenceDate }).nearExpirationBatches.length > 0
     ),

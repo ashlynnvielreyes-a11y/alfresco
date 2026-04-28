@@ -212,7 +212,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-muted-foreground lg:text-sm">{ingredient.productId}</p>
                     </div>
                     <span className="ml-2 flex-shrink-0 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700 lg:px-3 lg:text-sm">
-                      {ingredient.stock} left
+                      {getIngredientExpirationSummary(ingredient).usableStock} left
                     </span>
                   </div>
                 ))}
