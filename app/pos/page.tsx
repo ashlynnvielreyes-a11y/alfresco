@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { createClient } from "@/lib/supabase/client"
 import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, CoffeeTemperature } from "@/lib/types"
@@ -168,6 +168,11 @@ export default function POSPage() {
     })
   }, [products, selectedCategory, debouncedSearchQuery])
 
+  const getUnavailableAddOnReason = useCallback((addOn: AddOn, quantity: number = 1) => {
+    const result = checkAddOnAvailability(addOn, quantity, ingredients)
+    return result.available ? null : result.reason || "Unavailable"
+  }, [ingredients])
+
   const isProductAvailable = useCallback((product: Product, quantity: number = 1): { available: boolean; reason?: string } => {
     // Check available stock based on ingredients
     const availableStock = getProductAvailableStock(product, ingredients)
@@ -279,6 +284,15 @@ export default function POSPage() {
     const addOns = selectedAddOns
     const comboMeal = selectedComboMealForAddOns
     const temperature = productSupportsTemperature(product) ? selectedTemperature : undefined
+
+    for (const addOn of addOns) {
+      const selectedQuantity = addOn.selectedQuantity || 1
+      const availability = checkAddOnAvailability(addOn, selectedQuantity, ingredients)
+      if (!availability.available) {
+        alert(`Cannot add ${addOn.name}. ${availability.reason}`)
+        return
+      }
+    }
     
     setCart((prev) => {
       if (comboMeal) {
@@ -388,6 +402,15 @@ export default function POSPage() {
   // Save edited add-ons
   const saveEditedAddOns = useCallback(() => {
     if (editingCartIndex === null || !selectedProductForAddOns) return
+
+    for (const addOn of selectedAddOns) {
+      const selectedQuantity = addOn.selectedQuantity || 1
+      const availability = checkAddOnAvailability(addOn, selectedQuantity, ingredients)
+      if (!availability.available) {
+        alert(`Cannot save ${addOn.name}. ${availability.reason}`)
+        return
+      }
+    }
     
     setCart((prev) => {
       if (editingCartIndex >= prev.length) return prev
@@ -433,7 +456,7 @@ export default function POSPage() {
     setSelectedAddOns([])
     setSelectedTemperature("hot")
     setEditingCartIndex(null)
-  }, [editingCartIndex, selectedProductForAddOns, selectedAddOns, selectedTemperature, productSupportsTemperature])
+  }, [editingCartIndex, selectedProductForAddOns, selectedAddOns, selectedTemperature, productSupportsTemperature, ingredients])
 
   // Handle adding a combo meal to cart - adds all items as a bundle
   const handleComboClick = useCallback((combo: ComboMeal) => {
@@ -526,6 +549,15 @@ export default function POSPage() {
       if (!available) {
         alert(`Cannot process order. ${cartItem.product.name} uses unavailable ingredients: ${missingIngredients.join(", ")}`)
         return
+      }
+
+      for (const addOn of cartItem.addOns || []) {
+        const selectedQuantity = (addOn.selectedQuantity || 1) * cartItem.quantity
+        const availability = checkAddOnAvailability(addOn, selectedQuantity, ingredients)
+        if (!availability.available) {
+          alert(`Cannot process order. ${cartItem.product.name} add-on "${addOn.name}" is unavailable: ${availability.reason}`)
+          return
+        }
       }
     }
 
@@ -809,7 +841,7 @@ export default function POSPage() {
                     </p>
                     {hasIngredientIssue && (
                       <p className="text-[10px] lg:text-xs text-[#7d5a44] mt-1">
-                        Missing ingredients
+                        Warning: {unavailableProducts.get(product.id)?.[0] || "Unavailable ingredients"}
                       </p>
                     )}
                   </button>
@@ -1060,11 +1092,15 @@ export default function POSPage() {
                     const selectedAddOn = selectedAddOns.find((a) => a.id === addon.id)
                     const selectedQuantity = selectedAddOn?.selectedQuantity || 0
                     const isSelected = selectedQuantity > 0
+                    const unavailableReason = getUnavailableAddOnReason(addon, Math.max(selectedQuantity, 1))
+                    const isUnavailable = Boolean(unavailableReason)
                     return (
                       <div
                         key={addon.id}
                         className={`w-full p-3 rounded-lg transition-colors flex justify-between items-center ${
-                          isSelected
+                          isUnavailable
+                            ? "bg-[#efe3da] border-2 border-[#b2967d]"
+                            : isSelected
                             ? "bg-[#f5f1ea] border-2 border-[#4a342a]"
                             : "bg-muted border-2 border-transparent"
                         }`}
@@ -1072,6 +1108,11 @@ export default function POSPage() {
                         <div>
                           <span className="font-medium block">{addon.name}</span>
                           <span className="text-[#b2967d] font-bold">+P{addon.price}</span>
+                          {unavailableReason && (
+                            <span className="mt-1 block text-xs text-[#7d5a44]">
+                              Warning: {unavailableReason}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -1086,7 +1127,8 @@ export default function POSPage() {
                           <button
                             type="button"
                             onClick={() => updateSelectedAddOnQuantity(addon, 1)}
-                            className="h-8 w-8 rounded-full border border-[#b2967d]/50 text-[#4a342a]"
+                            className="h-8 w-8 rounded-full border border-[#b2967d]/50 text-[#4a342a] disabled:opacity-40"
+                            disabled={isUnavailable}
                           >
                             +
                           </button>

@@ -191,7 +191,42 @@ CREATE INDEX IF NOT EXISTS idx_inventory_logs_type ON inventory_logs(change_type
 CREATE INDEX IF NOT EXISTS idx_inventory_logs_created ON inventory_logs(created_at);
 
 -- =====================================================
--- 10. DAILY_SALES_SUMMARY VIEW
+-- 10. INGREDIENT_BATCHES TABLE
+-- FIFO batch tracking with expiration dates
+-- =====================================================
+CREATE TABLE IF NOT EXISTS ingredient_batches (
+    id TEXT PRIMARY KEY,
+    ingredient_id INT NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    date_added TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expiration_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingredient_batches_ingredient ON ingredient_batches(ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_ingredient_batches_expiration ON ingredient_batches(expiration_date);
+
+-- =====================================================
+-- 11. EXPIRATION_LOGS TABLE
+-- Stores expired ingredient batches for audit/history
+-- =====================================================
+CREATE TABLE IF NOT EXISTS expiration_logs (
+    id TEXT PRIMARY KEY,
+    ingredient_id INT NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    ingredient_name VARCHAR(255) NOT NULL,
+    batch_id TEXT NOT NULL,
+    quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    expiration_date DATE NOT NULL,
+    logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_expiration_logs_ingredient ON expiration_logs(ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_expiration_logs_date ON expiration_logs(expiration_date);
+
+-- =====================================================
+-- 12. DAILY_SALES_SUMMARY VIEW
 -- Aggregated daily sales for reporting
 -- =====================================================
 CREATE OR REPLACE VIEW daily_sales_summary AS
@@ -207,7 +242,7 @@ GROUP BY transaction_date
 ORDER BY transaction_date DESC;
 
 -- =====================================================
--- 11. MONTHLY_SALES_SUMMARY VIEW
+-- 13. MONTHLY_SALES_SUMMARY VIEW
 -- Aggregated monthly sales for reporting
 -- =====================================================
 CREATE OR REPLACE VIEW monthly_sales_summary AS
@@ -222,7 +257,7 @@ GROUP BY DATE_TRUNC('month', transaction_date)
 ORDER BY month DESC;
 
 -- =====================================================
--- 12. PRODUCT_SALES_SUMMARY VIEW
+-- 14. PRODUCT_SALES_SUMMARY VIEW
 -- Product-wise sales statistics
 -- =====================================================
 CREATE OR REPLACE VIEW product_sales_summary AS
@@ -241,7 +276,7 @@ GROUP BY ti.product_id, ti.product_name, p.category
 ORDER BY total_revenue DESC;
 
 -- =====================================================
--- 13. LOW_STOCK_INGREDIENTS VIEW
+-- 15. LOW_STOCK_INGREDIENTS VIEW
 -- Ingredients that need restocking
 -- =====================================================
 CREATE OR REPLACE VIEW low_stock_ingredients AS
@@ -261,22 +296,57 @@ WHERE stock <= min_stock_level
 ORDER BY stock ASC;
 
 -- =====================================================
--- 14. PRODUCT_AVAILABILITY VIEW
+-- 16. PRODUCT_AVAILABILITY VIEW
 -- Products with their available stock based on ingredients
 -- =====================================================
 CREATE OR REPLACE VIEW product_availability AS
+WITH ingredient_batch_status AS (
+    SELECT
+        i.id,
+        i.stock,
+        COALESCE(
+            SUM(
+                CASE
+                    WHEN ib.expiration_date IS NULL OR ib.expiration_date >= CURRENT_DATE THEN ib.quantity
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS usable_stock,
+        COALESCE(
+            BOOL_OR(ib.expiration_date IS NOT NULL AND ib.expiration_date < CURRENT_DATE),
+            false
+        ) AS has_expired_batches,
+        COUNT(ib.id) AS batch_count
+    FROM ingredients i
+    LEFT JOIN ingredient_batches ib ON ib.ingredient_id = i.id
+    GROUP BY i.id, i.stock
+)
 SELECT 
     p.id as product_id,
     p.name as product_name,
     p.category,
     p.price,
     COALESCE(
-        MIN(FLOOR(i.stock / NULLIF(pi.quantity, 0))),
+        CASE
+            WHEN BOOL_OR(COALESCE(ibs.has_expired_batches, false)) THEN 0
+            ELSE MIN(
+                FLOOR(
+                    (
+                        CASE
+                            WHEN COALESCE(ibs.batch_count, 0) > 0 THEN ibs.usable_stock
+                            ELSE i.stock
+                        END
+                    ) / NULLIF(pi.quantity, 0)
+                )
+            )
+        END,
         0
     )::INT as available_stock
 FROM products p
 LEFT JOIN product_ingredients pi ON p.id = pi.product_id
 LEFT JOIN ingredients i ON pi.ingredient_id = i.id
+LEFT JOIN ingredient_batch_status ibs ON ibs.id = i.id
 WHERE p.is_available = true
 GROUP BY p.id, p.name, p.category, p.price;
 
@@ -309,25 +379,121 @@ CREATE OR REPLACE FUNCTION deduct_ingredients_for_sale(
 RETURNS VOID AS $$
 DECLARE
     ingredient_record RECORD;
+    batch_record RECORD;
     prev_stock DECIMAL(10, 2);
     new_stock_val DECIMAL(10, 2);
+    remaining_to_deduct DECIMAL(10, 2);
+    usable_stock DECIMAL(10, 2);
+    has_expired_stock BOOLEAN;
+    batch_count INT;
+    expiration_log_id TEXT;
 BEGIN
     FOR ingredient_record IN
-        SELECT pi.ingredient_id, pi.quantity as required_quantity, i.stock as current_stock
+        SELECT pi.ingredient_id, pi.quantity as required_quantity, i.stock as current_stock, i.name
         FROM product_ingredients pi
         JOIN ingredients i ON pi.ingredient_id = i.id
         WHERE pi.product_id = p_product_id
     LOOP
         prev_stock := ingredient_record.current_stock;
-        new_stock_val := GREATEST(0, prev_stock - (ingredient_record.required_quantity * p_quantity));
-        
-        -- Update ingredient stock
+        remaining_to_deduct := ingredient_record.required_quantity * p_quantity;
+
+        SELECT
+            COALESCE(SUM(
+                CASE
+                    WHEN ib.expiration_date IS NULL OR ib.expiration_date >= CURRENT_DATE THEN ib.quantity
+                    ELSE 0
+                END
+            ), 0),
+            COALESCE(BOOL_OR(ib.expiration_date IS NOT NULL AND ib.expiration_date < CURRENT_DATE), false),
+            COUNT(*)
+        INTO usable_stock, has_expired_stock, batch_count
+        FROM ingredient_batches ib
+        WHERE ib.ingredient_id = ingredient_record.ingredient_id;
+
+        IF batch_count = 0 THEN
+            usable_stock := prev_stock;
+        END IF;
+
+        IF has_expired_stock THEN
+            FOR batch_record IN
+                SELECT id, quantity, expiration_date
+                FROM ingredient_batches
+                WHERE ingredient_id = ingredient_record.ingredient_id
+                  AND expiration_date IS NOT NULL
+                  AND expiration_date < CURRENT_DATE
+            LOOP
+                expiration_log_id := 'exp-' || ingredient_record.ingredient_id || '-' || batch_record.id || '-' || batch_record.expiration_date::TEXT;
+                INSERT INTO expiration_logs (
+                    id,
+                    ingredient_id,
+                    ingredient_name,
+                    batch_id,
+                    quantity,
+                    expiration_date,
+                    logged_at
+                ) VALUES (
+                    expiration_log_id,
+                    ingredient_record.ingredient_id,
+                    ingredient_record.name,
+                    batch_record.id,
+                    batch_record.quantity,
+                    batch_record.expiration_date,
+                    NOW()
+                )
+                ON CONFLICT (id) DO UPDATE
+                SET quantity = EXCLUDED.quantity,
+                    ingredient_name = EXCLUDED.ingredient_name,
+                    logged_at = expiration_logs.logged_at;
+            END LOOP;
+
+            RAISE EXCEPTION 'Cannot use ingredient % for sale because expired stock is present.', ingredient_record.name;
+        END IF;
+
+        IF usable_stock < remaining_to_deduct THEN
+            RAISE EXCEPTION 'Insufficient usable stock for ingredient %.', ingredient_record.name;
+        END IF;
+
+        IF batch_count = 0 THEN
+            new_stock_val := GREATEST(0, prev_stock - (ingredient_record.required_quantity * p_quantity));
+        ELSE
+            FOR batch_record IN
+                SELECT id, quantity, date_added
+                FROM ingredient_batches
+                WHERE ingredient_id = ingredient_record.ingredient_id
+                  AND (expiration_date IS NULL OR expiration_date >= CURRENT_DATE)
+                  AND quantity > 0
+                ORDER BY date_added ASC, expiration_date ASC NULLS LAST
+            LOOP
+                EXIT WHEN remaining_to_deduct <= 0;
+
+                IF batch_record.quantity > remaining_to_deduct THEN
+                    UPDATE ingredient_batches
+                    SET quantity = quantity - remaining_to_deduct,
+                        updated_at = NOW()
+                    WHERE id = batch_record.id;
+                    remaining_to_deduct := 0;
+                ELSE
+                    remaining_to_deduct := remaining_to_deduct - batch_record.quantity;
+                    UPDATE ingredient_batches
+                    SET quantity = 0,
+                        updated_at = NOW()
+                    WHERE id = batch_record.id;
+                END IF;
+            END LOOP;
+
+            SELECT COALESCE(SUM(quantity), 0)
+            INTO new_stock_val
+            FROM ingredient_batches
+            WHERE ingredient_id = ingredient_record.ingredient_id
+              AND (expiration_date IS NULL OR expiration_date >= CURRENT_DATE)
+              AND quantity > 0;
+        END IF;
+
         UPDATE ingredients
         SET stock = new_stock_val,
             updated_at = NOW()
         WHERE id = ingredient_record.ingredient_id;
-        
-        -- Log the inventory change
+
         INSERT INTO inventory_logs (
             ingredient_id,
             change_type,
@@ -366,6 +532,9 @@ DECLARE
     missing TEXT[] := ARRAY[]::TEXT[];
     ingredient_record RECORD;
     can_make INT;
+    usable_stock DECIMAL(10, 2);
+    has_expired_stock BOOLEAN;
+    batch_count INT;
 BEGIN
     FOR ingredient_record IN
         SELECT 
@@ -378,18 +547,41 @@ BEGIN
         JOIN ingredients i ON pi.ingredient_id = i.id
         WHERE pi.product_id = p_product_id
     LOOP
-        can_make := FLOOR(ingredient_record.stock / NULLIF(ingredient_record.required_quantity, 0))::INT;
+        SELECT
+            COALESCE(SUM(
+                CASE
+                    WHEN ib.expiration_date IS NULL OR ib.expiration_date >= CURRENT_DATE THEN ib.quantity
+                    ELSE 0
+                END
+            ), 0),
+            COALESCE(BOOL_OR(ib.expiration_date IS NOT NULL AND ib.expiration_date < CURRENT_DATE), false),
+            COUNT(*)
+        INTO usable_stock, has_expired_stock, batch_count
+        FROM ingredient_batches ib
+        WHERE ib.ingredient_id = ingredient_record.id;
+
+        IF batch_count = 0 THEN
+            usable_stock := ingredient_record.stock;
+        END IF;
+
+        IF has_expired_stock THEN
+            missing := array_append(missing, ingredient_record.name || ' (expired batch detected)');
+            min_available := 0;
+            CONTINUE;
+        END IF;
+
+        can_make := FLOOR(usable_stock / NULLIF(ingredient_record.required_quantity, 0))::INT;
         
         IF can_make < min_available THEN
             min_available := can_make;
         END IF;
         
-        IF ingredient_record.stock < (ingredient_record.required_quantity * p_quantity) THEN
+        IF usable_stock < (ingredient_record.required_quantity * p_quantity) THEN
             missing := array_append(
                 missing,
                 ingredient_record.name || ' (need ' || 
                 (ingredient_record.required_quantity * p_quantity) || ' ' || 
-                ingredient_record.unit || ', have ' || ingredient_record.stock || ')'
+                ingredient_record.unit || ', have ' || usable_stock || ')'
             );
         END IF;
     END LOOP;
@@ -494,6 +686,8 @@ ALTER TABLE product_ingredients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transaction_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ingredient_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expiration_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ingredient_assignments ENABLE ROW LEVEL SECURITY;
 
@@ -509,6 +703,10 @@ DROP POLICY IF EXISTS "Allow public manage transactions" ON transactions;
 DROP POLICY IF EXISTS "Allow public manage transaction_items" ON transaction_items;
 DROP POLICY IF EXISTS "Allow authenticated read inventory_logs" ON inventory_logs;
 DROP POLICY IF EXISTS "Allow authenticated insert inventory_logs" ON inventory_logs;
+DROP POLICY IF EXISTS "Allow public read access to ingredient batches" ON ingredient_batches;
+DROP POLICY IF EXISTS "Allow public manage ingredient_batches" ON ingredient_batches;
+DROP POLICY IF EXISTS "Allow public read access to expiration logs" ON expiration_logs;
+DROP POLICY IF EXISTS "Allow public manage expiration logs" ON expiration_logs;
 DROP POLICY IF EXISTS "Allow public read access to ingredient assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow public manage ingredient_assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow authenticated read access to ingredients" ON ingredients;
@@ -557,6 +755,18 @@ CREATE POLICY "Allow authenticated read inventory_logs" ON inventory_logs
 -- Allow authenticated users to insert inventory logs
 CREATE POLICY "Allow authenticated insert inventory_logs" ON inventory_logs
     FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to ingredient batches" ON ingredient_batches
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage ingredient_batches" ON ingredient_batches
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to expiration logs" ON expiration_logs
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage expiration logs" ON expiration_logs
+    FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow public manage ingredient_assignments" ON ingredient_assignments
     FOR ALL USING (true) WITH CHECK (true);

@@ -24,6 +24,16 @@ export interface InventoryAlerts {
   expiredIngredients: Ingredient[]
 }
 
+export interface ExpirationLog {
+  id: string
+  ingredientId: number
+  ingredientName: string
+  batchId: string
+  quantity: number
+  expirationDate: string
+  loggedAt: string
+}
+
 export interface Ingredient {
   id: number
   productId: string

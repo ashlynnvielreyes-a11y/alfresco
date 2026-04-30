@@ -53,6 +53,23 @@ CREATE INDEX IF NOT EXISTS idx_ingredient_batches_ingredient
 CREATE INDEX IF NOT EXISTS idx_ingredient_batches_expiration
   ON ingredient_batches(expiration_date);
 
+CREATE TABLE IF NOT EXISTS expiration_logs (
+  id TEXT PRIMARY KEY,
+  ingredient_id INT NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+  ingredient_name VARCHAR(255) NOT NULL,
+  batch_id TEXT NOT NULL,
+  quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  expiration_date DATE NOT NULL,
+  logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_expiration_logs_ingredient
+  ON expiration_logs(ingredient_id);
+
+CREATE INDEX IF NOT EXISTS idx_expiration_logs_date
+  ON expiration_logs(expiration_date);
+
 CREATE TABLE IF NOT EXISTS combo_meals (
   id INT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -121,12 +138,15 @@ VALUES (1, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE ingredient_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expiration_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE combo_meals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE combo_meal_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE addons ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public read access to ingredient batches" ON ingredient_batches;
 DROP POLICY IF EXISTS "Allow public manage ingredient_batches" ON ingredient_batches;
+DROP POLICY IF EXISTS "Allow public read access to expiration logs" ON expiration_logs;
+DROP POLICY IF EXISTS "Allow public manage expiration logs" ON expiration_logs;
 DROP POLICY IF EXISTS "Allow public read access to combo meals" ON combo_meals;
 DROP POLICY IF EXISTS "Allow public manage combo meals" ON combo_meals;
 DROP POLICY IF EXISTS "Allow public read access to combo meal items" ON combo_meal_items;
@@ -138,6 +158,12 @@ CREATE POLICY "Allow public read access to ingredient batches" ON ingredient_bat
   FOR SELECT USING (true);
 
 CREATE POLICY "Allow public manage ingredient_batches" ON ingredient_batches
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to expiration logs" ON expiration_logs
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage expiration logs" ON expiration_logs
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow public read access to combo meals" ON combo_meals
