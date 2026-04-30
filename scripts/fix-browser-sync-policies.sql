@@ -17,6 +17,7 @@ ALTER TABLE transaction_items ENABLE ROW LEVEL SECURITY;
 -- Extended tables added by connect-pos-to-supabase.sql
 ALTER TABLE ingredient_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expiration_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_expiration_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE combo_meals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE combo_meal_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE addons ENABLE ROW LEVEL SECURITY;
@@ -66,6 +67,7 @@ DROP POLICY IF EXISTS "Allow public read access to ingredients" ON ingredients;
 DROP POLICY IF EXISTS "Allow public read access to ingredient assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow public read access to ingredient batches" ON ingredient_batches;
 DROP POLICY IF EXISTS "Allow public read access to expiration logs" ON expiration_logs;
+DROP POLICY IF EXISTS "Allow public read access to product expiration logs" ON product_expiration_logs;
 DROP POLICY IF EXISTS "Allow public read access to combo meals" ON combo_meals;
 DROP POLICY IF EXISTS "Allow public read access to combo meal items" ON combo_meal_items;
 DROP POLICY IF EXISTS "Allow public read access to add-ons" ON addons;
@@ -77,6 +79,7 @@ DROP POLICY IF EXISTS "Allow public manage product_ingredients" ON product_ingre
 DROP POLICY IF EXISTS "Allow public manage ingredient_assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow public manage ingredient_batches" ON ingredient_batches;
 DROP POLICY IF EXISTS "Allow public manage expiration logs" ON expiration_logs;
+DROP POLICY IF EXISTS "Allow public manage product expiration logs" ON product_expiration_logs;
 DROP POLICY IF EXISTS "Allow public manage combo meals" ON combo_meals;
 DROP POLICY IF EXISTS "Allow public manage combo meal items" ON combo_meal_items;
 DROP POLICY IF EXISTS "Allow public manage add-ons" ON addons;
@@ -112,6 +115,9 @@ CREATE POLICY "Allow public read access to ingredient batches" ON ingredient_bat
 CREATE POLICY "Allow public read access to expiration logs" ON expiration_logs
   FOR SELECT USING (true);
 
+CREATE POLICY "Allow public read access to product expiration logs" ON product_expiration_logs
+  FOR SELECT USING (true);
+
 CREATE POLICY "Allow public read access to combo meals" ON combo_meals
   FOR SELECT USING (true);
 
@@ -144,6 +150,9 @@ CREATE POLICY "Allow public manage ingredient_batches" ON ingredient_batches
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow public manage expiration logs" ON expiration_logs
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public manage product expiration logs" ON product_expiration_logs
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow public manage combo meals" ON combo_meals

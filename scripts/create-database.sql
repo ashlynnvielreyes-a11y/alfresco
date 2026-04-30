@@ -226,7 +226,28 @@ CREATE INDEX IF NOT EXISTS idx_expiration_logs_ingredient ON expiration_logs(ing
 CREATE INDEX IF NOT EXISTS idx_expiration_logs_date ON expiration_logs(expiration_date);
 
 -- =====================================================
--- 12. DAILY_SALES_SUMMARY VIEW
+-- 12. PRODUCT_EXPIRATION_LOGS TABLE
+-- Historical menu items affected by expired ingredient batches
+-- =====================================================
+CREATE TABLE IF NOT EXISTS product_expiration_logs (
+    id TEXT PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    product_name VARCHAR(255) NOT NULL,
+    product_category VARCHAR(100) NOT NULL,
+    ingredient_id INT NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    ingredient_name VARCHAR(255) NOT NULL,
+    batch_id TEXT NOT NULL,
+    quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    expiration_date DATE NOT NULL,
+    logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_expiration_logs_product ON product_expiration_logs(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_expiration_logs_date ON product_expiration_logs(expiration_date);
+
+-- =====================================================
+-- 13. DAILY_SALES_SUMMARY VIEW
 -- Aggregated daily sales for reporting
 -- =====================================================
 CREATE OR REPLACE VIEW daily_sales_summary AS
@@ -242,7 +263,7 @@ GROUP BY transaction_date
 ORDER BY transaction_date DESC;
 
 -- =====================================================
--- 13. MONTHLY_SALES_SUMMARY VIEW
+-- 14. MONTHLY_SALES_SUMMARY VIEW
 -- Aggregated monthly sales for reporting
 -- =====================================================
 CREATE OR REPLACE VIEW monthly_sales_summary AS
@@ -257,7 +278,7 @@ GROUP BY DATE_TRUNC('month', transaction_date)
 ORDER BY month DESC;
 
 -- =====================================================
--- 14. PRODUCT_SALES_SUMMARY VIEW
+-- 15. PRODUCT_SALES_SUMMARY VIEW
 -- Product-wise sales statistics
 -- =====================================================
 CREATE OR REPLACE VIEW product_sales_summary AS
@@ -276,7 +297,7 @@ GROUP BY ti.product_id, ti.product_name, p.category
 ORDER BY total_revenue DESC;
 
 -- =====================================================
--- 15. LOW_STOCK_INGREDIENTS VIEW
+-- 16. LOW_STOCK_INGREDIENTS VIEW
 -- Ingredients that need restocking
 -- =====================================================
 CREATE OR REPLACE VIEW low_stock_ingredients AS
@@ -296,7 +317,7 @@ WHERE stock <= min_stock_level
 ORDER BY stock ASC;
 
 -- =====================================================
--- 16. PRODUCT_AVAILABILITY VIEW
+-- 17. PRODUCT_AVAILABILITY VIEW
 -- Products with their available stock based on ingredients
 -- =====================================================
 CREATE OR REPLACE VIEW product_availability AS
@@ -688,6 +709,7 @@ ALTER TABLE transaction_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ingredient_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expiration_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_expiration_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ingredient_assignments ENABLE ROW LEVEL SECURITY;
 
@@ -707,6 +729,8 @@ DROP POLICY IF EXISTS "Allow public read access to ingredient batches" ON ingred
 DROP POLICY IF EXISTS "Allow public manage ingredient_batches" ON ingredient_batches;
 DROP POLICY IF EXISTS "Allow public read access to expiration logs" ON expiration_logs;
 DROP POLICY IF EXISTS "Allow public manage expiration logs" ON expiration_logs;
+DROP POLICY IF EXISTS "Allow public read access to product expiration logs" ON product_expiration_logs;
+DROP POLICY IF EXISTS "Allow public manage product expiration logs" ON product_expiration_logs;
 DROP POLICY IF EXISTS "Allow public read access to ingredient assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow public manage ingredient_assignments" ON ingredient_assignments;
 DROP POLICY IF EXISTS "Allow authenticated read access to ingredients" ON ingredients;
@@ -766,6 +790,12 @@ CREATE POLICY "Allow public read access to expiration logs" ON expiration_logs
     FOR SELECT USING (true);
 
 CREATE POLICY "Allow public manage expiration logs" ON expiration_logs
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to product expiration logs" ON product_expiration_logs
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow public manage product expiration logs" ON product_expiration_logs
     FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow public manage ingredient_assignments" ON ingredient_assignments

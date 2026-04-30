@@ -34,6 +34,19 @@ export interface ExpirationLog {
   loggedAt: string
 }
 
+export interface ProductExpirationLog {
+  id: string
+  productId: number
+  productName: string
+  productCategory: string
+  ingredientId: number
+  ingredientName: string
+  batchId: string
+  quantity: number
+  expirationDate: string
+  loggedAt: string
+}
+
 export interface Ingredient {
   id: number
   productId: string
