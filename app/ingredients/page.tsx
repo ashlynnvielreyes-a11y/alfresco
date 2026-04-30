@@ -14,8 +14,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
-import type { Ingredient, IngredientExpirationSummary, Product } from "@/lib/types"
+import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary, getExpirationLogs } from "@/lib/store"
+import type { Ingredient, IngredientExpirationSummary, Product, ExpirationLog } from "@/lib/types"
 
 type FormMode = "list" | "add" | "edit" | "assign" | "restock"
 
@@ -32,6 +32,19 @@ function formatDate(date?: string | null) {
   const parsedDate = new Date(date)
   if (Number.isNaN(parsedDate.getTime())) return "Invalid expiry date"
   return parsedDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+function formatDateTime(date?: string | null) {
+  if (!date) return "Unknown"
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return "Unknown"
+  return parsedDate.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
 }
 
 function getExpirationStatus(date?: string | null) {
@@ -88,6 +101,7 @@ function buildNextIngredientProductId(ingredients: Ingredient[]) {
 
 function IngredientsPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [expirationLogs, setExpirationLogs] = useState<ExpirationLog[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [mode, setMode] = useState<FormMode>("list")
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
@@ -112,6 +126,7 @@ function IngredientsPageContent() {
     const loadData = async () => {
       await initializeSupabaseStore()
       setIngredients(getIngredients())
+      setExpirationLogs(getExpirationLogs())
       setProducts(getProducts())
     }
 
@@ -161,6 +176,7 @@ function IngredientsPageContent() {
     if (assigningIngredient) {
       updateIngredient(assigningIngredient.id, { assignedProducts: selectedProducts })
       setIngredients(getIngredients())
+      setExpirationLogs(getExpirationLogs())
       resetForm()
     }
   }
@@ -181,6 +197,7 @@ function IngredientsPageContent() {
     if (restockingIngredient && restockQuantity) {
       addIngredientStock(restockingIngredient.id, parseFloat(restockQuantity) || 0, restockExpirationDate || null)
       setIngredients(getIngredients())
+      setExpirationLogs(getExpirationLogs())
       resetForm()
     }
   }
@@ -203,6 +220,7 @@ function IngredientsPageContent() {
     if (!ingredientToDelete) return
     deleteIngredient(ingredientToDelete.id)
     setIngredients(getIngredients())
+    setExpirationLogs(getExpirationLogs())
     setIngredientToDelete(null)
   }
 
@@ -244,6 +262,7 @@ function IngredientsPageContent() {
     }
 
     setIngredients(getIngredients())
+    setExpirationLogs(getExpirationLogs())
     resetForm()
   }
 
@@ -751,6 +770,74 @@ function IngredientsPageContent() {
               })}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.76)] p-4 shadow-[0_18px_40px_rgba(74,52,42,0.08)] backdrop-blur-xl lg:mt-8 lg:p-6">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-[#4a342a]">Expiration Logs</h2>
+              <p className="text-sm text-muted-foreground">Expired ingredient batches recorded by the system.</p>
+            </div>
+            <span className="inline-flex items-center rounded-full bg-[#4a342a] px-3 py-1 text-xs font-semibold text-[#f5f1ea]">
+              {expirationLogs.length} log{expirationLogs.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          {expirationLogs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-8 text-center text-sm text-muted-foreground">
+              No expired batches logged yet.
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 lg:hidden">
+                {expirationLogs.map((log) => (
+                  <div key={log.id} className="rounded-xl border border-[#d7c9b8]/70 bg-[#f5f1ea]/78 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-foreground">{log.ingredientName}</p>
+                        <p className="text-xs text-muted-foreground">{log.batchId}</p>
+                      </div>
+                      <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">Expired</span>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      <p>Quantity: <span className="font-medium text-foreground">{log.quantity}</span></p>
+                      <p>Expired on: <span className="font-medium text-foreground">{formatDate(log.expirationDate)}</span></p>
+                      <p>Logged at: <span className="font-medium text-foreground">{formatDateTime(log.loggedAt)}</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-xl border border-border bg-[rgba(245,241,234,0.72)] lg:block">
+                <table className="min-w-[720px] w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-3 text-left font-semibold text-foreground">Ingredient</th>
+                      <th className="px-4 py-3 text-left font-semibold text-foreground">Batch ID</th>
+                      <th className="px-4 py-3 text-left font-semibold text-foreground">Quantity</th>
+                      <th className="px-4 py-3 text-left font-semibold text-foreground">Expired On</th>
+                      <th className="px-4 py-3 text-left font-semibold text-foreground">Logged At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expirationLogs.map((log) => (
+                      <tr key={log.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-3 font-medium text-foreground">{log.ingredientName}</td>
+                        <td className="px-4 py-3 text-sm text-[#7d5a44]">{log.batchId}</td>
+                        <td className="px-4 py-3 text-sm text-foreground">{log.quantity}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                            {formatDate(log.expirationDate)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDateTime(log.loggedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
         </div>
         <AlertDialog open={Boolean(ingredientToDelete)} onOpenChange={(open) => !open && setIngredientToDelete(null)}>
