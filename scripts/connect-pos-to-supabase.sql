@@ -3,10 +3,13 @@
 -- Adds missing schema needed by the current app:
 -- - ingredient product code storage
 -- - FIFO ingredient batches with expiration tracking
+-- - server-side archival of expired batches
 -- - combo meals and combo meal items
 -- - add-ons
 -- - admin settings seed
 -- =====================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 ALTER TABLE ingredients
   ADD COLUMN IF NOT EXISTS product_code VARCHAR(50);
@@ -89,6 +92,133 @@ CREATE INDEX IF NOT EXISTS idx_product_expiration_logs_product
 
 CREATE INDEX IF NOT EXISTS idx_product_expiration_logs_date
   ON product_expiration_logs(expiration_date);
+
+CREATE OR REPLACE FUNCTION archive_expired_ingredient_batches()
+RETURNS TABLE(archived_batches INT, updated_products INT) AS $$
+DECLARE
+  archived_count INT := 0;
+  product_count INT := 0;
+BEGIN
+  WITH expired_batches AS (
+    SELECT
+      ib.id,
+      ib.ingredient_id,
+      i.name AS ingredient_name,
+      ib.quantity,
+      ib.expiration_date
+    FROM ingredient_batches ib
+    JOIN ingredients i ON i.id = ib.ingredient_id
+    WHERE ib.expiration_date IS NOT NULL
+      AND ib.expiration_date < CURRENT_DATE
+      AND ib.quantity > 0
+  ),
+  inserted_ingredient_logs AS (
+    INSERT INTO expiration_logs (
+      id,
+      ingredient_id,
+      ingredient_name,
+      batch_id,
+      quantity,
+      expiration_date,
+      logged_at
+    )
+    SELECT
+      'exp-' || eb.ingredient_id || '-' || eb.id || '-' || eb.expiration_date::TEXT,
+      eb.ingredient_id,
+      eb.ingredient_name,
+      eb.id,
+      eb.quantity,
+      eb.expiration_date,
+      NOW()
+    FROM expired_batches eb
+    ON CONFLICT (id) DO UPDATE
+    SET quantity = EXCLUDED.quantity,
+        ingredient_name = EXCLUDED.ingredient_name
+    RETURNING 1
+  ),
+  inserted_product_logs AS (
+    INSERT INTO product_expiration_logs (
+      id,
+      product_id,
+      product_name,
+      product_category,
+      ingredient_id,
+      ingredient_name,
+      batch_id,
+      quantity,
+      expiration_date,
+      logged_at
+    )
+    SELECT
+      'product-exp-' || p.id || '-' || eb.ingredient_id || '-' || eb.id || '-' || eb.expiration_date::TEXT,
+      p.id,
+      p.name,
+      p.category,
+      eb.ingredient_id,
+      eb.ingredient_name,
+      eb.id,
+      eb.quantity,
+      eb.expiration_date,
+      NOW()
+    FROM expired_batches eb
+    JOIN product_ingredients pi ON pi.ingredient_id = eb.ingredient_id
+    JOIN products p ON p.id = pi.product_id
+    ON CONFLICT (id) DO UPDATE
+    SET quantity = EXCLUDED.quantity,
+        ingredient_name = EXCLUDED.ingredient_name,
+        product_name = EXCLUDED.product_name,
+        product_category = EXCLUDED.product_category
+    RETURNING 1
+  ),
+  deleted_batches AS (
+    DELETE FROM ingredient_batches ib
+    USING expired_batches eb
+    WHERE ib.id = eb.id
+    RETURNING eb.ingredient_id
+  ),
+  affected_ingredients AS (
+    SELECT DISTINCT ingredient_id FROM deleted_batches
+  ),
+  updated_ingredients AS (
+    UPDATE ingredients i
+    SET stock = COALESCE((
+      SELECT SUM(ib.quantity)
+      FROM ingredient_batches ib
+      WHERE ib.ingredient_id = i.id
+        AND ib.quantity > 0
+        AND (ib.expiration_date IS NULL OR ib.expiration_date >= CURRENT_DATE)
+    ), 0),
+    updated_at = NOW()
+    WHERE i.id IN (SELECT ingredient_id FROM affected_ingredients)
+    RETURNING i.id
+  )
+  SELECT
+    (SELECT COUNT(*) FROM deleted_batches),
+    (SELECT COUNT(*) FROM inserted_product_logs)
+  INTO archived_count, product_count;
+
+  RETURN QUERY SELECT archived_count, product_count;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+BEGIN
+  PERFORM cron.unschedule('archive-expired-ingredient-batches');
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;
+END $$;
+
+SELECT cron.schedule(
+  'archive-expired-ingredient-batches',
+  '5 * * * *',
+  $$SELECT * FROM archive_expired_ingredient_batches();$$
+)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM cron.job
+  WHERE jobname = 'archive-expired-ingredient-batches'
+);
 
 CREATE TABLE IF NOT EXISTS combo_meals (
   id INT PRIMARY KEY,
