@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical } from "lucide-react"
 import {
@@ -16,6 +16,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
 import type { Ingredient, IngredientExpirationSummary, Product } from "@/lib/types"
+import { createClient } from "@/lib/supabase/client"
 
 type FormMode = "list" | "add" | "edit" | "assign" | "restock"
 
@@ -108,15 +109,34 @@ function IngredientsPageContent() {
   const [draftBatchId, setDraftBatchId] = useState("")
   const [draftDateAdded, setDraftDateAdded] = useState("")
 
-  useEffect(() => {
-    const loadData = async () => {
-      await initializeSupabaseStore()
-      setIngredients(getIngredients())
-      setProducts(getProducts())
-    }
-
-    void loadData()
+  const refreshData = useCallback(async () => {
+    await initializeSupabaseStore()
+    setIngredients(getIngredients())
+    setProducts(getProducts())
   }, [])
+
+  useEffect(() => {
+    void refreshData()
+  }, [refreshData])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel("ingredients-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, () => void refreshData())
+      .subscribe()
+
+    const intervalId = window.setInterval(() => {
+      void refreshData()
+    }, 60000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      void supabase.removeChannel(channel)
+    }
+  }, [refreshData])
 
   const resetForm = () => {
     setFormData({ productId: "", name: "", unit: "", stock: "", expirationDate: "" })

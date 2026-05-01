@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { initializeSupabaseStore, getProducts, getIngredients, getProductAvailableStock, verifyDataPersistence, getTransactionsByDateRange, getSalesTotalByDateRange, getTopProducts, getInventoryAlerts, getIngredientExpirationSummary } from "@/lib/store"
 import type { Product, Transaction, Ingredient } from "@/lib/types"
 import { Package, ShoppingCart, TrendingUp, DollarSign, CalendarRange } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 function getDefaultRange() {
   const endDate = new Date()
@@ -28,27 +29,48 @@ export default function DashboardPage() {
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("--:--:--")
   const [topSeller, setTopSeller] = useState("No sales yet")
 
-  useEffect(() => {
-    const loadData = async () => {
-      verifyDataPersistence()
-      await initializeSupabaseStore()
+  const refreshData = useCallback(async () => {
+    verifyDataPersistence()
+    await initializeSupabaseStore()
 
-      const startDate = new Date(fromDate)
-      const endDate = new Date(toDate)
-      if (startDate > endDate) return
+    const startDate = new Date(fromDate)
+    const endDate = new Date(toDate)
+    if (startDate > endDate) return
 
-      setProducts(getProducts())
-      setIngredients(getIngredients())
-      setTransactions(await getTransactionsByDateRange(fromDate, toDate))
-      setRangeTotal(await getSalesTotalByDateRange(fromDate, toDate))
+    setProducts(getProducts())
+    setIngredients(getIngredients())
+    setTransactions(await getTransactionsByDateRange(fromDate, toDate))
+    setRangeTotal(await getSalesTotalByDateRange(fromDate, toDate))
 
-      const topProducts = await getTopProducts(startDate, endDate, 1)
-      setTopSeller(topProducts[0]?.name || "No sales yet")
-      setLastUpdatedLabel(new Date().toLocaleTimeString())
-    }
-
-    loadData()
+    const topProducts = await getTopProducts(startDate, endDate, 1)
+    setTopSeller(topProducts[0]?.name || "No sales yet")
+    setLastUpdatedLabel(new Date().toLocaleTimeString())
   }, [fromDate, toDate])
+
+  useEffect(() => {
+    void refreshData()
+  }, [refreshData])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel("dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => void refreshData())
+      .subscribe()
+
+    const intervalId = window.setInterval(() => {
+      void refreshData()
+    }, 60000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      void supabase.removeChannel(channel)
+    }
+  }, [refreshData])
 
   const { lowStockItems, itemsSold, ingredientAlerts, criticalIngredients } = useMemo(() => {
     const low = products.filter((product) => getProductAvailableStock(product, ingredients) < 15)

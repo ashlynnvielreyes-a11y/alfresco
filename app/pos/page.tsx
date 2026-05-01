@@ -116,25 +116,6 @@ export default function POSPage() {
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
-  useEffect(() => {
-    // Initialize all data from localStorage and Supabase
-    const initializeData = async () => {
-      await initializeSupabaseStore()
-      setProducts(getProducts())
-      setIngredients(getIngredients())
-      setComboMeals(getComboMeals())
-      setAllAddOns(getAddOns())
-      const user = getCurrentUser()
-      setCurrentUser(user)
-      console.log("[v0] POS page initialized with user:", user?.username)
-      
-      // Load transactions from Supabase
-      await loadRecentTransactions()
-    }
-    
-    initializeData()
-  }, [])
-
   const loadRecentTransactions = async () => {
     const allTransactions = await getTransactions()
     // Get last 10 non-voided transactions
@@ -144,6 +125,47 @@ export default function POSPage() {
       .reverse()
     setRecentTransactions(recent)
   }
+
+  const refreshData = useCallback(async () => {
+    await initializeSupabaseStore()
+    setProducts(getProducts())
+    setIngredients(getIngredients())
+    setComboMeals(getComboMeals())
+    setAllAddOns(getAddOns())
+    const user = getCurrentUser()
+    setCurrentUser(user)
+    console.log("[v0] POS page initialized with user:", user?.username)
+    await loadRecentTransactions()
+  }, [])
+
+  useEffect(() => {
+    void refreshData()
+  }, [refreshData])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel("pos-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "product_ingredients" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => void loadRecentTransactions())
+      .on("postgres_changes", { event: "*", schema: "public", table: "combo_meals" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "combo_meal_items" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "addons" }, () => void refreshData())
+      .subscribe()
+
+    const intervalId = window.setInterval(() => {
+      void refreshData()
+    }, 60000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      void supabase.removeChannel(channel)
+    }
+  }, [refreshData])
 
   // Check ingredient availability for all products
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { AlertTriangle, PackageX } from "lucide-react"
 import {
@@ -12,6 +12,7 @@ import {
   checkIngredientAvailability,
 } from "@/lib/store"
 import type { ExpirationLog, Ingredient, Product, ProductExpirationLog } from "@/lib/types"
+import { createClient } from "@/lib/supabase/client"
 
 function formatDate(date?: string | null) {
   if (!date) return "Unknown"
@@ -39,17 +40,38 @@ export default function ExpirationLogsPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [products, setProducts] = useState<Product[]>([])
 
-  useEffect(() => {
-    const loadData = async () => {
-      await initializeSupabaseStore()
-      setExpirationLogs(getExpirationLogs())
-      setProductExpirationLogs(getProductExpirationLogs())
-      setIngredients(getIngredients())
-      setProducts(getProducts())
-    }
-
-    void loadData()
+  const refreshData = useCallback(async () => {
+    await initializeSupabaseStore()
+    setExpirationLogs(getExpirationLogs())
+    setProductExpirationLogs(getProductExpirationLogs())
+    setIngredients(getIngredients())
+    setProducts(getProducts())
   }, [])
+
+  useEffect(() => {
+    void refreshData()
+  }, [refreshData])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel("expiration-logs-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "product_expiration_logs" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => void refreshData())
+      .subscribe()
+
+    const intervalId = window.setInterval(() => {
+      void refreshData()
+    }, 60000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      void supabase.removeChannel(channel)
+    }
+  }, [refreshData])
 
   const expiredProducts = useMemo(() => {
     return products
