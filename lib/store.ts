@@ -636,15 +636,7 @@ function saveProductExpirationLogsLocally(logs: ProductExpirationLog[]): void {
 }
 
 function saveIngredientsLocally(ingredients: Ingredient[]): void {
-  const archivedData = archiveExpiredIngredientBatches(
-    ingredients.map(normalizeIngredient),
-    getStoredExpirationLogs(),
-    getProducts(),
-    getStoredProductExpirationLogs()
-  )
-  writeLocalStorage(INGREDIENTS_KEY, archivedData.ingredients)
-  saveExpirationLogsLocally(archivedData.logs)
-  saveProductExpirationLogsLocally(archivedData.productLogs)
+  writeLocalStorage(INGREDIENTS_KEY, ingredients.map(normalizeIngredient))
 }
 
 function saveComboMealsLocally(combos: ComboMeal[]): void {
@@ -720,13 +712,7 @@ async function syncProductsToSupabase(products: Product[]) {
 
 async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
   const supabase = await getSupabaseBrowserClient()
-  const archivedData = archiveExpiredIngredientBatches(
-    ingredients.map(normalizeIngredient),
-    getStoredExpirationLogs(),
-    getProducts(),
-    getStoredProductExpirationLogs()
-  )
-  const normalizedIngredients = archivedData.ingredients
+  const normalizedIngredients = ingredients.map(normalizeIngredient)
   const baseIngredientRows = normalizedIngredients.map((ingredient) => ({
     id: ingredient.id,
     name: ingredient.name,
@@ -869,7 +855,7 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
     }
   }
 
-  const expirationLogs = archivedData.logs
+  const expirationLogs = getStoredExpirationLogs()
   if (expirationLogs.length > 0) {
     const expirationLogRows = expirationLogs.map((log) => ({
       id: log.id,
@@ -887,7 +873,7 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
     }
   }
 
-  const productExpirationLogs = archivedData.productLogs
+  const productExpirationLogs = getStoredProductExpirationLogs()
   if (productExpirationLogs.length > 0) {
     const productExpirationLogRows = productExpirationLogs.map((log) => ({
       id: log.id,
@@ -1216,13 +1202,6 @@ export async function initializeSupabaseStore(): Promise<void> {
         remoteProducts
       )
 
-      const archivedRemoteData = archiveExpiredIngredientBatches(
-        remoteIngredients,
-        remoteExpirationLogs,
-        remoteProducts,
-        remoteProductExpirationLogs
-      )
-
       console.log(
         "[expiration] Supabase ingredients fetched:",
         (ingredientsResponse.data || []).map((ingredient: any) => ({
@@ -1253,13 +1232,10 @@ export async function initializeSupabaseStore(): Promise<void> {
         queueSupabaseSync(syncProductsToSupabase(localProducts), "products")
       }
 
-      if (archivedRemoteData.ingredients.length > 0) {
-        writeLocalStorage(INGREDIENTS_KEY, archivedRemoteData.ingredients)
-        saveExpirationLogsLocally(archivedRemoteData.logs)
-        saveProductExpirationLogsLocally(archivedRemoteData.productLogs)
-        if (archivedRemoteData.removedExpiredBatches) {
-          queueSupabaseSync(syncIngredientsToSupabase(archivedRemoteData.ingredients), "ingredients")
-        }
+      if (remoteIngredients.length > 0) {
+        writeLocalStorage(INGREDIENTS_KEY, remoteIngredients)
+        saveExpirationLogsLocally(remoteExpirationLogs)
+        saveProductExpirationLogsLocally(remoteProductExpirationLogs)
       } else if (localIngredients.length > 0) {
         queueSupabaseSync(syncIngredientsToSupabase(localIngredients), "ingredients")
       }
@@ -1381,14 +1357,39 @@ export function getProductExpirationLogs(): ProductExpirationLog[] {
 
 export function saveIngredients(ingredients: Ingredient[]): void {
   if (typeof window === "undefined") return
+  const normalizedIngredients = ingredients.map(normalizeIngredient)
+  saveIngredientsLocally(normalizedIngredients)
+  queueSupabaseSync(syncIngredientsToSupabase(normalizedIngredients), "ingredients")
+}
+
+export function archiveIngredientExpiredBatches(id: number): Ingredient | null {
+  if (typeof window === "undefined") return null
+
+  const ingredients = getIngredients()
+  const index = ingredients.findIndex((ingredient) => ingredient.id === id)
+  if (index === -1) return null
+
   const archivedData = archiveExpiredIngredientBatches(
-    ingredients.map(normalizeIngredient),
+    [ingredients[index]],
     getStoredExpirationLogs(),
     getProducts(),
     getStoredProductExpirationLogs()
   )
-  saveIngredientsLocally(archivedData.ingredients)
-  queueSupabaseSync(syncIngredientsToSupabase(archivedData.ingredients), "ingredients")
+
+  if (!archivedData.removedExpiredBatches) {
+    return ingredients[index]
+  }
+
+  const updatedIngredient = archivedData.ingredients[0]
+  const updatedIngredients = [...ingredients]
+  updatedIngredients[index] = updatedIngredient
+
+  saveIngredientsLocally(updatedIngredients)
+  saveExpirationLogsLocally(archivedData.logs)
+  saveProductExpirationLogsLocally(archivedData.productLogs)
+  queueSupabaseSync(syncIngredientsToSupabase(updatedIngredients), "ingredients")
+
+  return updatedIngredient
 }
 
 export function addIngredient(ingredient: Omit<Ingredient, "id">): Ingredient {

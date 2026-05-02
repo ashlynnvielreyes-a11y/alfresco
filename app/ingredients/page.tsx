@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical } from "lucide-react"
+import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical, Archive } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +14,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { initializeSupabaseStore, getIngredients, addIngredient, updateIngredient, deleteIngredient, getProducts, addIngredientStock, getIngredientExpirationSummary } from "@/lib/store"
+import {
+  initializeSupabaseStore,
+  getIngredients,
+  addIngredient,
+  updateIngredient,
+  deleteIngredient,
+  getProducts,
+  addIngredientStock,
+  getIngredientExpirationSummary,
+  archiveIngredientExpiredBatches,
+} from "@/lib/store"
 import type { Ingredient, IngredientExpirationSummary, Product } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
 
@@ -93,6 +103,7 @@ function IngredientsPageContent() {
   const [mode, setMode] = useState<FormMode>("list")
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
   const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null)
+  const [ingredientToArchive, setIngredientToArchive] = useState<Ingredient | null>(null)
   const [assigningIngredient, setAssigningIngredient] = useState<Ingredient | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
@@ -224,6 +235,19 @@ function IngredientsPageContent() {
     deleteIngredient(ingredientToDelete.id)
     setIngredients(getIngredients())
     setIngredientToDelete(null)
+  }
+
+  const handleArchive = (ingredient: Ingredient) => {
+    const summary = getIngredientExpirationSummary(ingredient)
+    if (summary.expiredBatches.length === 0) return
+    setIngredientToArchive(ingredient)
+  }
+
+  const confirmArchive = () => {
+    if (!ingredientToArchive) return
+    archiveIngredientExpiredBatches(ingredientToArchive.id)
+    setIngredients(getIngredients())
+    setIngredientToArchive(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -620,6 +644,7 @@ function IngredientsPageContent() {
             const status = getStockStatus(ingredient.stock)
             const summary = getIngredientExpirationSummary(ingredient)
             const expiration = getExpirationPresentation(summary)
+            const hasExpiredBatches = summary.expiredBatches.length > 0
 
             return (
               <div key={ingredient.id} className="rounded-lg border border-border bg-[rgba(245,241,234,0.74)] p-4 backdrop-blur-md">
@@ -651,6 +676,11 @@ function IngredientsPageContent() {
                     <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Add stock">
                       <Plus className="h-4 w-4 text-[#7d5a44]" />
                     </button>
+                    {hasExpiredBatches ? (
+                      <button onClick={() => handleArchive(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Archive expired batches">
+                        <Archive className="h-4 w-4 text-red-700" />
+                      </button>
+                    ) : null}
                     <button onClick={() => handleAssign(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Assign">
                       <Link className="h-4 w-4 text-[#4a342a]" />
                     </button>
@@ -686,6 +716,7 @@ function IngredientsPageContent() {
                 const status = getStockStatus(ingredient.stock)
                 const summary = getIngredientExpirationSummary(ingredient)
                 const expiration = getExpirationPresentation(summary)
+                const hasExpiredBatches = summary.expiredBatches.length > 0
 
                 return (
                   <tr key={ingredient.id} className="border-b border-border last:border-0">
@@ -754,6 +785,15 @@ function IngredientsPageContent() {
                               <Plus className="h-4 w-4" />
                               <span>Add Stock</span>
                             </DropdownMenuItem>
+                            {hasExpiredBatches ? (
+                              <DropdownMenuItem
+                                onClick={() => handleArchive(ingredient)}
+                                className="rounded-lg text-red-700 transition-colors focus:bg-red-50 focus:text-red-700"
+                              >
+                                <Archive className="h-4 w-4" />
+                                <span>Archive Expired</span>
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuItem
                               onClick={() => handleDelete(ingredient.id)}
                               variant="destructive"
@@ -790,6 +830,26 @@ function IngredientsPageContent() {
               </AlertDialogCancel>
               <AlertDialogAction onClick={confirmDelete} className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]">
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={Boolean(ingredientToArchive)} onOpenChange={(open) => !open && setIngredientToArchive(null)}>
+          <AlertDialogContent className="border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-[#4a342a]">Archive Expired Batches</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#7d5a44]">
+                {ingredientToArchive
+                  ? `Move expired batches for ${ingredientToArchive.name} into the expiration logs and remove them from active stock?`
+                  : "Move expired batches into the expiration logs and remove them from active stock?"}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-[#d7c9b8] bg-[#f5f1ea] text-[#4a342a] hover:bg-[#ede3d8]">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmArchive} className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]">
+                Archive
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
