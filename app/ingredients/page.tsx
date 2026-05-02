@@ -104,6 +104,7 @@ function IngredientsPageContent() {
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
   const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null)
   const [ingredientToArchive, setIngredientToArchive] = useState<Ingredient | null>(null)
+  const [ingredientDeleteBlocked, setIngredientDeleteBlocked] = useState<{ ingredient: Ingredient; products: Product[] } | null>(null)
   const [assigningIngredient, setAssigningIngredient] = useState<Ingredient | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
@@ -223,7 +224,7 @@ function IngredientsPageContent() {
     const productsUsingIngredient = getProducts().filter((product) => product.ingredients.some((pi) => pi.ingredientId === id))
 
     if (productsUsingIngredient.length > 0) {
-      alert(`Cannot delete. This ingredient is used in: ${productsUsingIngredient.map((p) => p.name).join(", ")}`)
+      setIngredientDeleteBlocked({ ingredient, products: productsUsingIngredient })
       return
     }
 
@@ -827,6 +828,38 @@ function IngredientsPageContent() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={Boolean(ingredientDeleteBlocked)} onOpenChange={(open) => !open && setIngredientDeleteBlocked(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Ingredient In Use</AlertDialogTitle>
+              <AlertDialogDescription>
+                {ingredientDeleteBlocked
+                  ? `${ingredientDeleteBlocked.ingredient.name} can't be deleted yet because it's still assigned to these menu items.`
+                  : "This ingredient can't be deleted yet because it's still assigned to menu items."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {ingredientDeleteBlocked ? (
+              <div className="rounded-2xl border border-[#d7c9b8]/70 bg-[#f5f1ea]/90 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">
+                  Linked Products
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {ingredientDeleteBlocked.products.map((product) => (
+                    <span
+                      key={product.id}
+                      className="inline-flex items-center rounded-full border border-[#d7c9b8] bg-[#ede3d8] px-3 py-1 text-sm font-medium text-[#4a342a]"
+                    >
+                      {product.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setIngredientDeleteBlocked(null)}>OK</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
