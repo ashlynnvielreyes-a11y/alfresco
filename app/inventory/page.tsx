@@ -502,25 +502,18 @@ function InventoryPageContent() {
         </div>
 
         <AlertDialog open={Boolean(productToDelete)} onOpenChange={(open) => !open && setProductToDelete(null)}>
-          <AlertDialogContent className="border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+          <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-[#4a342a]">Delete Product</AlertDialogTitle>
-              <AlertDialogDescription className="text-[#7d5a44]">
+              <AlertDialogTitle>Delete Product</AlertDialogTitle>
+              <AlertDialogDescription>
                 {productToDelete
                   ? `Remove ${productToDelete.name} from inventory? This action cannot be undone.`
                   : "Remove this product from inventory? This action cannot be undone."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-[#d7c9b8] bg-[#f5f1ea] text-[#4a342a] hover:bg-[#ede3d8]">
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-[#7d5a44] text-[#f5f1ea] hover:bg-[#4a342a]"
-              >
-                Delete
-              </AlertDialogAction>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

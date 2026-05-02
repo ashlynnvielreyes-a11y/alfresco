@@ -1073,8 +1073,8 @@ export default function POSPage() {
 
       {/* Add-Ons Modal */}
       {showAddOnsModal && selectedProductForAddOns && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-[400px] max-h-[90vh] overflow-y-auto rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.82)] p-4 backdrop-blur-xl lg:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2f241d]/55 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-[400px] max-h-[90vh] overflow-y-auto rounded-[28px] border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] p-6 shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl lg:p-7">
             <h2 className="text-xl font-bold text-[#4a342a] mb-2">
               {selectedProductForAddOns.name}
             </h2>
@@ -1199,13 +1199,13 @@ export default function POSPage() {
                   setSelectedTemperature("hot")
                   setEditingCartIndex(null)
                 }}
-                className="flex-1 py-3 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-lg transition-colors"
+                className="flex-1 rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] py-3 text-[#4a342a] font-semibold transition-colors hover:bg-[#ede3d8]"
               >
                 Cancel
               </button>
               <button
                 onClick={editingCartIndex !== null ? saveEditedAddOns : confirmAddToCart}
-                className="flex-1 py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors"
+                className="flex-1 rounded-xl bg-[#7d5a44] py-3 text-[#f5f1ea] font-semibold transition-colors hover:bg-[#4a342a]"
               >
                 {editingCartIndex !== null ? "Save Changes" : "Add to Order"}
               </button>
@@ -1216,9 +1216,9 @@ export default function POSPage() {
 
       {/* Receipt Modal */}
       {showReceipt && lastTransaction && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#2f241d]/55 p-4 backdrop-blur-[2px]">
           <div className="flex min-h-full items-start justify-center py-4">
-            <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-sm flex-col rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.84)] p-6 backdrop-blur-xl lg:max-w-md lg:p-8">
+            <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-sm flex-col rounded-[28px] border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] p-6 text-[#4a342a] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl lg:max-w-md lg:p-8">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-2">
               <h2 className="text-2xl font-bold text-center mb-1">AL FRESCO CAFE</h2>
               <p className="text-center text-muted-foreground mb-1">Official Receipt</p>
@@ -1302,7 +1302,7 @@ export default function POSPage() {
 
               <button
                 onClick={closeReceipt}
-                className="mt-4 w-full shrink-0 rounded-lg bg-[#4a342a] py-3 font-semibold text-[#f5f1ea]"
+                className="mt-4 w-full shrink-0 rounded-xl bg-[#7d5a44] py-3 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#4a342a]"
               >
                 DONE
               </button>
@@ -1313,8 +1313,8 @@ export default function POSPage() {
 
       {/* Void Transaction Modal */}
       {showVoidModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto rounded-lg border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.82)] p-4 backdrop-blur-xl lg:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2f241d]/55 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto rounded-[28px] border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] p-6 text-[#4a342a] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl lg:p-7">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-[#4a342a] flex items-center gap-2">
                 <Ban className="h-5 w-5" />
@@ -1322,9 +1322,9 @@ export default function POSPage() {
               </h2>
               <button
                 onClick={closeVoidModal}
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-full border border-[#d7c9b8]/80 bg-[#f5f1ea]/95 p-2 text-[#7d5a44] transition-colors hover:bg-[#ede3d8] hover:text-[#4a342a]"
               >
-                &times;
+                <span className="block leading-none">&times;</span>
               </button>
             </div>
 
@@ -1422,7 +1422,7 @@ export default function POSPage() {
 
             {/* Error Message */}
             {voidError && (
-              <div className="mb-4 p-3 bg-[#f5f1ea] border border-[#d7c9b8] rounded-lg text-[#7d5a44] text-sm">
+              <div className="mb-4 rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] p-3 text-sm text-[#7d5a44]">
                 {voidError}
               </div>
             )}
@@ -1431,14 +1431,14 @@ export default function POSPage() {
             <div className="flex gap-3">
               <button
                 onClick={closeVoidModal}
-                className="flex-1 py-3 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-lg transition-colors"
+                className="flex-1 rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] py-3 text-[#4a342a] font-semibold transition-colors hover:bg-[#ede3d8]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleVoidTransaction}
                 disabled={!selectedTransactionToVoid || !voidKeyInput || isVoiding}
-                className="flex-1 py-3 bg-[#7d5a44] hover:bg-[#4a342a] disabled:bg-muted disabled:text-muted-foreground text-[#f5f1ea] font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="flex-1 rounded-xl bg-[#7d5a44] py-3 text-[#f5f1ea] font-semibold transition-colors hover:bg-[#4a342a] disabled:bg-muted disabled:text-muted-foreground flex items-center justify-center gap-2"
               >
                 {isVoiding ? (
                   <>

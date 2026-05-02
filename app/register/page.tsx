@@ -548,9 +548,9 @@ export default function RegisterPage() {
 
       {/* Terms and Conditions Modal */}
       {showTermsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#f5f1ea]/88 rounded-[30px] shadow-[0_28px_70px_rgba(123,111,25,0.16)] w-full max-w-2xl max-h-[80vh] flex flex-col border border-[#f5f1ea]/60 backdrop-blur-xl">
-            <div className="p-6 border-b border-[#b2967d]/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2f241d]/55 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-[28px] border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
+            <div className="border-b border-[#d7c9b8]/50 p-6">
               <h2 className="text-2xl font-bold text-[#4a342a]">Terms and Conditions</h2>
               <p className="text-sm text-[#7d5a44] mt-1">Al Fresco Cafe POS System</p>
             </div>
@@ -627,11 +627,11 @@ export default function RegisterPage() {
               </section>
             </div>
 
-            <div className="p-6 border-t border-[#b2967d]/30 flex gap-3">
+            <div className="flex gap-3 border-t border-[#d7c9b8]/50 p-6">
               <button
                 type="button"
                 onClick={() => setShowTermsModal(false)}
-                className="flex-1 py-3 bg-[#f5f1ea] hover:bg-[#b2967d]/30 text-foreground font-semibold rounded-lg transition-colors border border-[#b2967d]/50"
+                className="flex-1 rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] py-3 text-[#4a342a] font-semibold transition-colors hover:bg-[#ede3d8]"
               >
                 Close
               </button>
@@ -641,7 +641,7 @@ export default function RegisterPage() {
                   setAgreedToTerms(true)
                   setShowTermsModal(false)
                 }}
-                className="flex-1 py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors"
+                className="flex-1 rounded-xl bg-[#7d5a44] py-3 text-[#f5f1ea] font-semibold transition-colors hover:bg-[#4a342a]"
               >
                 I Agree
               </button>
