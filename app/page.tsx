@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -184,7 +185,10 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-sm text-muted-foreground">
-            Need a new account? Contact your administrator for access.
+            Need a new account?{" "}
+            <Link href="/register" className="font-medium text-[#4a342a] hover:underline">
+              Register here
+            </Link>
           </p>
         </form>
       </div>
