@@ -631,6 +631,17 @@ export default function POSPage() {
     setIsCancellingReceiptSale(true)
 
     try {
+      const restoredCart = lastTransaction.items.map((item) => ({
+        ...item,
+        addOns: item.addOns ? item.addOns.map((addOn) => ({ ...addOn })) : [],
+        comboMeal: item.comboMeal
+          ? {
+              ...item.comboMeal,
+              items: item.comboMeal.items.map((comboItem) => ({ ...comboItem })),
+            }
+          : undefined,
+      }))
+
       const result = await voidTransaction(
         lastTransaction.id,
         currentUser?.username || "Unknown",
@@ -644,13 +655,14 @@ export default function POSPage() {
 
       saveIngredients(result.updatedIngredients)
       setIngredients(result.updatedIngredients)
+      setCart(restoredCart)
+      setPaymentMethod(lastTransaction.paymentMethod)
+      setDiscountType(lastTransaction.discountType || "none")
+      setCashReceived(lastTransaction.cashReceived > 0 ? lastTransaction.cashReceived.toFixed(2) : "")
       setShowReceipt(false)
       setLastTransaction(null)
-      clearCart()
       await loadRecentTransactions()
-      setPaymentMethod("cash")
-      setDiscountType("none")
-      alert("Sale cancelled. Transaction voided and ingredients restored.")
+      alert("Sale cancelled. Transaction voided, ingredients restored, and the order is back in the cart.")
     } finally {
       setIsCancellingReceiptSale(false)
     }
