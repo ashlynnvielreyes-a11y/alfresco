@@ -2318,6 +2318,73 @@ export function getCurrentUser(): AuthUser | null {
   }
 }
 
+export async function validateCurrentSession(): Promise<AuthUser | null> {
+  const currentUser = getCurrentUser()
+  if (!currentUser) return null
+
+  if (!currentUser.isActive) {
+    logout()
+    return null
+  }
+
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+
+    let user: any = null
+    let responseError: { message?: string } | null = null
+
+    const primaryResponse = await supabase
+      .from("users")
+      .select("id, username, email, role, is_active, created_at, updated_at, deactivated_at")
+      .eq("id", currentUser.id)
+      .maybeSingle()
+
+    if (primaryResponse.error && isSupabaseMissingColumnError(primaryResponse.error, "is_active", "users")) {
+      const fallbackResponse = await supabase
+        .from("users")
+        .select("id, username, email, role, created_at, updated_at")
+        .eq("id", currentUser.id)
+        .maybeSingle()
+
+      user = fallbackResponse.data
+      responseError = fallbackResponse.error
+    } else {
+      user = primaryResponse.data
+      responseError = primaryResponse.error
+    }
+
+    if (responseError) throw responseError
+    if (!user) {
+      logout()
+      return null
+    }
+
+    const normalizedUser = normalizeAppUser({
+      id: String(user.id),
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isActive: user.is_active ?? true,
+      createdAt: user.created_at ?? null,
+      updatedAt: user.updated_at ?? null,
+      deactivatedAt: user.deactivated_at ?? null,
+    })
+
+    if (!normalizedUser.isActive) {
+      logout()
+      return null
+    }
+
+    const rememberMe = localStorage.getItem(AUTH_KEY) === "true"
+    persistAuthSession(normalizedUser, rememberMe)
+    return normalizedUser
+  } catch (error) {
+    console.log("[auth] session validation failed:", error)
+    return currentUser
+  }
+}
+
 export function getUserRole(): UserRole {
   const user = getCurrentUser()
   return normalizeUserRole(user?.role)

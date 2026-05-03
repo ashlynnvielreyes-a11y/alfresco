@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { isAuthenticated, getCurrentUser, getUserRole, canAccessInventory, canAccessPos, canAccessSales, canManageUsers, type UserRole } from "@/lib/store"
+import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessSales, canManageUsers, validateCurrentSession, type UserRole } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 
 interface AuthGuardProps {
@@ -25,46 +25,60 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
   useEffect(() => {
     // Wait for component to mount before checking auth
     if (!mounted) return
-    
-    const checkAuth = () => {
+
+    const checkAuth = async () => {
       const authenticated = isAuthenticated()
-      
+
       if (!authenticated) {
+        setIsAuthorized(false)
+        setIsLoading(false)
+        router.replace("/")
+        return
+      }
+
+      const currentUser = await validateCurrentSession()
+      if (!currentUser) {
+        setIsAuthorized(false)
+        setIsLoading(false)
         router.replace("/")
         return
       }
 
       const userRole = getUserRole()
-      const currentUser = getCurrentUser()
-
-      if (!currentUser?.isActive) {
-        router.replace("/")
-        return
-      }
 
       // If a specific role is required, check it
       if (requiredRole && requiredRole === "admin" && userRole !== "admin") {
         // Redirect cashiers trying to access admin pages
+        setIsAuthorized(false)
+        setIsLoading(false)
         router.replace("/dashboard")
         return
       }
 
       if (requiredPermission === "pos" && !canAccessPos(userRole)) {
+        setIsAuthorized(false)
+        setIsLoading(false)
         router.replace("/dashboard")
         return
       }
 
       if (requiredPermission === "inventory" && !canAccessInventory(userRole)) {
+        setIsAuthorized(false)
+        setIsLoading(false)
         router.replace("/dashboard")
         return
       }
 
       if (requiredPermission === "sales" && !canAccessSales(userRole)) {
+        setIsAuthorized(false)
+        setIsLoading(false)
         router.replace("/dashboard")
         return
       }
 
       if (requiredPermission === "user_management" && !canManageUsers(userRole)) {
+        setIsAuthorized(false)
+        setIsLoading(false)
         router.replace("/dashboard")
         return
       }
@@ -73,7 +87,22 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
       setIsLoading(false)
     }
 
-    checkAuth()
+    void checkAuth()
+
+    const intervalId = window.setInterval(() => {
+      void checkAuth()
+    }, 30000)
+
+    const handleFocus = () => {
+      void checkAuth()
+    }
+
+    window.addEventListener("focus", handleFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener("focus", handleFocus)
+    }
   }, [mounted, router, requiredRole, requiredPermission])
 
   if (isLoading) {

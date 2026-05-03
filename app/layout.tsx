@@ -3,6 +3,7 @@ import { Lato, Playfair_Display, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { SyncErrorListener } from '@/components/sync-error-listener'
+import { SessionEnforcer } from '@/components/session-enforcer'
 import './globals.css'
 
 const lato = Lato({
@@ -48,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background">
       <body className={`${lato.variable} ${playfairDisplay.variable} font-sans antialiased bg-background`}>
+        <SessionEnforcer />
         {children}
         <SyncErrorListener />
         <Toaster />
