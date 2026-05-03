@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { isAuthenticated, getUserRole, type UserRole } from "@/lib/store"
+import { isAuthenticated, getCurrentUser, getUserRole, canAccessInventory, canAccessPos, canAccessSales, canManageUsers, type UserRole } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 
 interface AuthGuardProps {
   children: React.ReactNode
   requiredRole?: UserRole
+  requiredPermission?: "pos" | "inventory" | "sales" | "user_management"
 }
 
-export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
+export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGuardProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
@@ -34,10 +35,36 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
       }
 
       const userRole = getUserRole()
+      const currentUser = getCurrentUser()
+
+      if (!currentUser?.isActive) {
+        router.replace("/")
+        return
+      }
 
       // If a specific role is required, check it
       if (requiredRole && requiredRole === "admin" && userRole !== "admin") {
         // Redirect cashiers trying to access admin pages
+        router.replace("/dashboard")
+        return
+      }
+
+      if (requiredPermission === "pos" && !canAccessPos(userRole)) {
+        router.replace("/dashboard")
+        return
+      }
+
+      if (requiredPermission === "inventory" && !canAccessInventory(userRole)) {
+        router.replace("/dashboard")
+        return
+      }
+
+      if (requiredPermission === "sales" && !canAccessSales(userRole)) {
+        router.replace("/dashboard")
+        return
+      }
+
+      if (requiredPermission === "user_management" && !canManageUsers(userRole)) {
         router.replace("/dashboard")
         return
       }
@@ -47,7 +74,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     }
 
     checkAuth()
-  }, [mounted, router, requiredRole])
+  }, [mounted, router, requiredRole, requiredPermission])
 
   if (isLoading) {
     return (

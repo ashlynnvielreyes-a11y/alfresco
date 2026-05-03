@@ -4,34 +4,46 @@ import { memo, useCallback, useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle } from "lucide-react"
-import { logout, getUserRole, getCurrentUser, type UserRole } from "@/lib/store"
+import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle, Users } from "lucide-react"
+import { logout, getUserRole, getCurrentUser, canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, canManageUsers, type UserRole } from "@/lib/store"
 
 interface NavItem {
   href: string
   label: string
   icon: typeof LayoutDashboard
-  adminOnly?: boolean
+  permission?: "dashboard" | "pos" | "inventory" | "sales" | "user_management"
 }
 
 const allNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/pos", label: "POS", icon: ShoppingCart },
-  { href: "/inventory", label: "Inventory", icon: Package, adminOnly: true },
-  { href: "/ingredients", label: "Ingredients", icon: Leaf, adminOnly: true },
-  { href: "/expiration-logs", label: "Expiration Logs", icon: AlertTriangle, adminOnly: true },
-  { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, adminOnly: true },
-  { href: "/addons", label: "Add-ons", icon: Plus, adminOnly: true },
-  { href: "/sales-history", label: "Sales History", icon: FileText },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
+  { href: "/pos", label: "POS", icon: ShoppingCart, permission: "pos" },
+  { href: "/inventory", label: "Inventory", icon: Package, permission: "inventory" },
+  { href: "/ingredients", label: "Ingredients", icon: Leaf, permission: "inventory" },
+  { href: "/expiration-logs", label: "Expiration Logs", icon: AlertTriangle, permission: "inventory" },
+  { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, permission: "inventory" },
+  { href: "/addons", label: "Add-ons", icon: Plus, permission: "inventory" },
+  { href: "/user-management", label: "User Management", icon: Users, permission: "user_management" },
+  { href: "/sales-history", label: "Sales History", icon: FileText, permission: "sales" },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
 const getNavItemsForRole = (role: UserRole): NavItem[] => {
-  if (role === "admin") {
-    return allNavItems
-  }
-  // Cashiers can only see Dashboard, POS, and Sales History
-  return allNavItems.filter(item => !item.adminOnly)
+  return allNavItems.filter((item) => {
+    switch (item.permission) {
+      case "dashboard":
+        return canAccessDashboard(role)
+      case "pos":
+        return canAccessPos(role)
+      case "inventory":
+        return canAccessInventory(role)
+      case "sales":
+        return canAccessSales(role)
+      case "user_management":
+        return canManageUsers(role)
+      default:
+        return true
+    }
+  })
 }
 
 const NavItemComponent = memo(({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick?: () => void }) => {

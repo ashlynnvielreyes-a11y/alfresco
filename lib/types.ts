@@ -125,3 +125,27 @@ export interface Transaction {
   voidedAt?: string
   voidedBy?: string
 }
+
+export type AppUserRole = "admin" | "cashier" | "inventory_staff"
+
+export interface AppUser {
+  id: string
+  username: string
+  email: string
+  role: AppUserRole
+  isActive: boolean
+  createdAt?: string | null
+  updatedAt?: string | null
+  deactivatedAt?: string | null
+}
+
+export interface AuditLog {
+  id: string
+  actorUserId: string
+  actorUsername: string
+  action: string
+  entityType: string
+  entityId: string
+  details?: string | null
+  createdAt: string
+}

@@ -12,6 +12,9 @@ import type {
   InventoryAlerts,
   ExpirationLog,
   ProductExpirationLog,
+  AppUser,
+  AppUserRole,
+  AuditLog,
 } from "./types"
 import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory } from "./product-categories"
 
@@ -24,6 +27,7 @@ const COMBOS_KEY = "alfresco_combos"
 const ADDONS_KEY = "alfresco_addons"
 const EXPIRATION_LOGS_KEY = "alfresco_expiration_logs"
 const PRODUCT_EXPIRATION_LOGS_KEY = "alfresco_product_expiration_logs"
+const AUDIT_LOGS_KEY = "alfresco_audit_logs"
 const SUPABASE_SYNC_LOCK_KEY = "alfresco_supabase_sync_running"
 const SUPABASE_SYNC_ERROR_EVENT = "alfresco:supabase-sync-error"
 
@@ -1417,6 +1421,7 @@ export function addIngredient(ingredient: Omit<Ingredient, "id">): Ingredient {
   })
   ingredients.push(newIngredient)
   saveIngredients(ingredients)
+  void logAuditEvent("ingredient_created", "ingredient", String(newIngredient.id), `${newIngredient.name} created`)
   return newIngredient
 }
 
@@ -1431,6 +1436,7 @@ export function updateIngredient(id: number, updates: Partial<Ingredient>): Ingr
     productId: updates.productId || ingredients[index].productId,
   })
   saveIngredients(ingredients)
+  void logAuditEvent("ingredient_updated", "ingredient", String(id), `${ingredients[index].name} updated`)
   return ingredients[index]
 }
 
@@ -1451,6 +1457,7 @@ export function addIngredientStock(id: number, quantity: number, expirationDate?
   ingredient.stock = ingredient.stock + quantity
   ingredients[index] = normalizeIngredient(ingredient)
   saveIngredients(ingredients)
+  void logAuditEvent("ingredient_restocked", "ingredient", String(id), `${ingredient.name} restocked by ${quantity}`)
   return ingredients[index]
 }
 
@@ -1542,6 +1549,7 @@ export function deleteIngredient(id: number): boolean {
   const filtered = ingredients.filter((i) => i.id !== id)
   if (filtered.length === ingredients.length) return false
   saveIngredients(filtered)
+  void logAuditEvent("ingredient_deleted", "ingredient", String(id), `Ingredient ${id} deleted`)
   return true
 }
 
@@ -1646,6 +1654,7 @@ export function addProduct(product: Omit<Product, "id">): Product {
   const newProduct = normalizeProduct({ ...product, id: newId, ingredients: product.ingredients || [] })
   products.push(newProduct)
   saveProducts(products)
+  void logAuditEvent("product_created", "product", String(newProduct.id), `${newProduct.name} created`)
   return newProduct
 }
 
@@ -1655,6 +1664,7 @@ export function updateProduct(id: number, updates: Partial<Product>): Product | 
   if (index === -1) return null
   products[index] = normalizeProduct({ ...products[index], ...updates } as Product)
   saveProducts(products)
+  void logAuditEvent("product_updated", "product", String(id), `${products[index].name} updated`)
   return products[index]
 }
 
@@ -1663,7 +1673,246 @@ export function deleteProduct(id: number): boolean {
   const filtered = products.filter((p) => p.id !== id)
   if (filtered.length === products.length) return false
   saveProducts(filtered)
+  void logAuditEvent("product_deleted", "product", String(id), `Product ${id} deleted`)
   return true
+}
+
+function getStoredAuditLogs(): AuditLog[] {
+  if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(AUDIT_LOGS_KEY)
+  if (!stored) return []
+
+  try {
+    return JSON.parse(stored) as AuditLog[]
+  } catch {
+    return []
+  }
+}
+
+function saveAuditLogsLocally(logs: AuditLog[]) {
+  if (typeof window === "undefined") return
+
+  const merged = new Map(logs.map((log) => [log.id, log]))
+  const ordered = Array.from(merged.values()).sort((a, b) => {
+    const byDate = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    if (byDate !== 0) return byDate
+    return a.action.localeCompare(b.action)
+  })
+
+  writeLocalStorage(AUDIT_LOGS_KEY, ordered)
+}
+
+export async function logAuditEvent(action: string, entityType: string, entityId: string, details?: string) {
+  if (typeof window === "undefined") return
+
+  const currentUser = getCurrentUser()
+  if (!currentUser) return
+
+  const auditLog: AuditLog = {
+    id: crypto.randomUUID(),
+    actorUserId: currentUser.id,
+    actorUsername: currentUser.username,
+    action,
+    entityType,
+    entityId,
+    details: details || null,
+    createdAt: new Date().toISOString(),
+  }
+
+  saveAuditLogsLocally([auditLog, ...getStoredAuditLogs()])
+
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+    const { error } = await supabase.from("audit_logs").insert([
+      {
+        id: auditLog.id,
+        actor_user_id: auditLog.actorUserId,
+        actor_username: auditLog.actorUsername,
+        action: auditLog.action,
+        entity_type: auditLog.entityType,
+        entity_id: auditLog.entityId,
+        details: auditLog.details,
+        created_at: auditLog.createdAt,
+      },
+    ])
+
+    if (error && !isSupabaseMissingTableError(error, "audit_logs")) {
+      throw error
+    }
+  } catch (error) {
+    console.log("[audit] failed to sync audit log:", error)
+  }
+}
+
+export async function getUsers(): Promise<AppUser[]> {
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+
+    let rows: any[] | null = null
+    let responseError: { message?: string } | null = null
+
+    const primaryResponse = await supabase
+      .from("users")
+      .select("id, username, email, role, is_active, created_at, updated_at, deactivated_at")
+      .order("created_at", { ascending: false })
+
+    if (primaryResponse.error && isSupabaseMissingColumnError(primaryResponse.error, "is_active", "users")) {
+      const fallbackResponse = await supabase
+        .from("users")
+        .select("id, username, email, role, created_at, updated_at")
+        .order("created_at", { ascending: false })
+
+      rows = fallbackResponse.data || null
+      responseError = fallbackResponse.error
+    } else {
+      rows = primaryResponse.data || null
+      responseError = primaryResponse.error
+    }
+
+    if (responseError) throw responseError
+
+    return (rows || []).map((user: any) =>
+      normalizeAppUser({
+        id: String(user.id),
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        isActive: user.is_active ?? true,
+        createdAt: user.created_at ?? null,
+        updatedAt: user.updated_at ?? null,
+        deactivatedAt: user.deactivated_at ?? null,
+      })
+    )
+  } catch (error) {
+    console.log("[users] fetch failed:", error)
+    return []
+  }
+}
+
+type UserAccountInput = {
+  username: string
+  email: string
+  password: string
+  role: UserRole
+}
+
+export async function createUserAccount(input: UserAccountInput): Promise<{ success: boolean; error?: string }> {
+  if (!validateEmail(input.email)) {
+    return { success: false, error: "Invalid email address" }
+  }
+
+  const validation = validatePassword(input.password)
+  if (!validation.valid) {
+    return { success: false, error: validation.errors[0] }
+  }
+
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+    const payload = {
+      id: crypto.randomUUID(),
+      username: input.username.trim(),
+      email: input.email.trim().toLowerCase(),
+      password_hash: input.password,
+      role: normalizeUserRole(input.role),
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error } = await supabase.from("users").insert([payload])
+    if (error) throw error
+
+    await logAuditEvent("user_created", "user", payload.id, `${payload.username} (${payload.role}) created`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) }
+  }
+}
+
+export async function updateUserAccount(
+  userId: string,
+  updates: { username: string; email: string; role: UserRole }
+): Promise<{ success: boolean; error?: string }> {
+  if (!validateEmail(updates.email)) {
+    return { success: false, error: "Invalid email address" }
+  }
+
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("users")
+      .update({
+        username: updates.username.trim(),
+        email: updates.email.trim().toLowerCase(),
+        role: normalizeUserRole(updates.role),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    await logAuditEvent("user_updated", "user", userId, `${updates.username} updated`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) }
+  }
+}
+
+export async function deactivateUserAccount(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("users")
+      .update({
+        is_active: false,
+        deactivated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    const currentUser = getCurrentUser()
+    if (currentUser?.id === userId) {
+      logout()
+    }
+
+    await logAuditEvent("user_deactivated", "user", userId, "Account deactivated")
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) }
+  }
+}
+
+export async function resetUserPassword(userId: string, nextPassword: string): Promise<{ success: boolean; error?: string }> {
+  const validation = validatePassword(nextPassword)
+  if (!validation.valid) {
+    return { success: false, error: validation.errors[0] }
+  }
+
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("users")
+      .update({
+        password_hash: nextPassword,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    await logAuditEvent("user_password_reset", "user", userId, "Password reset by admin")
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) }
+  }
 }
 
 // Transactions functions
@@ -1758,6 +2007,7 @@ export async function saveTransaction(transaction: Transaction): Promise<void> {
     }
 
     saveToLocalStorage(normalizedTransaction)
+    await logAuditEvent("sale_created", "transaction", normalizedTransaction.id, `Sale recorded for ${normalizedTransaction.total}`)
   } catch (error) {
     console.log("[v0] Error saving to Supabase:", error)
     saveToLocalStorage(normalizedTransaction)
@@ -1910,6 +2160,7 @@ export async function voidTransaction(transactionId: string, voidedBy: string, i
     })
   }
 
+  await logAuditEvent("sale_voided", "transaction", transactionId, `Transaction voided by ${voidedBy}`)
   return { success: true, updatedIngredients }
 }
 
@@ -1970,13 +2221,71 @@ export function validatePassword(password: string): { valid: boolean; errors: st
 }
 
 // Auth functions
-export type UserRole = "admin" | "employee" | "cashier"
+export type UserRole = AppUserRole
+export type AuthUser = AppUser
 
-export interface AuthUser {
-  id: string
-  username: string
-  email: string
-  role: UserRole
+const AUTH_COOKIE_KEY = "alfresco_auth_state"
+
+function normalizeUserRole(role: string | null | undefined): UserRole {
+  if (role === "admin" || role === "cashier" || role === "inventory_staff") {
+    return role
+  }
+
+  if (role === "employee") {
+    return "cashier"
+  }
+
+  return "cashier"
+}
+
+function normalizeAppUser(user: Partial<AppUser> & Pick<AppUser, "id" | "username" | "email">): AppUser {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: normalizeUserRole(user.role),
+    isActive: user.isActive ?? true,
+    createdAt: user.createdAt ?? null,
+    updatedAt: user.updatedAt ?? null,
+    deactivatedAt: user.deactivatedAt ?? null,
+  }
+}
+
+function setAuthCookie(user: AuthUser | null, rememberMe: boolean) {
+  if (typeof document === "undefined") return
+
+  if (!user) {
+    document.cookie = `${AUTH_COOKIE_KEY}=; path=/; max-age=0; SameSite=Lax`
+    return
+  }
+
+  const payload = encodeURIComponent(JSON.stringify({
+    id: user.id,
+    role: user.role,
+    isActive: user.isActive,
+  }))
+  const maxAge = rememberMe ? 60 * 60 * 24 * 30 : undefined
+  document.cookie = `${AUTH_COOKIE_KEY}=${payload}; path=/; SameSite=Lax${maxAge ? `; max-age=${maxAge}` : ""}`
+}
+
+export function canManageUsers(role: UserRole): boolean {
+  return role === "admin"
+}
+
+export function canAccessPos(role: UserRole): boolean {
+  return role === "admin" || role === "cashier"
+}
+
+export function canAccessInventory(role: UserRole): boolean {
+  return role === "admin" || role === "inventory_staff"
+}
+
+export function canAccessSales(role: UserRole): boolean {
+  return role === "admin" || role === "cashier"
+}
+
+export function canAccessDashboard(role: UserRole): boolean {
+  return role === "admin" || role === "cashier" || role === "inventory_staff"
 }
 
 export function persistAuthSession(user: AuthUser, rememberMe: boolean): void {
@@ -1986,9 +2295,11 @@ export function persistAuthSession(user: AuthUser, rememberMe: boolean): void {
   localStorage.removeItem(AUTH_KEY)
   localStorage.removeItem(CURRENT_USER_KEY)
 
+  const normalizedUser = normalizeAppUser(user)
   const storage = getAuthStorage(rememberMe)
   storage.setItem(AUTH_KEY, "true")
-  storage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
+  storage.setItem(CURRENT_USER_KEY, JSON.stringify(normalizedUser))
+  setAuthCookie(normalizedUser, rememberMe)
 }
 
 export function isAuthenticated(): boolean {
@@ -2001,7 +2312,7 @@ export function getCurrentUser(): AuthUser | null {
   const userStr = readStoredAuth(CURRENT_USER_KEY)
   if (!userStr) return null
   try {
-    return JSON.parse(userStr)
+    return normalizeAppUser(JSON.parse(userStr) as AuthUser)
   } catch {
     return null
   }
@@ -2009,7 +2320,7 @@ export function getCurrentUser(): AuthUser | null {
 
 export function getUserRole(): UserRole {
   const user = getCurrentUser()
-  return user?.role || "employee"
+  return normalizeUserRole(user?.role)
 }
 
 export function isAdmin(): boolean {
@@ -2024,6 +2335,7 @@ export function login(username: string, password: string, rememberMe: boolean = 
         username: "admin",
         email: "admin@alfresco.com",
         role: "admin",
+        isActive: true,
       },
       rememberMe
     )
@@ -2042,7 +2354,7 @@ export function register(
   email: string,
   password: string,
   userId?: string,
-  role: UserRole = "employee"
+  role: UserRole = "cashier"
 ): { success: boolean; error?: string } {
   if (username === "admin") {
     return { success: false, error: "Username already exists" }
@@ -2063,6 +2375,7 @@ export function register(
       username,
       email,
       role,
+      isActive: true,
     },
     true
   )
@@ -2075,6 +2388,7 @@ export function logout(): void {
   localStorage.removeItem(CURRENT_USER_KEY)
   sessionStorage.removeItem(AUTH_KEY)
   sessionStorage.removeItem(CURRENT_USER_KEY)
+  setAuthCookie(null, false)
 }
 
 // Combo Meal functions

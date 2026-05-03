@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { validatePassword, validateEmail, persistAuthSession } from "@/lib/store"
+import { validatePassword, validateEmail, persistAuthSession, getCurrentUser } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { Check, X, Loader2, Mail, Eye, EyeOff } from "lucide-react"
 
@@ -33,6 +33,15 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  // Resend timer countdown
+  useEffect(() => {
+    const currentUser = getCurrentUser()
+    if (!currentUser || currentUser.role !== "admin") {
+      router.replace("/")
+      return
+    }
+  }, [router])
 
   // Resend timer countdown
   useEffect(() => {
@@ -186,8 +195,9 @@ export default function RegisterPage() {
             email: email.toLowerCase(),
             password_hash: password,
             role: getDatabaseRole(),
+            is_active: true,
           })
-          .select("id, username, email, role")
+          .select("id, username, email, role, is_active")
           .single()
 
         if (insertError || !newUser) {
@@ -200,7 +210,8 @@ export default function RegisterPage() {
           id: newUser.id,
           username: newUser.username,
           email: newUser.email,
-          role: newUser.role
+          role: newUser.role,
+          isActive: newUser.is_active !== false,
         }, true)
 
         router.push("/dashboard")

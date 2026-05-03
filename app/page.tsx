@@ -1,11 +1,14 @@
 "use client"
 
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { persistAuthSession } from "@/lib/store"
 import { Eye, EyeOff } from "lucide-react"
+
+const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
+const REMEMBER_ME_PREFERENCE_KEY = "alfresco_remember_me"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -16,6 +19,19 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const storedRememberMe = localStorage.getItem(REMEMBER_ME_PREFERENCE_KEY)
+    const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY)
+    const shouldRemember = storedRememberMe !== "false"
+
+    setRememberMe(shouldRemember)
+    if (shouldRemember && rememberedUsername) {
+      setUsername(rememberedUsername)
+    }
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
@@ -24,18 +40,28 @@ export default function LoginPage() {
     try {
       const supabase = createClient()
 
-      let { data: user, error: queryError } = await supabase
-        .from("users")
-        .select("id, username, email, password_hash, role")
-        .eq("username", username.toLowerCase())
-        .single()
+      const fetchUserBy = async (column: "username" | "email", value: string) => {
+        let response = await supabase
+          .from("users")
+          .select("id, username, email, password_hash, role, is_active")
+          .eq(column, value)
+          .single()
+
+        if (response.error?.message?.toLowerCase().includes("is_active")) {
+          response = await supabase
+            .from("users")
+            .select("id, username, email, password_hash, role")
+            .eq(column, value)
+            .single()
+        }
+
+        return response
+      }
+
+      let { data: user, error: queryError } = await fetchUserBy("username", username.toLowerCase())
 
       if (!user) {
-        const { data: userByEmail, error: emailError } = await supabase
-          .from("users")
-          .select("id, username, email, password_hash, role")
-          .eq("email", username.toLowerCase())
-          .single()
+        const { data: userByEmail, error: emailError } = await fetchUserBy("email", username.toLowerCase())
 
         user = userByEmail
         queryError = emailError
@@ -53,15 +79,30 @@ export default function LoginPage() {
         return
       }
 
+      if (user.is_active === false) {
+        setError("This account has been deactivated. Please contact an administrator.")
+        setIsLoading(false)
+        return
+      }
+
       persistAuthSession(
         {
           id: user.id,
           username: user.username,
           email: user.email,
           role: user.role || "cashier",
+          isActive: user.is_active !== false,
         },
         rememberMe
       )
+
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_ME_PREFERENCE_KEY, "true")
+        localStorage.setItem(REMEMBERED_USERNAME_KEY, user.email || user.username)
+      } else {
+        localStorage.setItem(REMEMBER_ME_PREFERENCE_KEY, "false")
+        localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+      }
 
       router.push("/dashboard")
     } catch (err) {
@@ -143,10 +184,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <a href="/register" className="font-medium text-[#4a342a] hover:underline">
-              Register here
-            </a>
+            Need a new account? Ask an administrator to create one from User Management.
           </p>
         </form>
       </div>
