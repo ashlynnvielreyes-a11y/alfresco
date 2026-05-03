@@ -1139,35 +1139,40 @@ export async function initializeSupabaseStore(): Promise<void> {
     const localIngredients = getIngredients()
     const localCombos = getComboMeals()
     const localAddOns = getAddOns()
+    const remoteExpirationLogs = !expirationLogsResponse.error
+      ? (expirationLogsResponse.data || []).map((log: any) => ({
+          id: log.id,
+          ingredientId: log.ingredient_id,
+          ingredientName: log.ingredient_name,
+          batchId: log.batch_id,
+          quantity: Number(log.quantity) || 0,
+          expirationDate: normalizeExpirationDate(log.expiration_date) || "",
+          loggedAt: log.logged_at || log.created_at || new Date().toISOString(),
+        })).filter((log: ExpirationLog) => Boolean(log.expirationDate))
+      : []
+
+    const remoteProductExpirationLogs = !productExpirationLogsResponse.error
+      ? (productExpirationLogsResponse.data || []).map((log: any) => ({
+          id: log.id,
+          productId: log.product_id,
+          productName: log.product_name,
+          productCategory: log.product_category,
+          ingredientId: log.ingredient_id,
+          ingredientName: log.ingredient_name,
+          batchId: log.batch_id,
+          quantity: Number(log.quantity) || 0,
+          expirationDate: normalizeExpirationDate(log.expiration_date) || "",
+          loggedAt: log.logged_at || log.created_at || new Date().toISOString(),
+        })).filter((log: ProductExpirationLog) => Boolean(log.expirationDate))
+      : []
+
+    const mergedExpirationLogs = mergeExpirationLogsWithLocal(remoteExpirationLogs)
+    const mergedProductExpirationLogs = mergeProductExpirationLogsWithLocal(remoteProductExpirationLogs)
+
+    saveExpirationLogsLocally(mergedExpirationLogs)
+    saveProductExpirationLogsLocally(mergedProductExpirationLogs)
 
     if (!productsResponse.error && !ingredientsResponse.error) {
-      const remoteExpirationLogs = !expirationLogsResponse.error
-        ? (expirationLogsResponse.data || []).map((log: any) => ({
-            id: log.id,
-            ingredientId: log.ingredient_id,
-            ingredientName: log.ingredient_name,
-            batchId: log.batch_id,
-            quantity: Number(log.quantity) || 0,
-            expirationDate: normalizeExpirationDate(log.expiration_date) || "",
-            loggedAt: log.logged_at || log.created_at || new Date().toISOString(),
-          })).filter((log: ExpirationLog) => Boolean(log.expirationDate))
-        : []
-
-      const remoteProductExpirationLogs = !productExpirationLogsResponse.error
-        ? (productExpirationLogsResponse.data || []).map((log: any) => ({
-            id: log.id,
-            productId: log.product_id,
-            productName: log.product_name,
-            productCategory: log.product_category,
-            ingredientId: log.ingredient_id,
-            ingredientName: log.ingredient_name,
-            batchId: log.batch_id,
-            quantity: Number(log.quantity) || 0,
-            expirationDate: normalizeExpirationDate(log.expiration_date) || "",
-            loggedAt: log.logged_at || log.created_at || new Date().toISOString(),
-          })).filter((log: ProductExpirationLog) => Boolean(log.expirationDate))
-        : []
-
       const remoteProducts = (productsResponse.data || []).map((product: any) => ({
         id: product.id,
         name: product.name,
@@ -1249,8 +1254,6 @@ export async function initializeSupabaseStore(): Promise<void> {
 
       if (remoteIngredients.length > 0) {
         writeLocalStorage(INGREDIENTS_KEY, remoteIngredients)
-        saveExpirationLogsLocally(mergedExpirationLogs)
-        saveProductExpirationLogsLocally(mergedProductExpirationLogs)
         if (mergedExpirationLogs.length > remoteExpirationLogs.length || mergedProductExpirationLogs.length > remoteProductExpirationLogs.length) {
           queueSupabaseSync(syncIngredientsToSupabase(remoteIngredients), "ingredients")
         }
