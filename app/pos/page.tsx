@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
+import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, CoffeeTemperature } from "@/lib/types"
 
@@ -649,7 +650,11 @@ export default function POSPage() {
       )
 
       if (!result.success) {
-        alert("Failed to cancel the sale. Please use Void Transaction instead.")
+        toast({
+          variant: "destructive",
+          title: "Sale Not Cancelled",
+          description: "Please use Void Transaction instead.",
+        })
         return
       }
 
@@ -662,7 +667,10 @@ export default function POSPage() {
       setShowReceipt(false)
       setLastTransaction(null)
       await loadRecentTransactions()
-      alert("Sale cancelled. Transaction voided, ingredients restored, and the order is back in the cart.")
+      toast({
+        title: "Sale Cancelled",
+        description: "Transaction voided, ingredients restored, and the order is back in the cart.",
+      })
     } finally {
       setIsCancellingReceiptSale(false)
     }
