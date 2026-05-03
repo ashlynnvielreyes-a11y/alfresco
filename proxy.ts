@@ -24,13 +24,16 @@ function isPublicPath(pathname: string) {
 }
 
 function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
+  if (pathname.startsWith("/register")) {
+    return role === "admin"
+  }
+
   if (
     pathname.startsWith("/inventory") ||
     pathname.startsWith("/ingredients") ||
     pathname.startsWith("/expiration-logs") ||
     pathname.startsWith("/combos") ||
-    pathname.startsWith("/addons") ||
-    pathname.startsWith("/register")
+    pathname.startsWith("/addons")
   ) {
     return role === "admin" || role === "inventory_staff"
   }

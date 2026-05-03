@@ -4,14 +4,14 @@ import { memo, useCallback, useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle } from "lucide-react"
+import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle, UserPlus } from "lucide-react"
 import { logout, getUserRole, getCurrentUser, canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, type UserRole } from "@/lib/store"
 
 interface NavItem {
   href: string
   label: string
   icon: typeof LayoutDashboard
-  permission?: "dashboard" | "pos" | "inventory" | "sales"
+  permission?: "dashboard" | "pos" | "inventory" | "sales" | "admin"
 }
 
 const allNavItems: NavItem[] = [
@@ -22,6 +22,7 @@ const allNavItems: NavItem[] = [
   { href: "/expiration-logs", label: "Expiration Logs", icon: AlertTriangle, permission: "inventory" },
   { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, permission: "inventory" },
   { href: "/addons", label: "Add-ons", icon: Plus, permission: "inventory" },
+  { href: "/register", label: "Register Account", icon: UserPlus, permission: "admin" },
   { href: "/sales-history", label: "Sales History", icon: FileText, permission: "sales" },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
@@ -37,6 +38,8 @@ const getNavItemsForRole = (role: UserRole): NavItem[] => {
         return canAccessInventory(role)
       case "sales":
         return canAccessSales(role)
+      case "admin":
+        return role === "admin"
       default:
         return true
     }
