@@ -184,7 +184,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-sm text-muted-foreground">
-            Need a new account? Ask an administrator to create one from User Management.
+            Need a new account? Contact your administrator for access.
           </p>
         </form>
       </div>

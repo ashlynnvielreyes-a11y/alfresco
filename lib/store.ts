@@ -2268,10 +2268,6 @@ function setAuthCookie(user: AuthUser | null, rememberMe: boolean) {
   document.cookie = `${AUTH_COOKIE_KEY}=${payload}; path=/; SameSite=Lax${maxAge ? `; max-age=${maxAge}` : ""}`
 }
 
-export function canManageUsers(role: UserRole): boolean {
-  return role === "admin"
-}
-
 export function canAccessPos(role: UserRole): boolean {
   return role === "admin" || role === "cashier"
 }

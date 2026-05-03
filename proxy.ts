@@ -24,7 +24,6 @@ function isPublicPath(pathname: string) {
 }
 
 function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
-  if (pathname.startsWith("/user-management")) return role === "admin"
   if (
     pathname.startsWith("/inventory") ||
     pathname.startsWith("/ingredients") ||

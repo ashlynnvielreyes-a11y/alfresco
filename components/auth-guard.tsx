@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessSales, canManageUsers, validateCurrentSession, type UserRole } from "@/lib/store"
+import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessSales, validateCurrentSession, type UserRole } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 
 interface AuthGuardProps {
   children: React.ReactNode
   requiredRole?: UserRole
-  requiredPermission?: "pos" | "inventory" | "sales" | "user_management"
+  requiredPermission?: "pos" | "inventory" | "sales"
 }
 
 export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGuardProps) {
@@ -75,14 +75,6 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
         router.replace("/dashboard")
         return
       }
-
-      if (requiredPermission === "user_management" && !canManageUsers(userRole)) {
-        setIsAuthorized(false)
-        setIsLoading(false)
-        router.replace("/dashboard")
-        return
-      }
-
       setIsAuthorized(true)
       setIsLoading(false)
     }
@@ -121,11 +113,6 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
   }
 
   return <>{children}</>
-}
-
-// HOC for wrapping admin-only pages
-export function AdminOnly({ children }: { children: React.ReactNode }) {
-  return <AuthGuard requiredRole="admin">{children}</AuthGuard>
 }
 
 // HOC for wrapping any authenticated pages
