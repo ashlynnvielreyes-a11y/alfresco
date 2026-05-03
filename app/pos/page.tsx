@@ -97,6 +97,7 @@ export default function POSPage() {
   const [showVoidKeyInput, setShowVoidKeyInput] = useState(false)
   const [voidError, setVoidError] = useState("")
   const [isVoiding, setIsVoiding] = useState(false)
+  const [isCancellingReceiptSale, setIsCancellingReceiptSale] = useState(false)
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
   const [selectedTransactionToVoid, setSelectedTransactionToVoid] = useState<Transaction | null>(null)
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string; role: string } | null>(null)
@@ -622,6 +623,37 @@ export default function POSPage() {
     // Reset payment and discount state
     setPaymentMethod("cash")
     setDiscountType("none")
+  }
+
+  const cancelReceiptSale = async () => {
+    if (!lastTransaction) return
+
+    setIsCancellingReceiptSale(true)
+
+    try {
+      const result = await voidTransaction(
+        lastTransaction.id,
+        currentUser?.username || "Unknown",
+        ingredients
+      )
+
+      if (!result.success) {
+        alert("Failed to cancel the sale. Please use Void Transaction instead.")
+        return
+      }
+
+      saveIngredients(result.updatedIngredients)
+      setIngredients(result.updatedIngredients)
+      setShowReceipt(false)
+      setLastTransaction(null)
+      clearCart()
+      await loadRecentTransactions()
+      setPaymentMethod("cash")
+      setDiscountType("none")
+      alert("Sale cancelled. Transaction voided and ingredients restored.")
+    } finally {
+      setIsCancellingReceiptSale(false)
+    }
   }
 
   const openVoidModal = async () => {
@@ -1300,12 +1332,22 @@ export default function POSPage() {
               </div>
               </div>
 
-              <button
-                onClick={closeReceipt}
-                className="mt-4 w-full shrink-0 rounded-xl bg-[#7d5a44] py-3 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#4a342a]"
-              >
-                DONE
-              </button>
+              <div className="mt-4 grid shrink-0 gap-3 sm:grid-cols-2">
+                <button
+                  onClick={cancelReceiptSale}
+                  disabled={isCancellingReceiptSale}
+                  className="rounded-xl border border-red-200 bg-red-50 py-3 font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isCancellingReceiptSale ? "Cancelling..." : "CANCEL SALE"}
+                </button>
+                <button
+                  onClick={closeReceipt}
+                  disabled={isCancellingReceiptSale}
+                  className="rounded-xl bg-[#7d5a44] py-3 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#4a342a] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  DONE
+                </button>
+              </div>
             </div>
           </div>
         </div>
