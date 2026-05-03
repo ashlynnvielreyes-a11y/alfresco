@@ -635,6 +635,14 @@ function saveProductExpirationLogsLocally(logs: ProductExpirationLog[]): void {
   writeLocalStorage(PRODUCT_EXPIRATION_LOGS_KEY, mergeProductExpirationLogLists(logs))
 }
 
+function mergeExpirationLogsWithLocal(remoteLogs: ExpirationLog[]) {
+  return mergeExpirationLogLists([...getStoredExpirationLogs(), ...remoteLogs])
+}
+
+function mergeProductExpirationLogsWithLocal(remoteLogs: ProductExpirationLog[]) {
+  return mergeProductExpirationLogLists([...getStoredProductExpirationLogs(), ...remoteLogs])
+}
+
 function saveIngredientsLocally(ingredients: Ingredient[]): void {
   writeLocalStorage(INGREDIENTS_KEY, ingredients.map(normalizeIngredient))
 }
@@ -1226,6 +1234,9 @@ export async function initializeSupabaseStore(): Promise<void> {
         })
       )
 
+      const mergedExpirationLogs = mergeExpirationLogsWithLocal(remoteExpirationLogs)
+      const mergedProductExpirationLogs = mergeProductExpirationLogsWithLocal(remoteProductExpirationLogs)
+
       if (remoteProducts.length > 0) {
         saveProductsLocally(remoteProducts)
       } else if (localProducts.length > 0) {
@@ -1234,8 +1245,11 @@ export async function initializeSupabaseStore(): Promise<void> {
 
       if (remoteIngredients.length > 0) {
         writeLocalStorage(INGREDIENTS_KEY, remoteIngredients)
-        saveExpirationLogsLocally(remoteExpirationLogs)
-        saveProductExpirationLogsLocally(remoteProductExpirationLogs)
+        saveExpirationLogsLocally(mergedExpirationLogs)
+        saveProductExpirationLogsLocally(mergedProductExpirationLogs)
+        if (mergedExpirationLogs.length > remoteExpirationLogs.length || mergedProductExpirationLogs.length > remoteProductExpirationLogs.length) {
+          queueSupabaseSync(syncIngredientsToSupabase(remoteIngredients), "ingredients")
+        }
       } else if (localIngredients.length > 0) {
         queueSupabaseSync(syncIngredientsToSupabase(localIngredients), "ingredients")
       }
