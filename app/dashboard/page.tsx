@@ -136,7 +136,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
 
-      <main className="relative flex-1 overflow-hidden p-4 pt-20 lg:p-8 lg:pt-8">
+      <main className="relative flex-1 overflow-hidden p-4 pt-20 lg:p-6 lg:pt-6 xl:p-8 xl:pt-8">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -left-16 top-8 h-48 w-48 rounded-full bg-[#b2967d]/20 blur-3xl" />
           <div className="absolute right-8 top-0 h-64 w-64 rounded-full bg-[#7d5a44]/12 blur-3xl" />
@@ -208,7 +208,7 @@ export default function DashboardPage() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4 lg:gap-5 2xl:gap-6">
           <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/52 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.68)] backdrop-blur-xl lg:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold text-foreground lg:text-lg">Recent Transactions</h2>
@@ -282,7 +282,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/52 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.68)] backdrop-blur-xl lg:p-6">
+          <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/52 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.68)] backdrop-blur-xl lg:col-span-2 2xl:col-span-1 lg:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold text-foreground lg:text-lg">Expiration Alerts</h2>
               <span className="rounded-full bg-[#d7c9b8] px-3 py-1 text-xs font-medium text-[#7d5a44]">FIFO</span>
