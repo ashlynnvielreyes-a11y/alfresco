@@ -1,5 +1,23 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { NextRequest, NextResponse } from "next/server"
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return "Unknown error"
+  }
+}
+
+function isMissingColumnError(error: unknown, columnName: string, tableName: string) {
+  const message = getErrorMessage(error).toLowerCase()
+  return (
+    message.includes(`could not find the '${columnName.toLowerCase()}' column`) &&
+    message.includes(`'${tableName.toLowerCase()}'`)
+  )
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,17 +38,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    const normalizedEmail = String(email).trim().toLowerCase()
+    const supabase = createAdminClient()
 
     // Find the OTP record
-    const { data: otpRecord, error: fetchError } = await supabase
+    let otpRecord: any = null
+    let fetchError: { message?: string } | null = null
+
+    const currentSchemaFetch = await supabase
       .from("otp_codes")
       .select("*")
-      .eq("email", email.toLowerCase())
-      .eq("verified", false)
+      .eq("email", normalizedEmail)
+      .eq("is_used", false)
       .order("created_at", { ascending: false })
       .limit(1)
       .single()
+
+    if (currentSchemaFetch.error && isMissingColumnError(currentSchemaFetch.error, "is_used", "otp_codes")) {
+      const legacyFetch = await supabase
+        .from("otp_codes")
+        .select("*")
+        .eq("email", normalizedEmail)
+        .eq("verified", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single()
+
+      otpRecord = legacyFetch.data
+      fetchError = legacyFetch.error
+    } else {
+      otpRecord = currentSchemaFetch.data
+      fetchError = currentSchemaFetch.error
+    }
 
     if (fetchError || !otpRecord) {
       return NextResponse.json(
@@ -41,7 +80,10 @@ export async function POST(request: NextRequest) {
 
     // Check if expired
     if (new Date(otpRecord.expires_at) < new Date()) {
-      await supabase.from("otp_codes").delete().eq("id", otpRecord.id)
+      const expireCurrentOtp = await supabase.from("otp_codes").update({ is_used: true }).eq("id", otpRecord.id)
+      if (expireCurrentOtp.error && isMissingColumnError(expireCurrentOtp.error, "is_used", "otp_codes")) {
+        await supabase.from("otp_codes").delete().eq("id", otpRecord.id)
+      }
       return NextResponse.json(
         { success: false, error: "OTP has expired. Please request a new one." },
         { status: 400 }
@@ -49,8 +91,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check attempts (max 3)
-    if (otpRecord.attempts >= 3) {
-      await supabase.from("otp_codes").delete().eq("id", otpRecord.id)
+    const maxAttempts = typeof otpRecord.max_attempts === "number" ? otpRecord.max_attempts : 3
+
+    if (otpRecord.attempts >= maxAttempts) {
+      const lockCurrentOtp = await supabase.from("otp_codes").update({ is_used: true }).eq("id", otpRecord.id)
+      if (lockCurrentOtp.error && isMissingColumnError(lockCurrentOtp.error, "is_used", "otp_codes")) {
+        await supabase.from("otp_codes").delete().eq("id", otpRecord.id)
+      }
       return NextResponse.json(
         { success: false, error: "Too many failed attempts. Please request a new OTP." },
         { status: 400 }
@@ -59,20 +106,51 @@ export async function POST(request: NextRequest) {
 
     // Verify OTP
     if (otpRecord.otp_code === otp) {
-      await supabase
+      const verifyCurrentOtp = await supabase
         .from("otp_codes")
-        .update({ verified: true })
+        .update({ is_used: true, verified_at: new Date().toISOString() })
         .eq("id", otpRecord.id)
+
+      if (
+        verifyCurrentOtp.error &&
+        (
+          isMissingColumnError(verifyCurrentOtp.error, "is_used", "otp_codes") ||
+          isMissingColumnError(verifyCurrentOtp.error, "verified_at", "otp_codes")
+        )
+      ) {
+        await supabase
+          .from("otp_codes")
+          .update({ verified: true })
+          .eq("id", otpRecord.id)
+      }
       
       return NextResponse.json({
         success: true,
         message: "OTP verified successfully",
       })
     } else {
-      await supabase
+      const nextAttemptCount = otpRecord.attempts + 1
+      const failCurrentOtp = await supabase
         .from("otp_codes")
-        .update({ attempts: otpRecord.attempts + 1 })
+        .update({
+          attempts: nextAttemptCount,
+          ...(nextAttemptCount >= maxAttempts ? { is_used: true } : {}),
+        })
         .eq("id", otpRecord.id)
+
+      if (failCurrentOtp.error && isMissingColumnError(failCurrentOtp.error, "is_used", "otp_codes")) {
+        if (nextAttemptCount >= maxAttempts) {
+          await supabase
+            .from("otp_codes")
+            .delete()
+            .eq("id", otpRecord.id)
+        } else {
+          await supabase
+            .from("otp_codes")
+            .update({ attempts: nextAttemptCount })
+            .eq("id", otpRecord.id)
+        }
+      }
       
       return NextResponse.json(
         { success: false, error: "Invalid OTP. Please try again." },

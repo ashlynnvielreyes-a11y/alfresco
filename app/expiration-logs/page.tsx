@@ -27,6 +27,19 @@ function formatDateTime(date?: string | null) {
   })
 }
 
+function formatBatchSummary(batchId: string) {
+  const batchIds = batchId
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  if (batchIds.length <= 1) {
+    return batchIds[0] || "Unknown batch"
+  }
+
+  return `${batchIds.length} batches combined`
+}
+
 export default function ExpirationLogsPage() {
   const [expirationLogs, setExpirationLogs] = useState<ExpirationLog[]>([])
 
@@ -97,7 +110,7 @@ export default function ExpirationLogsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-semibold text-foreground">{log.ingredientName}</p>
-                          <p className="text-xs text-muted-foreground">{log.batchId}</p>
+                          <p className="text-xs text-muted-foreground">{formatBatchSummary(log.batchId)}</p>
                         </div>
                         <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
                           <AlertTriangle className="h-3.5 w-3.5" />

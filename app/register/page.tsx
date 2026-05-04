@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { validatePassword, validateEmail, persistAuthSession } from "@/lib/store"
+import { validatePassword, validateEmail } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { Check, X, Loader2, Mail, Eye, EyeOff } from "lucide-react"
 
@@ -197,15 +197,7 @@ export default function RegisterPage() {
           return
         }
 
-        persistAuthSession({
-          id: newUser.id,
-          username: newUser.username,
-          email: newUser.email,
-          role: newUser.role,
-          isActive: newUser.is_active !== false,
-        }, true)
-
-        router.push("/dashboard")
+        router.push(`/?registered=1&username=${encodeURIComponent(newUser.email)}`)
       } else {
         setOtpError(data.error || "Invalid verification code")
       }

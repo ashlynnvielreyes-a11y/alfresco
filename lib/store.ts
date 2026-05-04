@@ -311,8 +311,60 @@ function buildProductExpirationLogId(productId: number, ingredientId: number, ba
   return `product-exp-${productId}-${ingredientId}-${batchId}-${expirationDate}`
 }
 
+function buildGroupedExpirationLogId(ingredientId: number, expirationDate: string) {
+  return `exp-${ingredientId}-${expirationDate}`
+}
+
+function buildGroupedProductExpirationLogId(productId: number, ingredientId: number, expirationDate: string) {
+  return `product-exp-${productId}-${ingredientId}-${expirationDate}`
+}
+
 function mergeExpirationLogLists(logs: ExpirationLog[]) {
-  const merged = new Map(logs.map((log) => [log.id, log]))
+  const merged = new Map<string, ExpirationLog>()
+
+  logs.forEach((log) => {
+    const expirationDate = normalizeExpirationDate(log.expirationDate)
+    if (!expirationDate) return
+
+    const key = `${log.ingredientId}-${expirationDate}`
+    const existing = merged.get(key)
+
+    if (!existing) {
+      merged.set(key, {
+        ...log,
+        id: buildGroupedExpirationLogId(log.ingredientId, expirationDate),
+        expirationDate,
+      })
+      return
+    }
+
+    const existingBatchIds = new Set(
+      existing.batchId
+        .split(",")
+        .map((batchId) => batchId.trim())
+        .filter(Boolean)
+    )
+    const currentBatchIds = log.batchId
+      .split(",")
+      .map((batchId) => batchId.trim())
+      .filter(Boolean)
+
+    currentBatchIds.forEach((batchId) => existingBatchIds.add(batchId))
+
+    const existingLoggedAt = new Date(existing.loggedAt).getTime()
+    const currentLoggedAt = new Date(log.loggedAt).getTime()
+
+    merged.set(key, {
+      ...existing,
+      id: buildGroupedExpirationLogId(log.ingredientId, expirationDate),
+      quantity: existing.quantity + log.quantity,
+      batchId: Array.from(existingBatchIds).join(","),
+      loggedAt:
+        Number.isNaN(existingLoggedAt) || (!Number.isNaN(currentLoggedAt) && currentLoggedAt > existingLoggedAt)
+          ? log.loggedAt
+          : existing.loggedAt,
+    })
+  })
 
   return Array.from(merged.values()).sort((a, b) => {
     const byDate = new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
@@ -322,7 +374,51 @@ function mergeExpirationLogLists(logs: ExpirationLog[]) {
 }
 
 function mergeProductExpirationLogLists(logs: ProductExpirationLog[]) {
-  const merged = new Map(logs.map((log) => [log.id, log]))
+  const merged = new Map<string, ProductExpirationLog>()
+
+  logs.forEach((log) => {
+    const expirationDate = normalizeExpirationDate(log.expirationDate)
+    if (!expirationDate) return
+
+    const key = `${log.productId}-${log.ingredientId}-${expirationDate}`
+    const existing = merged.get(key)
+
+    if (!existing) {
+      merged.set(key, {
+        ...log,
+        id: buildGroupedProductExpirationLogId(log.productId, log.ingredientId, expirationDate),
+        expirationDate,
+      })
+      return
+    }
+
+    const existingBatchIds = new Set(
+      existing.batchId
+        .split(",")
+        .map((batchId) => batchId.trim())
+        .filter(Boolean)
+    )
+    const currentBatchIds = log.batchId
+      .split(",")
+      .map((batchId) => batchId.trim())
+      .filter(Boolean)
+
+    currentBatchIds.forEach((batchId) => existingBatchIds.add(batchId))
+
+    const existingLoggedAt = new Date(existing.loggedAt).getTime()
+    const currentLoggedAt = new Date(log.loggedAt).getTime()
+
+    merged.set(key, {
+      ...existing,
+      id: buildGroupedProductExpirationLogId(log.productId, log.ingredientId, expirationDate),
+      quantity: existing.quantity + log.quantity,
+      batchId: Array.from(existingBatchIds).join(","),
+      loggedAt:
+        Number.isNaN(existingLoggedAt) || (!Number.isNaN(currentLoggedAt) && currentLoggedAt > existingLoggedAt)
+          ? log.loggedAt
+          : existing.loggedAt,
+    })
+  })
 
   return Array.from(merged.values()).sort((a, b) => {
     const byDate = new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()

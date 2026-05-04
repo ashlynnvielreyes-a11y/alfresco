@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { persistAuthSession } from "@/lib/store"
 import { Eye, EyeOff } from "lucide-react"
@@ -12,11 +12,13 @@ const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
 const REMEMBER_ME_PREFERENCE_KEY = "alfresco_remember_me"
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
@@ -26,12 +28,22 @@ export default function LoginPage() {
     const storedRememberMe = localStorage.getItem(REMEMBER_ME_PREFERENCE_KEY)
     const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY)
     const shouldRemember = storedRememberMe !== "false"
+    const registered = searchParams.get("registered") === "1"
+    const registeredUsername = searchParams.get("username")
 
     setRememberMe(shouldRemember)
+    if (registered) {
+      setSuccessMessage("Registration successful. Please log in with your new account.")
+      if (registeredUsername) {
+        setUsername(registeredUsername)
+      }
+      return
+    }
+
     if (shouldRemember && rememberedUsername) {
       setUsername(rememberedUsername)
     }
-  }, [])
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -174,6 +186,7 @@ export default function LoginPage() {
             <span>Remember Me</span>
           </label>
 
+          {successMessage && <p className="text-center text-sm font-medium text-[#7d5a44]">{successMessage}</p>}
           {error && <p className="text-center text-sm font-medium text-[#4a342a]">{error}</p>}
 
           <button
