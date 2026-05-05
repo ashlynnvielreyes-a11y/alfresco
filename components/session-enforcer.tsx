@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { isAuthenticated, validateCurrentSession } from "@/lib/store"
 
-const PUBLIC_PATHS = ["/"]
+const PUBLIC_PATHS = ["/", "/register"]
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/")
