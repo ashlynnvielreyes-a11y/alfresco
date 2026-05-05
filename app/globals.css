@@ -75,8 +75,8 @@
 }
 
 @theme inline {
-  --font-sans: 'Segoe UI', 'Helvetica Neue', ui-sans-serif, sans-serif;
-  --font-serif: Georgia, 'Times New Roman', ui-serif, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: Consolas, 'Courier New', ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -130,6 +130,9 @@
     isolation: isolate;
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    text-rendering: optimizeLegibility;
   }
 
   body::before {
@@ -158,9 +161,10 @@
   h1,
   h2,
   h3 {
-    font-family: var(--font-serif);
-    letter-spacing: 0.015em;
-    line-height: 1.1;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
     text-wrap: balance;
   }
 
@@ -181,17 +185,17 @@
 
 @layer components {
   .brand-wordmark {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-weight: 700;
-    letter-spacing: 0.03em;
+    letter-spacing: -0.035em;
     line-height: 1;
   }
 
   .section-heading {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    letter-spacing: 0.015em;
-    line-height: 1.12;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
   }
 
 }

@@ -4,7 +4,7 @@ import { memo, useCallback, useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle, UserPlus } from "lucide-react"
+import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle } from "lucide-react"
 import { logout, getUserRole, getCurrentUser, canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, type UserRole } from "@/lib/store"
 
 interface NavItem {
@@ -22,7 +22,6 @@ const allNavItems: NavItem[] = [
   { href: "/expiration-logs", label: "Expiration Logs", icon: AlertTriangle, permission: "inventory" },
   { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, permission: "inventory" },
   { href: "/addons", label: "Add-ons", icon: Plus, permission: "inventory" },
-  { href: "/register", label: "Register Account", icon: UserPlus, permission: "admin" },
   { href: "/sales-history", label: "Sales History", icon: FileText, permission: "sales" },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
@@ -53,14 +52,14 @@ const NavItemComponent = memo(({ item, isActive, onClick }: { item: NavItem; isA
       href={item.href}
       prefetch={false}
       onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-3 mb-1.5 rounded-xl transition-all duration-200 ${
+      className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-[0.95rem] leading-6 transition-all duration-200 ${
         isActive
           ? "bg-gradient-to-r from-[#4a342a] via-[#7d5a44] to-[#b2967d] text-[#f5f1ea] shadow-[0_14px_28px_rgba(74,52,42,0.18)]"
-          : "text-foreground hover:bg-[#f5f1ea]/65 hover:backdrop-blur-sm"
+          : "text-[#5f493f] hover:bg-[#f5f1ea]/72 hover:text-[#3f2b22] hover:backdrop-blur-sm"
       }`}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" />
-      <span className="font-medium">{item.label}</span>
+      <Icon className={`h-[1.15rem] w-[1.15rem] flex-shrink-0 transition-transform duration-200 ${isActive ? "text-[#f5f1ea]" : "text-[#7d5a44] group-hover:scale-[1.03]"}`} />
+      <span className={`truncate font-semibold tracking-[-0.015em] ${isActive ? "text-[#f5f1ea]" : ""}`}>{item.label}</span>
     </Link>
   )
 })
@@ -140,14 +139,14 @@ export const Sidebar = memo(function Sidebar() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* User info */}
-            <div className="p-4">
-              <div className="rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/65 p-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.6)] backdrop-blur-sm">
-                <p className="text-sm font-medium text-foreground truncate">{username || "User"}</p>
-                <p className="text-xs text-muted-foreground capitalize">{userRole}</p>
+            <div className="p-4 pb-3">
+              <div className="rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/65 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(245,241,234,0.6)] backdrop-blur-sm">
+                <p className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{username || "User"}</p>
+                <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#8a6c5b]">{userRole}</p>
               </div>
             </div>
 
-            <nav className="sidebar-scrollbar flex-1 px-3 overflow-y-auto">
+            <nav className="sidebar-scrollbar flex-1 space-y-1 px-3.5 overflow-y-auto">
               {navItems.map((item) => (
                 <NavItemComponent 
                   key={item.href} 
@@ -158,16 +157,16 @@ export const Sidebar = memo(function Sidebar() {
               ))}
             </nav>
 
-            <div className="p-3 border-t border-[#f5f1ea]/40">
+            <div className="border-t border-[#f5f1ea]/40 p-3.5">
               <button
                 onClick={() => {
                   closeMobileMenu()
                   handleLogout()
                 }}
-                className="flex items-center gap-3 px-4 py-3 w-full text-[#4a342a] hover:bg-[#f5f1ea]/70 rounded-xl transition-colors"
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-[0.95rem] font-semibold tracking-[-0.015em] text-[#4a342a] transition-colors hover:bg-[#f5f1ea]/70"
               >
-                <LogOut className="h-5 w-5" />
-                <span className="font-medium">Logout</span>
+                <LogOut className="h-[1.15rem] w-[1.15rem] text-[#7d5a44]" />
+                <span>Logout</span>
               </button>
             </div>
           </aside>
@@ -175,7 +174,7 @@ export const Sidebar = memo(function Sidebar() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 h-screen bg-[rgba(245,241,234,0.88)] border-r border-[rgba(74,52,42,0.08)] flex-col sticky top-0 backdrop-blur-xl shadow-[20px_0_45px_rgba(74,52,42,0.08)]">
+      <aside className="hidden lg:flex h-screen w-64 flex-col border-r border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.88)] shadow-[20px_0_45px_rgba(74,52,42,0.08)] sticky top-0 backdrop-blur-xl">
         <div className="p-5 pb-3">
           <Link href="/dashboard" className="flex items-center justify-center">
             <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={240} height={100} className="h-16 w-auto object-contain" priority />
@@ -184,22 +183,22 @@ export const Sidebar = memo(function Sidebar() {
 
         {/* User info */}
         <div className="px-4 pb-4">
-          <div className="rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/70 p-3 shadow-[0_8px_24px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
-            <p className="text-sm font-medium text-foreground truncate">{username || "User"}</p>
-            <p className="text-xs text-muted-foreground capitalize">{userRole}</p>
+          <div className="rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/70 px-4 py-3.5 shadow-[0_8px_24px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
+            <p className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{username || "User"}</p>
+            <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#8a6c5b]">{userRole}</p>
           </div>
         </div>
 
-        <nav className="sidebar-scrollbar flex-1 px-3 overflow-y-auto">
+        <nav className="sidebar-scrollbar flex-1 space-y-1 px-3.5 overflow-y-auto">
           {navItems.map((item) => (
             <NavItemComponent key={item.href} item={item} isActive={pathname === item.href} />
           ))}
         </nav>
 
-        <div className="p-3 border-t border-[#f5f1ea]/40">
-          <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-[#4a342a] hover:bg-[#f5f1ea]/70 rounded-xl transition-colors">
-            <LogOut className="h-5 w-5" />
-            <span className="font-medium">Logout</span>
+        <div className="border-t border-[#f5f1ea]/40 p-3.5">
+          <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-[0.95rem] font-semibold tracking-[-0.015em] text-[#4a342a] transition-colors hover:bg-[#f5f1ea]/70">
+            <LogOut className="h-[1.15rem] w-[1.15rem] text-[#7d5a44]" />
+            <span>Logout</span>
           </button>
         </div>
       </aside>

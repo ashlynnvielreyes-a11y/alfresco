@@ -1,9 +1,16 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { SyncErrorListener } from '@/components/sync-error-listener'
 import { SessionEnforcer } from '@/components/session-enforcer'
 import './globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
   title: 'Al Fresco POS',
@@ -34,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-background">
+    <html lang="en" className={`bg-background ${inter.variable}`}>
       <body className="font-sans antialiased bg-background">
         <SessionEnforcer />
         {children}
