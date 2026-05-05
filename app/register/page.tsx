@@ -26,21 +26,19 @@ export default function RegisterPage() {
     return role === "employee" ? "cashier" : "admin"
   }
 
-  // OTP states
   const [step, setStep] = useState<"form" | "otp">("form")
   const [otp, setOtp] = useState(["", "", "", "", "", ""])
   const [otpError, setOtpError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [resendTimer, setResendTimer] = useState(0)
+  const [sendAgainTimer, setSendAgainTimer] = useState(0)
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  // Resend timer countdown
   useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000)
+    if (sendAgainTimer > 0) {
+      const timer = setTimeout(() => setSendAgainTimer(sendAgainTimer - 1), 1000)
       return () => clearTimeout(timer)
     }
-  }, [resendTimer])
+  }, [sendAgainTimer])
 
   const handleEmailChange = (value: string) => {
     setEmail(value)
@@ -66,22 +64,31 @@ export default function RegisterPage() {
     setError("")
 
     try {
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000)
+
       const response = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
+        signal: controller.signal,
       })
+      window.clearTimeout(timeoutId)
 
       const data = await response.json()
 
       if (data.success) {
         setStep("otp")
-        setResendTimer(60) // 60 second cooldown
+        setSendAgainTimer(60)
       } else {
         setError(data.error || "Failed to send verification code")
       }
-    } catch {
-      setError("Failed to send verification code. Please try again.")
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === "AbortError") {
+        setError("Sending verification code timed out. Check email service or Supabase connectivity.")
+      } else {
+        setError("Failed to send verification code. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -117,12 +124,10 @@ export default function RegisterPage() {
       return
     }
 
-    // Send OTP
     await handleSendOtp()
   }
 
   const handleOtpChange = (index: number, value: string) => {
-    // Only allow numbers
     if (value && !/^\d$/.test(value)) return
 
     const newOtp = [...otp]
@@ -130,7 +135,6 @@ export default function RegisterPage() {
     setOtp(newOtp)
     setOtpError("")
 
-    // Auto-focus next input
     if (value && index < 5) {
       otpInputRefs.current[index + 1]?.focus()
     }
@@ -163,10 +167,8 @@ export default function RegisterPage() {
       const data = await response.json()
 
       if (data.success) {
-        // OTP verified, now register the user in database
         const supabase = createClient()
-        
-        // Check if username or email already exists
+
         const { data: existingUser } = await supabase
           .from("users")
           .select("id")
@@ -208,8 +210,8 @@ export default function RegisterPage() {
     }
   }
 
-  const handleResendOtp = async () => {
-    if (resendTimer > 0) return
+  const handleSendAgainOtp = async () => {
+    if (sendAgainTimer > 0) return
     await handleSendOtp()
   }
 
@@ -239,7 +241,6 @@ export default function RegisterPage() {
     { key: "sequence", label: "Not contain sequences like 'abc', '123', 'qwerty'" },
   ]
 
-  // OTP Verification Step
   if (step === "otp") {
     return (
       <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
@@ -268,7 +269,9 @@ export default function RegisterPage() {
                 {otp.map((digit, index) => (
                   <input
                     key={index}
-                    ref={(el) => { otpInputRefs.current[index] = el }}
+                    ref={(el) => {
+                      otpInputRefs.current[index] = el
+                    }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
@@ -312,11 +315,11 @@ export default function RegisterPage() {
               </p>
               <button
                 type="button"
-                onClick={handleResendOtp}
-                disabled={resendTimer > 0 || isLoading}
+                onClick={handleSendAgainOtp}
+                disabled={sendAgainTimer > 0 || isLoading}
                 className="text-[#4a342a] hover:underline font-medium disabled:text-[#7d5a44] disabled:no-underline"
               >
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                {sendAgainTimer > 0 ? `Send again in ${sendAgainTimer}s` : "Send Code Again"}
               </button>
             </div>
 
@@ -337,7 +340,6 @@ export default function RegisterPage() {
     )
   }
 
-  // Registration Form Step
   return (
     <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
       <div className="pointer-events-none absolute inset-0">
@@ -451,7 +453,7 @@ export default function RegisterPage() {
                             </div>
                           )}
                         </div>
-                        <span className={`text-sm font-medium ${isMet ? "text-[#7d5a44]" : "text-[#7d5a44]"}`}>
+                        <span className="text-sm font-medium text-[#7d5a44]">
                           {req.label}
                         </span>
                       </div>
@@ -491,7 +493,6 @@ export default function RegisterPage() {
             )}
           </div>
 
-          {/* Terms and Conditions */}
           <div className="flex items-start gap-3">
             <input
               type="checkbox"
@@ -540,7 +541,6 @@ export default function RegisterPage() {
         </form>
       </div>
 
-      {/* Terms and Conditions Modal */}
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2f241d]/55 p-4 backdrop-blur-[2px]">
           <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-[28px] border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl">
@@ -548,7 +548,7 @@ export default function RegisterPage() {
               <h2 className="text-2xl font-bold text-[#4a342a]">Terms and Conditions</h2>
               <p className="text-sm text-[#7d5a44] mt-1">Al Fresco Cafe POS System</p>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1 space-y-4 text-sm text-foreground">
               <section>
                 <h3 className="font-bold text-base mb-2 text-[#4a342a]">1. Acceptance of Terms</h3>
@@ -646,6 +646,3 @@ export default function RegisterPage() {
     </main>
   )
 }
-
-
-

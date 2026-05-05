@@ -1,22 +1,9 @@
 import type { Metadata } from 'next'
-import { Lato, Playfair_Display, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { SyncErrorListener } from '@/components/sync-error-listener'
 import { SessionEnforcer } from '@/components/session-enforcer'
 import './globals.css'
-
-const lato = Lato({
-  subsets: ["latin"],
-  variable: "--font-lato",
-  weight: ["300", "400", "700", "900"],
-})
-const playfairDisplay = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-playfair",
-  weight: ["600", "700"],
-})
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: 'Al Fresco POS',
@@ -48,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-background">
-      <body className={`${lato.variable} ${playfairDisplay.variable} font-sans antialiased bg-background`}>
+      <body className="font-sans antialiased bg-background">
         <SessionEnforcer />
         {children}
         <SyncErrorListener />

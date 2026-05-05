@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { persistAuthSession } from "@/lib/store"
@@ -11,7 +11,7 @@ import { Eye, EyeOff } from "lucide-react"
 const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
 const REMEMBER_ME_PREFERENCE_KEY = "alfresco_remember_me"
 
-export default function LoginPage() {
+function LoginPageContent() {
   const searchParams = useSearchParams()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -209,4 +209,11 @@ export default function LoginPage() {
   )
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#f5f1ea]" />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
 
