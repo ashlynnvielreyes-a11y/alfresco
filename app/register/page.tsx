@@ -404,7 +404,7 @@ export default function RegisterPage() {
                     : "border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-[#7d5a44]"
                 }`}
               >
-                Employee
+                Cashier
               </button>
             </div>
           </div>
