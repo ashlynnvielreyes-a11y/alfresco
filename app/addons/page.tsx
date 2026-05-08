@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, Coffee, UtensilsCrossed, Search } from "lucide-react"
+import { Plus, Pencil, Archive, Coffee, UtensilsCrossed, Search, RotateCcw } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,15 +13,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { initializeSupabaseStore, getAddOns, addAddOn, updateAddOn, deleteAddOn, getIngredients } from "@/lib/store"
+import {
+  initializeSupabaseStore,
+  getAddOns,
+  getArchivedAddOns,
+  addAddOn,
+  updateAddOn,
+  archiveAddOn,
+  restoreAddOn,
+  getIngredients,
+} from "@/lib/store"
 import type { AddOn, Ingredient } from "@/lib/types"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type FormMode = "list" | "add" | "edit"
 type CategoryFilter = "all" | "drink" | "meal"
 
 function AddOnsPageContent() {
   const [addOns, setAddOns] = useState<AddOn[]>([])
+  const [archivedAddOns, setArchivedAddOns] = useState<AddOn[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [mode, setMode] = useState<FormMode>("list")
   const [editingAddOn, setEditingAddOn] = useState<AddOn | null>(null)
   const [addOnToDelete, setAddOnToDelete] = useState<AddOn | null>(null)
@@ -40,6 +58,7 @@ function AddOnsPageContent() {
     const loadData = async () => {
       await initializeSupabaseStore()
       setAddOns(getAddOns())
+      setArchivedAddOns(getArchivedAddOns())
       setIngredients(getIngredients())
     }
 
@@ -88,8 +107,9 @@ function AddOnsPageContent() {
 
   const confirmDelete = () => {
     if (!addOnToDelete) return
-    deleteAddOn(addOnToDelete.id)
+    archiveAddOn(addOnToDelete.id)
     setAddOns(getAddOns())
+    setArchivedAddOns(getArchivedAddOns())
     setAddOnToDelete(null)
   }
 
@@ -121,7 +141,14 @@ function AddOnsPageContent() {
     }
 
     setAddOns(getAddOns())
+    setArchivedAddOns(getArchivedAddOns())
     resetForm()
+  }
+
+  const handleRestore = (id: string) => {
+    restoreAddOn(id)
+    setAddOns(getAddOns())
+    setArchivedAddOns(getArchivedAddOns())
   }
 
   const filteredAddOns = addOns.filter((addOn) => {
@@ -309,13 +336,64 @@ function AddOnsPageContent() {
             </p>
           </div>
 
-          <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
-          >
-            <Plus className="h-5 w-5" />
-            Add New
-          </button>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+              <button
+                type="button"
+                onClick={() => setRestoreDialogOpen(true)}
+                className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 border border-[#b2967d] bg-[#f5f1ea]/80 hover:bg-[#ede3d8] text-[#4a342a] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center disabled:opacity-60"
+                disabled={archivedAddOns.length === 0}
+              >
+                <RotateCcw className="h-5 w-5" />
+                Restore Add-ons
+              </button>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Restore Archived Add-ons</DialogTitle>
+                  <DialogDescription>
+                    Reactivate archived add-ons so they appear again in the active add-ons list.
+                  </DialogDescription>
+                </DialogHeader>
+                {archivedAddOns.length === 0 ? (
+                  <p className="rounded-2xl border border-[#d7c9b8]/50 bg-[#f5f1ea]/70 px-4 py-5 text-sm text-[#7d5a44]">
+                    No archived add-ons are available to restore.
+                  </p>
+                ) : (
+                  <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                    {archivedAddOns.map((addOn) => (
+                      <div
+                        key={addOn.id}
+                        className="flex flex-col gap-3 rounded-2xl border border-[#d7c9b8]/55 bg-[#f5f1ea]/75 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold text-[#4a342a]">{addOn.name}</p>
+                          <p className="mt-1 text-sm text-[#7d5a44]">
+                            {addOn.category === "drink" ? "Drink" : "Meal"} add-on
+                          </p>
+                          <p className="mt-2 text-sm font-medium text-[#4a342a]">P{addOn.price.toFixed(2)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(addOn.id)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#4a342a] px-4 py-2 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            <button
+              onClick={handleAdd}
+              className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            >
+              <Plus className="h-5 w-5" />
+              Add New
+            </button>
+          </div>
         </div>
 
         <div className="relative mb-6">
@@ -421,9 +499,9 @@ function AddOnsPageContent() {
                   <button
                     onClick={() => handleDelete(addOn.id)}
                     className="p-2 hover:bg-[#f5f1ea] rounded-lg transition-colors"
-                    title="Delete"
+                    title="Archive"
                   >
-                    <Trash2 className="h-4 w-4 text-[#4a342a]" />
+                    <Archive className="h-4 w-4 text-[#4a342a]" />
                   </button>
                 </div>
               </div>
@@ -434,16 +512,16 @@ function AddOnsPageContent() {
         <AlertDialog open={Boolean(addOnToDelete)} onOpenChange={(open) => !open && setAddOnToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Add-on</AlertDialogTitle>
+              <AlertDialogTitle>Archive Add-on</AlertDialogTitle>
               <AlertDialogDescription>
                 {addOnToDelete
-                  ? `Remove ${addOnToDelete.name}? This action cannot be undone.`
-                  : "Remove this add-on? This action cannot be undone."}
+                  ? `Archive ${addOnToDelete.name}? You can restore it later from the restore list.`
+                  : "Archive this add-on? You can restore it later from the restore list."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={confirmDelete}>Archive</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

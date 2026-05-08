@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, X } from "lucide-react"
+import { Plus, Pencil, Archive, X, RotateCcw, Search } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,8 +13,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { initializeSupabaseStore, getComboMeals, addComboMeal, updateComboMeal, deleteComboMeal, getIngredients } from "@/lib/store"
+import {
+  initializeSupabaseStore,
+  getComboMeals,
+  getArchivedComboMeals,
+  addComboMeal,
+  updateComboMeal,
+  archiveComboMeal,
+  restoreComboMeal,
+  getIngredients,
+} from "@/lib/store"
 import type { ComboMeal, Ingredient } from "@/lib/types"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type FormMode = "list" | "add" | "edit"
 
@@ -26,10 +42,13 @@ type ComboSelection = {
 
 function ComboMealsPageContent() {
   const [combos, setCombos] = useState<ComboMeal[]>([])
+  const [archivedCombos, setArchivedCombos] = useState<ComboMeal[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [mode, setMode] = useState<FormMode>("list")
   const [editingCombo, setEditingCombo] = useState<ComboMeal | null>(null)
   const [comboToDelete, setComboToDelete] = useState<ComboMeal | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -41,6 +60,7 @@ function ComboMealsPageContent() {
     const loadData = async () => {
       await initializeSupabaseStore()
       setCombos(getComboMeals())
+      setArchivedCombos(getArchivedComboMeals())
       setIngredients(getIngredients())
     }
 
@@ -116,8 +136,9 @@ function ComboMealsPageContent() {
 
   const confirmDelete = () => {
     if (!comboToDelete) return
-    deleteComboMeal(comboToDelete.id)
+    archiveComboMeal(comboToDelete.id)
     setCombos(getComboMeals())
+    setArchivedCombos(getArchivedComboMeals())
     setComboToDelete(null)
   }
 
@@ -147,7 +168,14 @@ function ComboMealsPageContent() {
     }
 
     setCombos(getComboMeals())
+    setArchivedCombos(getArchivedComboMeals())
     resetForm()
+  }
+
+  const handleRestore = (id: number) => {
+    restoreComboMeal(id)
+    setCombos(getComboMeals())
+    setArchivedCombos(getArchivedComboMeals())
   }
 
   const addIngredientToCombo = () => {
@@ -195,6 +223,21 @@ function ComboMealsPageContent() {
 
   const pageShellClass =
     "rounded-[28px] border border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.72)] shadow-[0_24px_60px_rgba(74,52,42,0.08)] backdrop-blur-xl"
+
+  const filteredCombos = combos.filter((combo) => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return true
+
+    const itemSummary = combo.items
+      .map((item) => getItemSummary(item).ingredientLabel.toLowerCase())
+      .join(" ")
+
+    return (
+      combo.name.toLowerCase().includes(query) ||
+      combo.description.toLowerCase().includes(query) ||
+      itemSummary.includes(query)
+    )
+  })
 
   if (mode === "add" || mode === "edit") {
     return (
@@ -360,18 +403,80 @@ function ComboMealsPageContent() {
               </p>
             </div>
 
-            <button
-              onClick={handleAdd}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] sm:w-auto lg:px-5 lg:py-3 lg:text-base"
-            >
-              <Plus className="h-5 w-5" />
-              Create Combo Meal
-            </button>
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+              <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+                <button
+                  type="button"
+                  onClick={() => setRestoreDialogOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#b2967d] bg-[#f5f1ea]/80 px-4 py-2 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8] disabled:opacity-60 sm:w-auto lg:px-5 lg:py-3 lg:text-base"
+                  disabled={archivedCombos.length === 0}
+                >
+                  <RotateCcw className="h-5 w-5" />
+                  Restore Meals
+                </button>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Restore Archived Combo Meals</DialogTitle>
+                    <DialogDescription>
+                      Reactivate archived combo meals so they appear again in the active combo list.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {archivedCombos.length === 0 ? (
+                    <p className="rounded-2xl border border-[#d7c9b8]/50 bg-[#f5f1ea]/70 px-4 py-5 text-sm text-[#7d5a44]">
+                      No archived combo meals are available to restore.
+                    </p>
+                  ) : (
+                    <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                      {archivedCombos.map((combo) => (
+                        <div
+                          key={combo.id}
+                          className="flex flex-col gap-3 rounded-2xl border border-[#d7c9b8]/55 bg-[#f5f1ea]/75 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-semibold text-[#4a342a]">{combo.name}</p>
+                            <p className="mt-1 text-sm text-[#7d5a44]">{combo.description}</p>
+                            <p className="mt-2 text-sm font-medium text-[#4a342a]">P{combo.price.toFixed(2)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(combo.id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#4a342a] px-4 py-2 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Restore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+              <button
+                onClick={handleAdd}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] sm:w-auto lg:px-5 lg:py-3 lg:text-base"
+              >
+                <Plus className="h-5 w-5" />
+                Create Combo Meal
+              </button>
+            </div>
           </div>
 
-          {combos.length === 0 ? (
+          <div className="relative mb-6">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search combo meals by name, description, or ingredient"
+              className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-sm transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+            />
+          </div>
+
+          {filteredCombos.length === 0 ? (
             <div className="py-8 text-center lg:py-12">
-              <p className="mb-4 text-sm text-[#7d5a44] lg:text-base">No combo meals created yet</p>
+              <p className="mb-4 text-sm text-[#7d5a44] lg:text-base">
+                {combos.length === 0 ? "No combo meals created yet" : "No combo meals match your search"}
+              </p>
               <button
                 onClick={handleAdd}
                 className="inline-flex items-center gap-2 rounded-2xl bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] lg:px-5 lg:py-3 lg:text-base"
@@ -382,7 +487,7 @@ function ComboMealsPageContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 lg:gap-6">
-              {combos.map((combo) => (
+              {filteredCombos.map((combo) => (
                 <div
                   key={combo.id}
                   className="rounded-[24px] border border-[#d7c9b8] bg-[rgba(245,241,234,0.76)] p-4 shadow-[0_16px_30px_rgba(74,52,42,0.06)] backdrop-blur-md transition-shadow hover:shadow-[0_20px_40px_rgba(74,52,42,0.12)] lg:p-6"
@@ -425,7 +530,7 @@ function ComboMealsPageContent() {
                         onClick={() => handleDelete(combo.id)}
                         className="rounded-xl p-1.5 transition-colors hover:bg-[#d7c9b8] lg:p-2"
                       >
-                        <Trash2 className="h-4 w-4 text-[#4a342a] lg:h-5 lg:w-5" />
+                        <Archive className="h-4 w-4 text-[#4a342a] lg:h-5 lg:w-5" />
                       </button>
                     </div>
                   </div>
@@ -437,16 +542,16 @@ function ComboMealsPageContent() {
         <AlertDialog open={Boolean(comboToDelete)} onOpenChange={(open) => !open && setComboToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Combo Meal</AlertDialogTitle>
+              <AlertDialogTitle>Archive Combo Meal</AlertDialogTitle>
               <AlertDialogDescription>
                 {comboToDelete
-                  ? `Remove ${comboToDelete.name}? This action cannot be undone.`
-                  : "Remove this combo meal? This action cannot be undone."}
+                  ? `Archive ${comboToDelete.name}? You can restore it later from the Restore Meals list.`
+                  : "Archive this combo meal? You can restore it later from the Restore Meals list."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={confirmDelete}>Archive</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

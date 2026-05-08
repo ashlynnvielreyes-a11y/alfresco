@@ -80,6 +80,7 @@ export interface AddOn {
   name: string
   price: number
   category: "drink" | "meal"
+  isArchived?: boolean
   ingredientId?: number
   productId?: string
   quantity?: number
@@ -91,6 +92,7 @@ export interface ComboMeal {
   name: string
   description: string
   price: number
+  isArchived?: boolean
   items: {
     ingredientId?: number
     productId: number

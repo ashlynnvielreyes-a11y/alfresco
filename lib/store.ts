@@ -756,6 +756,14 @@ function saveAddOnsLocally(addOns: AddOn[]): void {
   writeLocalStorage(ADDONS_KEY, addOns)
 }
 
+function normalizeAddOn(addOn: AddOn): AddOn {
+  return {
+    ...addOn,
+    isArchived: addOn.isArchived === true,
+    quantity: addOn.quantity ?? 0,
+  }
+}
+
 async function syncProductsToSupabase(products: Product[]) {
   const supabase = await getSupabaseBrowserClient()
   const normalizedProducts = products.map((product) => ({
@@ -1014,6 +1022,7 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
   const comboRows = combos.map((combo) => ({
     ...baseComboRows.find((row) => row.id === combo.id),
     description: combo.description,
+    is_available: !combo.isArchived,
     updated_at: new Date().toISOString(),
   }))
 
@@ -1029,7 +1038,8 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
     if (error) {
       if (
         !isSupabaseMissingColumnError(error, "description", "combo_meals") &&
-        !isSupabaseMissingColumnError(error, "updated_at", "combo_meals")
+        !isSupabaseMissingColumnError(error, "updated_at", "combo_meals") &&
+        !isSupabaseMissingColumnError(error, "is_available", "combo_meals")
       ) {
         throw error
       }
@@ -1039,6 +1049,9 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
         ...(isSupabaseMissingColumnError(error, "description", "combo_meals")
           ? {}
           : { description: combo.description }),
+        ...(isSupabaseMissingColumnError(error, "is_available", "combo_meals")
+          ? {}
+          : { is_available: !combo.isArchived }),
         ...(isSupabaseMissingColumnError(error, "updated_at", "combo_meals")
           ? {}
           : { updated_at: new Date().toISOString() }),
@@ -1052,7 +1065,8 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
           (isSupabaseMissingColumnError(error, "description", "combo_meals") &&
             isSupabaseMissingColumnError(fallbackError, "updated_at", "combo_meals")) ||
           (isSupabaseMissingColumnError(error, "updated_at", "combo_meals") &&
-            isSupabaseMissingColumnError(fallbackError, "description", "combo_meals"))
+            isSupabaseMissingColumnError(fallbackError, "description", "combo_meals")) ||
+          isSupabaseMissingColumnError(fallbackError, "is_available", "combo_meals")
         ) {
           const legacyRows = [...baseComboRows]
           const legacyResult = await supabase.from("combo_meals").upsert(legacyRows, { onConflict: "id" })
@@ -1121,6 +1135,7 @@ async function syncAddOnsToSupabase(addOns: AddOn[]) {
   const addOnRows = addOns.map((addOn) => ({
     ...baseRows.find((row) => row.id === addOn.id),
     category: addOn.category,
+    is_available: !addOn.isArchived,
     updated_at: new Date().toISOString(),
   }))
 
@@ -1148,7 +1163,8 @@ async function syncAddOnsToSupabase(addOns: AddOn[]) {
 
       if (
         !isSupabaseMissingColumnError(error, "category", "addons") &&
-        !isSupabaseMissingColumnError(error, "updated_at", "addons")
+        !isSupabaseMissingColumnError(error, "updated_at", "addons") &&
+        !isSupabaseMissingColumnError(error, "is_available", "addons")
       ) {
         throw error
       }
@@ -1156,6 +1172,9 @@ async function syncAddOnsToSupabase(addOns: AddOn[]) {
       const fallbackRows = addOns.map((addOn) => ({
         ...baseRows.find((row) => row.id === addOn.id),
         ...(isSupabaseMissingColumnError(error, "category", "addons") ? {} : { category: addOn.category }),
+        ...(isSupabaseMissingColumnError(error, "is_available", "addons")
+          ? {}
+          : { is_available: !addOn.isArchived }),
         ...(isSupabaseMissingColumnError(error, "updated_at", "addons")
           ? {}
           : { updated_at: new Date().toISOString() }),
@@ -1174,7 +1193,8 @@ async function syncAddOnsToSupabase(addOns: AddOn[]) {
           (isSupabaseMissingColumnError(error, "category", "addons") &&
             isSupabaseMissingColumnError(fallbackError, "updated_at", "addons")) ||
           (isSupabaseMissingColumnError(error, "updated_at", "addons") &&
-            isSupabaseMissingColumnError(fallbackError, "category", "addons"))
+            isSupabaseMissingColumnError(fallbackError, "category", "addons")) ||
+          isSupabaseMissingColumnError(fallbackError, "is_available", "addons")
         ) {
           const legacyRows = [...baseRows]
           const legacyResult = await supabase.from("addons").upsert(legacyRows, { onConflict: "id" })
@@ -1227,15 +1247,15 @@ export async function initializeSupabaseStore(): Promise<void> {
       supabase.from("ingredient_batches").select("*"),
       supabase.from("expiration_logs").select("*"),
       supabase.from("product_expiration_logs").select("*"),
-      supabase.from("combo_meals").select("id, name, description, price").order("id"),
+      supabase.from("combo_meals").select("*").order("id"),
       supabase.from("combo_meal_items").select("*"),
       supabase.from("addons").select("*"),
     ])
 
     const localProducts = getProducts()
     const localIngredients = getIngredients()
-    const localCombos = getComboMeals()
-    const localAddOns = getAddOns()
+    const localCombos = getAllComboMeals()
+    const localAddOns = getAllAddOns()
     const remoteExpirationLogs = !expirationLogsResponse.error
       ? (expirationLogsResponse.data || []).map((log: any) => ({
           id: log.id,
@@ -1366,6 +1386,7 @@ export async function initializeSupabaseStore(): Promise<void> {
         name: combo.name,
         description: combo.description || "",
         price: Number(combo.price) || 0,
+        isArchived: combo.is_available === false,
         items: (comboMealItemsResponse.data || [])
           .filter((item: any) => item.combo_id === combo.id)
           .map((item: any) => ({
@@ -1373,7 +1394,7 @@ export async function initializeSupabaseStore(): Promise<void> {
             productId: item.product_id,
             quantity: Number(item.quantity) || 1,
           })),
-      }))
+      })).map(normalizeComboMeal)
 
       const hasRemoteComboItems = remoteCombos.some((combo) => combo.items.length > 0)
 
@@ -1391,6 +1412,7 @@ export async function initializeSupabaseStore(): Promise<void> {
           name: combo.name,
           description: "",
           price: Number(combo.price) || 0,
+          isArchived: false,
           items: (comboMealItemsResponse.data || [])
             .filter((item: any) => item.combo_id === combo.id)
             .map((item: any) => ({
@@ -1398,7 +1420,7 @@ export async function initializeSupabaseStore(): Promise<void> {
               productId: item.product_id,
               quantity: Number(item.quantity) || 1,
             })),
-        }))
+        })).map(normalizeComboMeal)
 
         const hasRemoteComboItems = remoteCombos.some((combo) => combo.items.length > 0)
 
@@ -1427,10 +1449,11 @@ export async function initializeSupabaseStore(): Promise<void> {
         id: addOn.id,
         name: addOn.name,
         price: Number(addOn.price) || 0,
+        isArchived: addOn.is_available === false,
         category: (addOn.category === "meal"
           ? "meal"
           : localAddOnMetadata.get(addOn.id)?.category || "drink") as AddOn["category"],
-      }))
+      })).map(normalizeAddOn)
 
       if (remoteAddOns.length > 0) {
         saveAddOnsLocally(
@@ -2575,51 +2598,77 @@ export function logout(): void {
 }
 
 // Combo Meal functions
-export function getComboMeals(): ComboMeal[] {
-  if (typeof window === "undefined") return []
-  const stored = localStorage.getItem(COMBOS_KEY)
-  if (!stored) return []
-
-  const combos = JSON.parse(stored) as ComboMeal[]
-  return combos.map((combo) => ({
+function normalizeComboMeal(combo: ComboMeal): ComboMeal {
+  return {
     ...combo,
+    isArchived: combo.isArchived === true,
     items: combo.items.map((item) => ({
       ingredientId: item.ingredientId,
       productId: item.productId,
       quantity: item.quantity,
     })),
-  }))
+  }
+}
+
+export function getAllComboMeals(): ComboMeal[] {
+  if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(COMBOS_KEY)
+  if (!stored) return []
+
+  const combos = JSON.parse(stored) as ComboMeal[]
+  const normalizedCombos = combos.map(normalizeComboMeal)
+  localStorage.setItem(COMBOS_KEY, JSON.stringify(normalizedCombos))
+  return normalizedCombos
+}
+
+export function getComboMeals(): ComboMeal[] {
+  return getAllComboMeals().filter((combo) => !combo.isArchived)
+}
+
+export function getArchivedComboMeals(): ComboMeal[] {
+  return getAllComboMeals().filter((combo) => combo.isArchived)
 }
 
 export function saveComboMeals(combos: ComboMeal[]): void {
   if (typeof window === "undefined") return
-  saveComboMealsLocally(combos)
-  queueSupabaseSync(syncComboMealsToSupabase(combos), "combo meals")
+  const normalizedCombos = combos.map(normalizeComboMeal)
+  saveComboMealsLocally(normalizedCombos)
+  queueSupabaseSync(syncComboMealsToSupabase(normalizedCombos), "combo meals")
 }
 
 export function addComboMeal(combo: Omit<ComboMeal, "id">): ComboMeal {
-  const combos = getComboMeals()
+  const combos = getAllComboMeals()
   const newId = combos.length > 0 ? Math.max(...combos.map((c) => c.id)) + 1 : 1
-  const newCombo: ComboMeal = { ...combo, id: newId }
+  const newCombo = normalizeComboMeal({ ...combo, id: newId, isArchived: false })
   combos.push(newCombo)
   saveComboMeals(combos)
   return newCombo
 }
 
 export function updateComboMeal(id: number, updates: Partial<ComboMeal>): ComboMeal | null {
-  const combos = getComboMeals()
+  const combos = getAllComboMeals()
   const index = combos.findIndex((c) => c.id === id)
   if (index === -1) return null
-  combos[index] = { ...combos[index], ...updates }
+  combos[index] = normalizeComboMeal({ ...combos[index], ...updates })
   saveComboMeals(combos)
   return combos[index]
 }
 
-export function deleteComboMeal(id: number): boolean {
-  const combos = getComboMeals()
-  const filtered = combos.filter((c) => c.id !== id)
-  if (filtered.length === combos.length) return false
-  saveComboMeals(filtered)
+export function archiveComboMeal(id: number): boolean {
+  const combos = getAllComboMeals()
+  const index = combos.findIndex((c) => c.id === id)
+  if (index === -1 || combos[index].isArchived) return false
+  combos[index] = normalizeComboMeal({ ...combos[index], isArchived: true })
+  saveComboMeals(combos)
+  return true
+}
+
+export function restoreComboMeal(id: number): boolean {
+  const combos = getAllComboMeals()
+  const index = combos.findIndex((c) => c.id === id)
+  if (index === -1 || !combos[index].isArchived) return false
+  combos[index] = normalizeComboMeal({ ...combos[index], isArchived: false })
+  saveComboMeals(combos)
   return true
 }
 
@@ -2645,41 +2694,66 @@ export function getAddOns(): AddOn[] {
     localStorage.setItem(ADDONS_KEY, JSON.stringify(defaultAddOns))
     return defaultAddOns
   }
-  return (JSON.parse(stored) as AddOn[]).map((addOn) => ({
-    ...addOn,
-    quantity: addOn.quantity ?? 0,
-  }))
+  return getAllAddOns().filter((addOn) => !addOn.isArchived)
+}
+
+export function getAllAddOns(): AddOn[] {
+  if (typeof window === "undefined") return defaultAddOns.map(normalizeAddOn)
+  const stored = localStorage.getItem(ADDONS_KEY)
+  if (!stored) {
+    const normalizedDefaultAddOns = defaultAddOns.map(normalizeAddOn)
+    localStorage.setItem(ADDONS_KEY, JSON.stringify(normalizedDefaultAddOns))
+    return normalizedDefaultAddOns
+  }
+  const normalizedAddOns = (JSON.parse(stored) as AddOn[]).map(normalizeAddOn)
+  localStorage.setItem(ADDONS_KEY, JSON.stringify(normalizedAddOns))
+  return normalizedAddOns
+}
+
+export function getArchivedAddOns(): AddOn[] {
+  return getAllAddOns().filter((addOn) => addOn.isArchived)
 }
 
 export function saveAddOns(addOns: AddOn[]): void {
   if (typeof window === "undefined") return
-  saveAddOnsLocally(addOns)
-  queueSupabaseSync(syncAddOnsToSupabase(addOns), "add-ons")
+  const normalizedAddOns = addOns.map(normalizeAddOn)
+  saveAddOnsLocally(normalizedAddOns)
+  queueSupabaseSync(syncAddOnsToSupabase(normalizedAddOns), "add-ons")
 }
 
 export function addAddOn(addOn: Omit<AddOn, "id">): AddOn {
-  const addOns = getAddOns()
+  const addOns = getAllAddOns()
   const newId = `addon-${Date.now()}`
-  const newAddOn: AddOn = { ...addOn, id: newId }
+  const newAddOn = normalizeAddOn({ ...addOn, id: newId, isArchived: false })
   addOns.push(newAddOn)
   saveAddOns(addOns)
   return newAddOn
 }
 
 export function updateAddOn(id: string, updates: Partial<AddOn>): AddOn | null {
-  const addOns = getAddOns()
+  const addOns = getAllAddOns()
   const index = addOns.findIndex((a) => a.id === id)
   if (index === -1) return null
-  addOns[index] = { ...addOns[index], ...updates }
+  addOns[index] = normalizeAddOn({ ...addOns[index], ...updates })
   saveAddOns(addOns)
   return addOns[index]
 }
 
-export function deleteAddOn(id: string): boolean {
-  const addOns = getAddOns()
-  const filtered = addOns.filter((a) => a.id !== id)
-  if (filtered.length === addOns.length) return false
-  saveAddOns(filtered)
+export function archiveAddOn(id: string): boolean {
+  const addOns = getAllAddOns()
+  const index = addOns.findIndex((a) => a.id === id)
+  if (index === -1 || addOns[index].isArchived) return false
+  addOns[index] = normalizeAddOn({ ...addOns[index], isArchived: true })
+  saveAddOns(addOns)
+  return true
+}
+
+export function restoreAddOn(id: string): boolean {
+  const addOns = getAllAddOns()
+  const index = addOns.findIndex((a) => a.id === id)
+  if (index === -1 || !addOns[index].isArchived) return false
+  addOns[index] = normalizeAddOn({ ...addOns[index], isArchived: false })
+  saveAddOns(addOns)
   return true
 }
 
