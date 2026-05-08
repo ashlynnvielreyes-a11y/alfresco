@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Ban, CheckCircle2, Search, ShieldCheck, UserCog, Users } from "lucide-react"
-import { activateUserAccount, deactivateUserAccount, getCurrentUser, getUserRole, getUsers } from "@/lib/store"
+import { getCurrentUser, getUserRole, getUsers, logout } from "@/lib/store"
 import type { AppUser } from "@/lib/types"
 
 function formatRole(role: AppUser["role"]) {
@@ -87,9 +87,23 @@ export default function UserManagementPage() {
     setIsSubmitting(true)
     setError("")
 
-    const result = selectedUser.isActive
-      ? await deactivateUserAccount(selectedUser.id)
-      : await activateUserAccount(selectedUser.id)
+    let result: { success: boolean; error?: string } = { success: false, error: "Unknown access update failure." }
+
+    try {
+      const response = await fetch("/api/users/access", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          action: selectedUser.isActive ? "revoke" : "activate",
+        }),
+      })
+
+      const data = await response.json()
+      result = { success: Boolean(data.success), error: data.error }
+    } catch {
+      result = { success: false, error: "Failed to contact the server." }
+    }
 
     if (!result.success) {
       setError(result.error || `Failed to ${selectedUser.isActive ? "revoke" : "restore"} access.`)
@@ -108,6 +122,13 @@ export default function UserManagementPage() {
           : user
       )
     )
+
+    if (selectedUser.isActive && currentUser?.id === selectedUser.id) {
+      logout()
+      router.replace("/")
+      return
+    }
+
     setSelectedUser(null)
     setIsSubmitting(false)
   }
