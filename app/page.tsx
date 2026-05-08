@@ -26,7 +26,7 @@ function LoginPageContent() {
   const [successMessage, setSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
-  const [resetStep, setResetStep] = useState<"email" | "verify">("email")
+  const [resetStep, setResetStep] = useState<"email" | "verify" | "password">("email")
   const [resetEmail, setResetEmail] = useState("")
   const [resetOtp, setResetOtp] = useState(["", "", "", "", "", ""])
   const [newPassword, setNewPassword] = useState("")
@@ -213,15 +213,8 @@ function LoginPageContent() {
   }
 
   const handlePasswordReset = async () => {
-    const otp = resetOtp.join("")
-
     if (!resetEmail.trim()) {
       setResetError("Email is required.")
-      return
-    }
-
-    if (otp.length !== 6) {
-      setResetError("Please enter the complete 6-digit code.")
       return
     }
 
@@ -246,7 +239,6 @@ function LoginPageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: resetEmail,
-          otp,
           password: newPassword,
         }),
       })
@@ -264,6 +256,46 @@ function LoginPageContent() {
       resetForgotPasswordState()
     } catch {
       setResetError("Failed to reset password. Please try again.")
+    } finally {
+      setIsResetLoading(false)
+    }
+  }
+
+  const handleVerifyResetOtp = async () => {
+    const otp = resetOtp.join("")
+
+    if (!resetEmail.trim()) {
+      setResetError("Email is required.")
+      return
+    }
+
+    if (otp.length !== 6) {
+      setResetError("Please enter the complete 6-digit code.")
+      return
+    }
+
+    setIsResetLoading(true)
+    setResetError("")
+    setResetSuccess("")
+
+    try {
+      const response = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail, otp }),
+      })
+
+      const data = await response.json()
+      if (!data.success) {
+        setResetError(data.error || "Failed to verify code.")
+        setIsResetLoading(false)
+        return
+      }
+
+      setResetStep("password")
+      setResetSuccess("OTP verified. You can now set a new password.")
+    } catch {
+      setResetError("Failed to verify code. Please try again.")
     } finally {
       setIsResetLoading(false)
     }
@@ -379,7 +411,9 @@ function LoginPageContent() {
             <DialogDescription>
               {resetStep === "email"
                 ? "Enter your account email and we'll send a 6-digit verification code."
-                : "Enter the verification code and choose a new password."}
+                : resetStep === "verify"
+                  ? "Verify the 6-digit code sent to your email."
+                  : "Choose your new password after successful OTP verification."}
             </DialogDescription>
           </DialogHeader>
 
@@ -419,7 +453,11 @@ function LoginPageContent() {
                     ))}
                   </div>
                 </div>
+              </>
+            ) : null}
 
+            {resetStep === "password" ? (
+              <>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-foreground">New Password</label>
                   <div className="relative">
@@ -465,21 +503,35 @@ function LoginPageContent() {
 
             <button
               type="button"
-              onClick={resetStep === "email" ? handleForgotPasswordOtp : handlePasswordReset}
+              onClick={
+                resetStep === "email"
+                  ? handleForgotPasswordOtp
+                  : resetStep === "verify"
+                    ? handleVerifyResetOtp
+                    : handlePasswordReset
+              }
               disabled={isResetLoading}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#4a342a] to-[#b2967d] py-3.5 font-semibold text-[#f5f1ea] transition-all hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isResetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              <span>{resetStep === "email" ? "Send Verification Code" : "Reset Password"}</span>
+              <span>
+                {resetStep === "email"
+                  ? "Send Verification Code"
+                  : resetStep === "verify"
+                    ? "Verify Code"
+                    : "Reset Password"}
+              </span>
             </button>
 
-            {resetStep === "verify" ? (
+            {resetStep !== "email" ? (
               <div className="flex items-center justify-between gap-3 text-sm">
                 <button
                   type="button"
                   onClick={() => {
-                    setResetStep("email")
-                    setResetOtp(["", "", "", "", "", ""])
+                    setResetStep(resetStep === "password" ? "verify" : "email")
+                    if (resetStep === "verify") {
+                      setResetOtp(["", "", "", "", "", ""])
+                    }
                     setResetError("")
                     setResetSuccess("")
                   }}
@@ -487,14 +539,16 @@ function LoginPageContent() {
                 >
                   Back
                 </button>
-                <button
-                  type="button"
-                  onClick={handleForgotPasswordOtp}
-                  disabled={sendAgainTimer > 0 || isResetLoading}
-                  className="font-medium text-[#4a342a] hover:underline disabled:cursor-not-allowed disabled:text-[#7d5a44]/70"
-                >
-                  {sendAgainTimer > 0 ? `Send again in ${sendAgainTimer}s` : "Send code again"}
-                </button>
+                {resetStep === "verify" ? (
+                  <button
+                    type="button"
+                    onClick={handleForgotPasswordOtp}
+                    disabled={sendAgainTimer > 0 || isResetLoading}
+                    className="font-medium text-[#4a342a] hover:underline disabled:cursor-not-allowed disabled:text-[#7d5a44]/70"
+                  >
+                    {sendAgainTimer > 0 ? `Send again in ${sendAgainTimer}s` : "Send code again"}
+                  </button>
+                ) : <span />}
               </div>
             ) : null}
           </div>
