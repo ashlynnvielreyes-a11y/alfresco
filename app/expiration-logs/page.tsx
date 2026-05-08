@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Calendar, Search } from "lucide-react"
 import { initializeSupabaseStore, getExpirationLogs } from "@/lib/store"
 import type { ExpirationLog } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
@@ -40,8 +40,22 @@ function formatBatchSummary(batchId: string) {
   return `${batchIds.length} batches combined`
 }
 
+function normalizeDateValue(date?: string | null) {
+  if (!date) return null
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return null
+
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, "0")
+  const day = String(parsedDate.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export default function ExpirationLogsPage() {
   const [expirationLogs, setExpirationLogs] = useState<ExpirationLog[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
 
   const refreshData = useCallback(async () => {
     await initializeSupabaseStore()
@@ -69,6 +83,22 @@ export default function ExpirationLogsPage() {
     }
   }, [refreshData])
 
+  const filteredLogs = expirationLogs.filter((log) => {
+    const query = searchQuery.trim().toLowerCase()
+    const matchesQuery =
+      query.length === 0 ||
+      log.ingredientName.toLowerCase().includes(query) ||
+      log.batchId.toLowerCase().includes(query) ||
+      String(log.quantity).includes(query) ||
+      formatDate(log.expirationDate).toLowerCase().includes(query)
+
+    const logDate = normalizeDateValue(log.expirationDate)
+    const matchesFromDate = !fromDate || (logDate !== null && logDate >= fromDate)
+    const matchesToDate = !toDate || (logDate !== null && logDate <= toDate)
+
+    return matchesQuery && matchesFromDate && matchesToDate
+  })
+
   return (
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
@@ -89,23 +119,62 @@ export default function ExpirationLogsPage() {
 
           <div className="grid grid-cols-1 gap-6">
             <section className="rounded-2xl border border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.78)] p-4 shadow-[0_18px_40px_rgba(74,52,42,0.08)] backdrop-blur-xl lg:p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-[#4a342a]">Expired Ingredient Logs</h2>
-                  <p className="text-sm text-muted-foreground">Recorded expired FIFO batches from inventory.</p>
+              <div className="mb-4 flex flex-col gap-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-[#4a342a]">Expired Ingredient Logs</h2>
+                    <p className="text-sm text-muted-foreground">Recorded expired FIFO batches from inventory.</p>
+                  </div>
+                  <span className="inline-flex items-center self-start rounded-full bg-[#4a342a] px-3 py-1 text-xs font-semibold text-[#f5f1ea]">
+                    {filteredLogs.length} of {expirationLogs.length} log{expirationLogs.length === 1 ? "" : "s"}
+                  </span>
                 </div>
-                <span className="inline-flex items-center rounded-full bg-[#4a342a] px-3 py-1 text-xs font-semibold text-[#f5f1ea]">
-                  {expirationLogs.length} log{expirationLogs.length === 1 ? "" : "s"}
-                </span>
+
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <label className="flex flex-1 items-center gap-2 rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-3 py-2 backdrop-blur-sm">
+                    <Search className="h-4 w-4 text-[#4a342a]" />
+                    <input
+                      type="search"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search ingredient, batch, quantity, or date"
+                      className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+                    />
+                  </label>
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <label className="flex items-center gap-2 rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-3 py-2 backdrop-blur-sm">
+                      <Calendar className="h-4 w-4 text-[#4a342a]" />
+                      <span className="text-sm text-muted-foreground">From</span>
+                      <input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="bg-transparent text-sm font-medium text-foreground outline-none"
+                      />
+                    </label>
+
+                    <label className="flex items-center gap-2 rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-3 py-2 backdrop-blur-sm">
+                      <Calendar className="h-4 w-4 text-[#4a342a]" />
+                      <span className="text-sm text-muted-foreground">To</span>
+                      <input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="bg-transparent text-sm font-medium text-foreground outline-none"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              {expirationLogs.length === 0 ? (
+              {filteredLogs.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-8 text-center text-sm text-muted-foreground">
-                  No expired ingredient logs recorded yet.
+                  {expirationLogs.length === 0 ? "No expired ingredient logs recorded yet." : "No logs match the current filters."}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {expirationLogs.map((log) => (
+                  {filteredLogs.map((log) => (
                     <div key={log.id} className="rounded-xl border border-[#d7c9b8]/70 bg-[#f5f1ea]/82 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
