@@ -7,6 +7,8 @@ import { validatePassword, validateEmail } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import { Check, X, Loader2, Mail, Eye, EyeOff } from "lucide-react"
 
+type RegistrationRole = "admin" | "cashier" | "inventory_staff"
+
 export default function RegisterPage() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
@@ -19,11 +21,11 @@ export default function RegisterPage() {
   const [emailError, setEmailError] = useState("")
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
-  const [role, setRole] = useState<"admin" | "employee">("employee")
+  const [role, setRole] = useState<RegistrationRole>("cashier")
   const router = useRouter()
 
   const getDatabaseRole = () => {
-    return role === "employee" ? "cashier" : "admin"
+    return role
   }
 
   const [step, setStep] = useState<"form" | "otp">("form")
@@ -383,7 +385,7 @@ export default function RegisterPage() {
             <label className="block text-sm font-medium text-[#7d5a44] mb-2">
               Role
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setRole("admin")}
@@ -397,14 +399,25 @@ export default function RegisterPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setRole("employee")}
+                onClick={() => setRole("cashier")}
                 className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-colors ${
-                  role === "employee"
+                  role === "cashier"
                     ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
                     : "border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-[#7d5a44]"
                 }`}
               >
                 Cashier
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole("inventory_staff")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-colors ${
+                  role === "inventory_staff"
+                    ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
+                    : "border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-[#7d5a44]"
+                }`}
+              >
+                Inventory Staff
               </button>
             </div>
           </div>
@@ -581,7 +594,7 @@ export default function RegisterPage() {
               <section>
                 <h3 className="font-bold text-base mb-2 text-[#4a342a]">5. Employee Responsibilities</h3>
                 <p className="text-[#7d5a44]">
-                  As a cashier or employee, you agree to: process transactions accurately, handle cash responsibly, report any discrepancies to management, maintain customer confidentiality, and follow all company policies regarding the use of this system.
+                  As an authorized staff member, you agree to perform only the duties assigned to your role, process transactions accurately when applicable, maintain inventory records responsibly, report discrepancies to management, protect customer and company data, and follow all company policies regarding use of this system.
                 </p>
               </section>
 

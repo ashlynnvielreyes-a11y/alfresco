@@ -45,6 +45,19 @@ const getNavItemsForRole = (role: UserRole): NavItem[] => {
   })
 }
 
+function formatRoleLabel(role: UserRole) {
+  switch (role) {
+    case "admin":
+      return "Admin"
+    case "cashier":
+      return "Cashier"
+    case "inventory_staff":
+      return "Inventory Staff"
+    default:
+      return role
+  }
+}
+
 const NavItemComponent = memo(({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick?: () => void }) => {
   const Icon = item.icon
   return (
@@ -142,7 +155,7 @@ export const Sidebar = memo(function Sidebar() {
             <div className="p-4 pb-3">
               <div className="rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/65 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(245,241,234,0.6)] backdrop-blur-sm">
                 <p className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{username || "User"}</p>
-                <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#8a6c5b]">{userRole}</p>
+                <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#8a6c5b]">{formatRoleLabel(userRole)}</p>
               </div>
             </div>
 
@@ -185,7 +198,7 @@ export const Sidebar = memo(function Sidebar() {
         <div className="px-4 pb-4">
           <div className="rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/70 px-4 py-3.5 shadow-[0_8px_24px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
             <p className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{username || "User"}</p>
-            <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#8a6c5b]">{userRole}</p>
+            <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#8a6c5b]">{formatRoleLabel(userRole)}</p>
           </div>
         </div>
 

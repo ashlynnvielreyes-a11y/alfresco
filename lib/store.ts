@@ -2414,7 +2414,7 @@ export function canAccessInventory(role: UserRole): boolean {
 }
 
 export function canAccessSales(role: UserRole): boolean {
-  return role === "admin" || role === "cashier"
+  return role === "admin" || role === "cashier" || role === "inventory_staff"
 }
 
 export function canAccessDashboard(role: UserRole): boolean {
