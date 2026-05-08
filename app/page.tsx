@@ -2,11 +2,12 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
-import { persistAuthSession } from "@/lib/store"
-import { Eye, EyeOff } from "lucide-react"
+import { persistAuthSession, validatePassword } from "@/lib/store"
+import { Eye, EyeOff, Loader2, Mail } from "lucide-react"
 
 const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
 const REMEMBER_ME_PREFERENCE_KEY = "alfresco_remember_me"
@@ -24,6 +25,19 @@ function LoginPageContent() {
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
+  const [resetStep, setResetStep] = useState<"email" | "verify">("email")
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetOtp, setResetOtp] = useState(["", "", "", "", "", ""])
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmNewPassword, setConfirmNewPassword] = useState("")
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false)
+  const [resetError, setResetError] = useState("")
+  const [resetSuccess, setResetSuccess] = useState("")
+  const [isResetLoading, setIsResetLoading] = useState(false)
+  const [sendAgainTimer, setSendAgainTimer] = useState(0)
+  const resetOtpInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -48,6 +62,12 @@ function LoginPageContent() {
       setUsername(rememberedUsername)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (sendAgainTimer <= 0) return
+    const timer = window.setTimeout(() => setSendAgainTimer((current) => current - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [sendAgainTimer])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,6 +150,125 @@ function LoginPageContent() {
     }
   }
 
+  const resetForgotPasswordState = () => {
+    setResetStep("email")
+    setResetEmail("")
+    setResetOtp(["", "", "", "", "", ""])
+    setNewPassword("")
+    setConfirmNewPassword("")
+    setShowResetPassword(false)
+    setShowResetConfirmPassword(false)
+    setResetError("")
+    setResetSuccess("")
+    setSendAgainTimer(0)
+    setIsResetLoading(false)
+  }
+
+  const handleForgotPasswordOtp = async () => {
+    setIsResetLoading(true)
+    setResetError("")
+    setResetSuccess("")
+
+    try {
+      const response = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      })
+
+      const data = await response.json()
+      if (!data.success) {
+        setResetError(data.error || "Failed to send verification code.")
+        setIsResetLoading(false)
+        return
+      }
+
+      setResetStep("verify")
+      setResetSuccess("Verification code sent. Check your email.")
+      setSendAgainTimer(60)
+    } catch {
+      setResetError("Failed to send verification code. Please try again.")
+    } finally {
+      setIsResetLoading(false)
+    }
+  }
+
+  const handleResetOtpChange = (index: number, value: string) => {
+    if (value && !/^\d$/.test(value)) return
+
+    const nextOtp = [...resetOtp]
+    nextOtp[index] = value
+    setResetOtp(nextOtp)
+    setResetError("")
+
+    if (value && index < 5) {
+      resetOtpInputRefs.current[index + 1]?.focus()
+    }
+  }
+
+  const handleResetOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !resetOtp[index] && index > 0) {
+      resetOtpInputRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handlePasswordReset = async () => {
+    const otp = resetOtp.join("")
+
+    if (!resetEmail.trim()) {
+      setResetError("Email is required.")
+      return
+    }
+
+    if (otp.length !== 6) {
+      setResetError("Please enter the complete 6-digit code.")
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setResetError("Passwords do not match.")
+      return
+    }
+
+    const validation = validatePassword(newPassword)
+    if (!validation.valid) {
+      setResetError(validation.errors[0] || "Password does not meet requirements.")
+      return
+    }
+
+    setIsResetLoading(true)
+    setResetError("")
+    setResetSuccess("")
+
+    try {
+      const response = await fetch("/api/password/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetEmail,
+          otp,
+          password: newPassword,
+        }),
+      })
+
+      const data = await response.json()
+      if (!data.success) {
+        setResetError(data.error || "Failed to reset password.")
+        setIsResetLoading(false)
+        return
+      }
+
+      setResetSuccess("Password reset successfully. You can log in now.")
+      setPassword("")
+      setForgotPasswordOpen(false)
+      resetForgotPasswordState()
+    } catch {
+      setResetError("Failed to reset password. Please try again.")
+    } finally {
+      setIsResetLoading(false)
+    }
+  }
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
       <div className="pointer-events-none absolute inset-0">
@@ -190,6 +329,21 @@ function LoginPageContent() {
             <span>Remember Me</span>
           </label>
 
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={() => {
+                setForgotPasswordOpen(true)
+                setResetEmail(username.includes("@") ? username : "")
+                setResetError("")
+                setResetSuccess("")
+              }}
+              className="text-sm font-medium text-[#4a342a] hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
+
           {successMessage && <p className="text-center text-sm font-medium text-[#7d5a44]">{successMessage}</p>}
           {error && <p className="text-center text-sm font-medium text-[#4a342a]">{error}</p>}
 
@@ -209,6 +363,143 @@ function LoginPageContent() {
           </p>
         </form>
       </div>
+
+      <Dialog
+        open={forgotPasswordOpen}
+        onOpenChange={(open) => {
+          setForgotPasswordOpen(open)
+          if (!open) {
+            resetForgotPasswordState()
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Forgot Password</DialogTitle>
+            <DialogDescription>
+              {resetStep === "email"
+                ? "Enter your account email and we'll send a 6-digit verification code."
+                : "Enter the verification code and choose a new password."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7d5a44]/70" />
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="Enter your email address"
+                  className="w-full rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/90 py-3 pl-11 pr-4 text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                />
+              </div>
+            </div>
+
+            {resetStep === "verify" ? (
+              <>
+                <div>
+                  <label className="mb-3 block text-sm font-medium text-foreground">Verification Code</label>
+                  <div className="flex justify-between gap-2">
+                    {resetOtp.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(element) => {
+                          resetOtpInputRefs.current[index] = element
+                        }}
+                        type="text"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleResetOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleResetOtpKeyDown(index, e)}
+                        className="h-12 w-12 rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-center text-lg font-semibold text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-foreground">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/90 px-4 py-3 pr-12 text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7d5a44]/70 hover:text-[#4a342a]"
+                    >
+                      {showResetPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-foreground">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showResetConfirmPassword ? "text" : "password"}
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="w-full rounded-2xl border border-[#f5f1ea]/60 bg-[#f5f1ea]/90 px-4 py-3 pr-12 text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirmPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7d5a44]/70 hover:text-[#4a342a]"
+                    >
+                      {showResetConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            {resetSuccess ? <p className="text-center text-sm font-medium text-[#7d5a44]">{resetSuccess}</p> : null}
+            {resetError ? <p className="text-center text-sm font-medium text-[#4a342a]">{resetError}</p> : null}
+
+            <button
+              type="button"
+              onClick={resetStep === "email" ? handleForgotPasswordOtp : handlePasswordReset}
+              disabled={isResetLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#4a342a] to-[#b2967d] py-3.5 font-semibold text-[#f5f1ea] transition-all hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isResetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <span>{resetStep === "email" ? "Send Verification Code" : "Reset Password"}</span>
+            </button>
+
+            {resetStep === "verify" ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetStep("email")
+                    setResetOtp(["", "", "", "", "", ""])
+                    setResetError("")
+                    setResetSuccess("")
+                  }}
+                  className="font-medium text-[#4a342a] hover:underline"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleForgotPasswordOtp}
+                  disabled={sendAgainTimer > 0 || isResetLoading}
+                  className="font-medium text-[#4a342a] hover:underline disabled:cursor-not-allowed disabled:text-[#7d5a44]/70"
+                >
+                  {sendAgainTimer > 0 ? `Send again in ${sendAgainTimer}s` : "Send code again"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
