@@ -31,3 +31,8 @@ export function normalizeProductCategory(category: string | null | undefined): P
   const canonicalCategory = PRODUCT_CATEGORY_ALIASES[compactCategory.toLowerCase()]
   return canonicalCategory || compactCategory
 }
+
+export function serializeProductCategoryForDatabase(category: string | null | undefined): string {
+  const normalizedCategory = normalizeProductCategory(category)
+  return normalizedCategory === "Fruit Soda" ? "Fruit Tea" : normalizedCategory
+}

@@ -16,7 +16,7 @@ import type {
   AppUserRole,
   AuditLog,
 } from "./types"
-import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory } from "./product-categories"
+import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory, serializeProductCategoryForDatabase } from "./product-categories"
 
 const PRODUCTS_KEY = "alfresco_products"
 const TRANSACTIONS_KEY = "alfresco_transactions"
@@ -761,7 +761,7 @@ async function syncProductsToSupabase(products: Product[]) {
   const normalizedProducts = products.map((product) => ({
     id: product.id,
     name: product.name,
-    category: normalizeProductCategory(product.category),
+    category: serializeProductCategoryForDatabase(product.category),
     price: product.price,
     is_available: !product.isArchived,
     updated_at: new Date().toISOString(),
