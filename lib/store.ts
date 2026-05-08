@@ -59,9 +59,20 @@ function notifySupabaseSyncError(scope: string, error: unknown) {
 
 function isSupabaseMissingColumnError(error: unknown, columnName: string, tableName: string) {
   const message = getErrorMessage(error).toLowerCase()
+  const normalizedColumnName = columnName.toLowerCase()
+  const normalizedTableName = tableName.toLowerCase()
   return (
-    message.includes(`could not find the '${columnName.toLowerCase()}' column`) &&
-    message.includes(`'${tableName.toLowerCase()}'`)
+    (
+      message.includes(`could not find the '${normalizedColumnName}' column`) ||
+      message.includes(`could not find the "${normalizedColumnName}" column`) ||
+      message.includes(`column "${normalizedColumnName}" does not exist`) ||
+      message.includes(`column '${normalizedColumnName}' does not exist`)
+    ) &&
+    (
+      message.includes(`'${normalizedTableName}'`) ||
+      message.includes(`"${normalizedTableName}"`) ||
+      message.includes(normalizedTableName)
+    )
   )
 }
 
@@ -1019,12 +1030,6 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
     name: combo.name,
     price: combo.price,
   }))
-  const comboRows = combos.map((combo) => ({
-    ...baseComboRows.find((row) => row.id === combo.id),
-    description: combo.description,
-    is_available: !combo.isArchived,
-    updated_at: new Date().toISOString(),
-  }))
 
   const { data: existingCombos, error: existingError } = await supabase.from("combo_meals").select("id")
   if (existingError) throw existingError
@@ -1033,49 +1038,38 @@ async function syncComboMealsToSupabase(combos: ComboMeal[]) {
   const localIds = new Set(combos.map((combo) => combo.id))
   const removedIds = [...existingIds].filter((id) => !localIds.has(id))
 
-  if (comboRows.length > 0) {
-    const { error } = await supabase.from("combo_meals").upsert(comboRows, { onConflict: "id" })
-    if (error) {
-      if (
-        !isSupabaseMissingColumnError(error, "description", "combo_meals") &&
-        !isSupabaseMissingColumnError(error, "updated_at", "combo_meals") &&
-        !isSupabaseMissingColumnError(error, "is_available", "combo_meals")
-      ) {
-        throw error
-      }
+  if (combos.length > 0) {
+    let includeDescription = true
+    let includeAvailability = true
+    let includeUpdatedAt = true
 
-      const fallbackRows = combos.map((combo) => ({
+    while (true) {
+      const comboRows = combos.map((combo) => ({
         ...baseComboRows.find((row) => row.id === combo.id),
-        ...(isSupabaseMissingColumnError(error, "description", "combo_meals")
-          ? {}
-          : { description: combo.description }),
-        ...(isSupabaseMissingColumnError(error, "is_available", "combo_meals")
-          ? {}
-          : { is_available: !combo.isArchived }),
-        ...(isSupabaseMissingColumnError(error, "updated_at", "combo_meals")
-          ? {}
-          : { updated_at: new Date().toISOString() }),
+        ...(includeDescription ? { description: combo.description } : {}),
+        ...(includeAvailability ? { is_available: !combo.isArchived } : {}),
+        ...(includeUpdatedAt ? { updated_at: new Date().toISOString() } : {}),
       }))
 
-      const fallbackResult = await supabase.from("combo_meals").upsert(fallbackRows, { onConflict: "id" })
-      if (fallbackResult.error) {
-        const fallbackError = fallbackResult.error
+      const { error } = await supabase.from("combo_meals").upsert(comboRows, { onConflict: "id" })
+      if (!error) break
 
-        if (
-          (isSupabaseMissingColumnError(error, "description", "combo_meals") &&
-            isSupabaseMissingColumnError(fallbackError, "updated_at", "combo_meals")) ||
-          (isSupabaseMissingColumnError(error, "updated_at", "combo_meals") &&
-            isSupabaseMissingColumnError(fallbackError, "description", "combo_meals")) ||
-          isSupabaseMissingColumnError(fallbackError, "is_available", "combo_meals")
-        ) {
-          const legacyRows = [...baseComboRows]
-          const legacyResult = await supabase.from("combo_meals").upsert(legacyRows, { onConflict: "id" })
-          if (legacyResult.error) throw legacyResult.error
-          return
-        }
-
-        throw fallbackError
+      if (includeDescription && isSupabaseMissingColumnError(error, "description", "combo_meals")) {
+        includeDescription = false
+        continue
       }
+
+      if (includeAvailability && isSupabaseMissingColumnError(error, "is_available", "combo_meals")) {
+        includeAvailability = false
+        continue
+      }
+
+      if (includeUpdatedAt && isSupabaseMissingColumnError(error, "updated_at", "combo_meals")) {
+        includeUpdatedAt = false
+        continue
+      }
+
+      throw error
     }
   }
 

@@ -29,7 +29,7 @@ function getBrevoConfig() {
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
 
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -43,6 +43,14 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   } finally {
     if (timeoutId) clearTimeout(timeoutId)
   }
+}
+
+type SupabaseMutationResult = {
+  error: { message?: string } | null
+}
+
+type SupabaseCountResult = SupabaseMutationResult & {
+  count: number | null
 }
 
 async function sendOtpEmail(email: string, otpCode: string) {
@@ -101,7 +109,7 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get("user-agent")
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
-    const { count, error: rateLimitError } = await withTimeout(
+    const { count, error: rateLimitError } = await withTimeout<SupabaseCountResult>(
       supabase
         .from("otp_codes")
         .select("id", { count: "exact", head: true })
@@ -122,7 +130,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { error: resetError } = await withTimeout(
+    const { error: resetError } = await withTimeout<SupabaseMutationResult>(
       supabase
         .from("otp_codes")
         .update({ is_used: true })
@@ -136,7 +144,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Failed to reset existing OTP code" }, { status: 500 })
     }
 
-    const { error: insertError } = await withTimeout(
+    const { error: insertError } = await withTimeout<SupabaseMutationResult>(
       supabase.from("otp_codes").insert({
         email: normalizedEmail,
         otp_code: otpCode,
