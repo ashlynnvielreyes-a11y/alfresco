@@ -2456,6 +2456,10 @@ function normalizeAppUser(user: Partial<AppUser> & Pick<AppUser, "id" | "usernam
   }
 }
 
+function isUserRecordRevoked(user: { is_active?: boolean | null; deactivated_at?: string | null }) {
+  return user.is_active === false || Boolean(user.deactivated_at)
+}
+
 function setAuthCookie(user: AuthUser | null, rememberMe: boolean) {
   if (typeof document === "undefined") return
 
@@ -2544,7 +2548,7 @@ export async function validateCurrentSession(): Promise<AuthUser | null> {
     if (primaryResponse.error && isSupabaseMissingColumnError(primaryResponse.error, "is_active", "users")) {
       const fallbackResponse = await supabase
         .from("users")
-        .select("id, username, email, role, created_at, updated_at")
+        .select("id, username, email, role, created_at, updated_at, deactivated_at")
         .eq("id", currentUser.id)
         .maybeSingle()
 
@@ -2566,7 +2570,7 @@ export async function validateCurrentSession(): Promise<AuthUser | null> {
       username: user.username,
       email: user.email,
       role: user.role,
-      isActive: user.is_active ?? true,
+      isActive: !isUserRecordRevoked(user),
       createdAt: user.created_at ?? null,
       updatedAt: user.updated_at ?? null,
       deactivatedAt: user.deactivated_at ?? null,

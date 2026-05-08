@@ -11,6 +11,10 @@ import { Eye, EyeOff } from "lucide-react"
 const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
 const REMEMBER_ME_PREFERENCE_KEY = "alfresco_remember_me"
 
+function isUserRevoked(user: { is_active?: boolean | null; deactivated_at?: string | null }) {
+  return user.is_active === false || Boolean(user.deactivated_at)
+}
+
 function LoginPageContent() {
   const searchParams = useSearchParams()
   const [username, setUsername] = useState("")
@@ -56,14 +60,14 @@ function LoginPageContent() {
       const fetchUserBy = async (column: "username" | "email", value: string) => {
         let response = await supabase
           .from("users")
-          .select("id, username, email, password_hash, role, is_active")
+          .select("id, username, email, password_hash, role, is_active, deactivated_at")
           .eq(column, value)
           .single()
 
         if (response.error?.message?.toLowerCase().includes("is_active")) {
           response = await supabase
             .from("users")
-            .select("id, username, email, password_hash, role")
+            .select("id, username, email, password_hash, role, deactivated_at")
             .eq(column, value)
             .single()
         }
@@ -92,7 +96,7 @@ function LoginPageContent() {
         return
       }
 
-      if (user.is_active === false) {
+      if (isUserRevoked(user)) {
         setError("This account has been deactivated. Please contact an administrator.")
         setIsLoading(false)
         return
@@ -104,7 +108,7 @@ function LoginPageContent() {
           username: user.username,
           email: user.email,
           role: user.role || "cashier",
-          isActive: user.is_active !== false,
+          isActive: !isUserRevoked(user),
         },
         rememberMe
       )
