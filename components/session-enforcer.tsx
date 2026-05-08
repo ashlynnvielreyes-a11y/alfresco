@@ -23,6 +23,7 @@ function canAccessPath(pathname: string, role: ReturnType<typeof getUserRole>) {
     return canAccessInventory(role)
   }
   if (pathname.startsWith("/sales-history")) return canAccessSales(role)
+  if (pathname.startsWith("/user-management")) return role === "admin"
 
   return true
 }

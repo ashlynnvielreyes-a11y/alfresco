@@ -4,7 +4,7 @@ import { memo, useCallback, useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle } from "lucide-react"
+import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle, Users } from "lucide-react"
 import { logout, getUserRole, getCurrentUser, canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, type UserRole } from "@/lib/store"
 
 interface NavItem {
@@ -23,6 +23,7 @@ const allNavItems: NavItem[] = [
   { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, permission: "inventory" },
   { href: "/addons", label: "Add-ons", icon: Plus, permission: "inventory" },
   { href: "/sales-history", label: "Sales History", icon: FileText, permission: "sales" },
+  { href: "/user-management", label: "User Management", icon: Users, permission: "admin" },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
