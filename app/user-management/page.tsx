@@ -13,8 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Ban, Search, ShieldCheck, UserCog, Users } from "lucide-react"
-import { deactivateUserAccount, getCurrentUser, getUserRole, getUsers } from "@/lib/store"
+import { Ban, CheckCircle2, Search, ShieldCheck, UserCog, Users } from "lucide-react"
+import { activateUserAccount, deactivateUserAccount, getCurrentUser, getUserRole, getUsers } from "@/lib/store"
 import type { AppUser } from "@/lib/types"
 
 function formatRole(role: AppUser["role"]) {
@@ -44,7 +44,7 @@ export default function UserManagementPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
-  const [userToDeactivate, setUserToDeactivate] = useState<AppUser | null>(null)
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null)
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -81,31 +81,34 @@ export default function UserManagementPage() {
   const activeUsers = users.filter((user) => user.isActive).length
   const revokedUsers = users.length - activeUsers
 
-  const handleDeactivate = async () => {
-    if (!userToDeactivate) return
+  const handleAccessChange = async () => {
+    if (!selectedUser) return
 
     setIsSubmitting(true)
     setError("")
 
-    const result = await deactivateUserAccount(userToDeactivate.id)
+    const result = selectedUser.isActive
+      ? await deactivateUserAccount(selectedUser.id)
+      : await activateUserAccount(selectedUser.id)
+
     if (!result.success) {
-      setError(result.error || "Failed to revoke access.")
+      setError(result.error || `Failed to ${selectedUser.isActive ? "revoke" : "restore"} access.`)
       setIsSubmitting(false)
       return
     }
 
     setUsers((prevUsers) =>
       prevUsers.map((user) =>
-        user.id === userToDeactivate.id
+        user.id === selectedUser.id
           ? {
               ...user,
-              isActive: false,
-              deactivatedAt: new Date().toISOString(),
+              isActive: !selectedUser.isActive,
+              deactivatedAt: selectedUser.isActive ? new Date().toISOString() : null,
             }
           : user
       )
     )
-    setUserToDeactivate(null)
+    setSelectedUser(null)
     setIsSubmitting(false)
   }
 
@@ -183,6 +186,7 @@ export default function UserManagementPage() {
                 {filteredUsers.map((user) => {
                   const isCurrentUser = currentUser?.id === user.id
                   const canDeactivate = user.isActive && !isCurrentUser
+                  const canActivate = !user.isActive
 
                   return (
                     <article
@@ -240,12 +244,16 @@ export default function UserManagementPage() {
 
                         <button
                           type="button"
-                          onClick={() => setUserToDeactivate(user)}
-                          disabled={!canDeactivate}
-                          className="inline-flex items-center gap-2 rounded-xl bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:bg-[#d7c9b8] disabled:text-[#7d5a44]"
+                          onClick={() => setSelectedUser(user)}
+                          disabled={user.isActive ? !canDeactivate : !canActivate}
+                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-[#d7c9b8] disabled:text-[#7d5a44] ${
+                            user.isActive
+                              ? "bg-[#4a342a] text-[#f5f1ea] hover:bg-[#7d5a44]"
+                              : "bg-emerald-600 text-white hover:bg-emerald-700"
+                          }`}
                         >
-                          <Ban className="h-4 w-4" />
-                          {user.isActive ? "Revoke Access" : "Access Revoked"}
+                          {user.isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                          {user.isActive ? "Revoke Access" : "Activate Access"}
                         </button>
                       </div>
                     </article>
@@ -256,20 +264,22 @@ export default function UserManagementPage() {
           </section>
         </div>
 
-        <AlertDialog open={Boolean(userToDeactivate)} onOpenChange={(open) => !open && setUserToDeactivate(null)}>
+        <AlertDialog open={Boolean(selectedUser)} onOpenChange={(open) => !open && setSelectedUser(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Revoke User Access</AlertDialogTitle>
+              <AlertDialogTitle>{selectedUser?.isActive ? "Revoke User Access" : "Activate User Access"}</AlertDialogTitle>
               <AlertDialogDescription>
-                {userToDeactivate
-                  ? `Revoke access for ${userToDeactivate.username}? Their existing account will remain in the system, but they will no longer be able to log in until an admin reactivates them in the database.`
-                  : "Revoke this user's access?"}
+                {selectedUser
+                  ? selectedUser.isActive
+                    ? `Revoke access for ${selectedUser.username}? Their existing account will remain in the system, but they will no longer be able to log in until an admin restores access.`
+                    : `Restore access for ${selectedUser.username}? Their existing account details will remain unchanged and they will be able to log in again.`
+                  : "Update this user's access?"}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeactivate} disabled={isSubmitting}>
-                {isSubmitting ? "Revoking..." : "Revoke Access"}
+              <AlertDialogAction onClick={handleAccessChange} disabled={isSubmitting}>
+                {isSubmitting ? (selectedUser?.isActive ? "Revoking..." : "Activating...") : selectedUser?.isActive ? "Revoke Access" : "Activate Access"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

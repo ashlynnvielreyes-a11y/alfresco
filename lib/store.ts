@@ -2003,16 +2003,39 @@ export async function deactivateUserAccount(userId: string): Promise<{ success: 
   try {
     const { createClient } = await import("./supabase/client")
     const supabase = createClient()
-    const { error } = await supabase
-      .from("users")
-      .update({
-        is_active: false,
-        deactivated_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
+    let includeDeactivatedAt = true
+    let includeUpdatedAt = true
 
-    if (error) throw error
+    while (true) {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          is_active: false,
+          ...(includeDeactivatedAt ? { deactivated_at: new Date().toISOString() } : {}),
+          ...(includeUpdatedAt ? { updated_at: new Date().toISOString() } : {}),
+        })
+        .eq("id", userId)
+
+      if (!error) {
+        break
+      }
+
+      if (includeDeactivatedAt && isSupabaseMissingColumnError(error, "deactivated_at", "users")) {
+        includeDeactivatedAt = false
+        continue
+      }
+
+      if (includeUpdatedAt && isSupabaseMissingColumnError(error, "updated_at", "users")) {
+        includeUpdatedAt = false
+        continue
+      }
+
+      if (isSupabaseMissingColumnError(error, "is_active", "users")) {
+        return { success: false, error: "The users table is missing the is_active column required for access revocation." }
+      }
+
+      throw error
+    }
 
     const currentUser = getCurrentUser()
     if (currentUser?.id === userId) {
@@ -2020,6 +2043,51 @@ export async function deactivateUserAccount(userId: string): Promise<{ success: 
     }
 
     await logAuditEvent("user_deactivated", "user", userId, "Account deactivated")
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) }
+  }
+}
+
+export async function activateUserAccount(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { createClient } = await import("./supabase/client")
+    const supabase = createClient()
+    let includeDeactivatedAt = true
+    let includeUpdatedAt = true
+
+    while (true) {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          is_active: true,
+          ...(includeDeactivatedAt ? { deactivated_at: null } : {}),
+          ...(includeUpdatedAt ? { updated_at: new Date().toISOString() } : {}),
+        })
+        .eq("id", userId)
+
+      if (!error) {
+        break
+      }
+
+      if (includeDeactivatedAt && isSupabaseMissingColumnError(error, "deactivated_at", "users")) {
+        includeDeactivatedAt = false
+        continue
+      }
+
+      if (includeUpdatedAt && isSupabaseMissingColumnError(error, "updated_at", "users")) {
+        includeUpdatedAt = false
+        continue
+      }
+
+      if (isSupabaseMissingColumnError(error, "is_active", "users")) {
+        return { success: false, error: "The users table is missing the is_active column required for account activation." }
+      }
+
+      throw error
+    }
+
+    await logAuditEvent("user_activated", "user", userId, "Account reactivated")
     return { success: true }
   } catch (error) {
     return { success: false, error: getErrorMessage(error) }
