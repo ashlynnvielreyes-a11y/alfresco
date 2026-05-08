@@ -63,7 +63,7 @@ export interface ProductIngredient {
   quantity: number
 }
 
-export type KnownProductCategory = "Coffee" | "Milk Tea" | "Fruit Tea" | "Silog"
+export type KnownProductCategory = "Coffee" | "Milk Tea" | "Fruit Soda" | "Silog"
 export type ProductCategory = KnownProductCategory | (string & {})
 
 export interface Product {
@@ -72,6 +72,7 @@ export interface Product {
   category: ProductCategory
   price: number
   ingredients: ProductIngredient[]
+  isArchived?: boolean
 }
 
 export interface AddOn {

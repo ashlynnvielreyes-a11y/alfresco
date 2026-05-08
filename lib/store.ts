@@ -262,6 +262,7 @@ function normalizeProduct(product: Product): Product {
     ...product,
     category: normalizeProductCategory(product.category),
     ingredients: product.ingredients || [],
+    isArchived: product.isArchived === true,
   }
 }
 
@@ -762,7 +763,7 @@ async function syncProductsToSupabase(products: Product[]) {
     name: product.name,
     category: normalizeProductCategory(product.category),
     price: product.price,
-    is_available: true,
+    is_available: !product.isArchived,
     updated_at: new Date().toISOString(),
   }))
 
@@ -1274,6 +1275,7 @@ export async function initializeSupabaseStore(): Promise<void> {
         name: product.name,
         category: normalizeProductCategory((product.category as string) || DEFAULT_PRODUCT_CATEGORY),
         price: Number(product.price) || 0,
+        isArchived: product.is_available === false,
         ingredients: (productIngredientsResponse.data || [])
           .filter((ingredient: any) => ingredient.product_id === product.id)
           .map((ingredient: any) => ({
@@ -1722,7 +1724,7 @@ export function checkAddOnAvailability(
 }
 
 // Products functions
-export function getProducts(): Product[] {
+export function getAllProducts(): Product[] {
   if (typeof window === "undefined") return defaultProducts
   const stored = localStorage.getItem(PRODUCTS_KEY)
   if (!stored) {
@@ -1740,6 +1742,14 @@ export function getProducts(): Product[] {
   return normalizedProducts
 }
 
+export function getProducts(): Product[] {
+  return getAllProducts().filter((product) => !product.isArchived)
+}
+
+export function getArchivedProducts(): Product[] {
+  return getAllProducts().filter((product) => product.isArchived)
+}
+
 export function saveProducts(products: Product[]): void {
   if (typeof window === "undefined") return
   const normalizedProducts = products.map(normalizeProduct)
@@ -1748,9 +1758,9 @@ export function saveProducts(products: Product[]): void {
 }
 
 export function addProduct(product: Omit<Product, "id">): Product {
-  const products = getProducts()
+  const products = getAllProducts()
   const newId = Math.max(...products.map((p) => p.id), 0) + 1
-  const newProduct = normalizeProduct({ ...product, id: newId, ingredients: product.ingredients || [] })
+  const newProduct = normalizeProduct({ ...product, id: newId, ingredients: product.ingredients || [], isArchived: false })
   products.push(newProduct)
   saveProducts(products)
   void logAuditEvent("product_created", "product", String(newProduct.id), `${newProduct.name} created`)
@@ -1758,7 +1768,7 @@ export function addProduct(product: Omit<Product, "id">): Product {
 }
 
 export function updateProduct(id: number, updates: Partial<Product>): Product | null {
-  const products = getProducts()
+  const products = getAllProducts()
   const index = products.findIndex((p) => p.id === id)
   if (index === -1) return null
   products[index] = normalizeProduct({ ...products[index], ...updates } as Product)
@@ -1767,12 +1777,23 @@ export function updateProduct(id: number, updates: Partial<Product>): Product | 
   return products[index]
 }
 
-export function deleteProduct(id: number): boolean {
-  const products = getProducts()
-  const filtered = products.filter((p) => p.id !== id)
-  if (filtered.length === products.length) return false
-  saveProducts(filtered)
-  void logAuditEvent("product_deleted", "product", String(id), `Product ${id} deleted`)
+export function archiveProduct(id: number): boolean {
+  const products = getAllProducts()
+  const index = products.findIndex((p) => p.id === id)
+  if (index === -1 || products[index].isArchived) return false
+  products[index] = normalizeProduct({ ...products[index], isArchived: true })
+  saveProducts(products)
+  void logAuditEvent("product_archived", "product", String(id), `${products[index].name} archived`)
+  return true
+}
+
+export function restoreProduct(id: number): boolean {
+  const products = getAllProducts()
+  const index = products.findIndex((p) => p.id === id)
+  if (index === -1 || !products[index].isArchived) return false
+  products[index] = normalizeProduct({ ...products[index], isArchived: false })
+  saveProducts(products)
+  void logAuditEvent("product_restored", "product", String(id), `${products[index].name} restored`)
   return true
 }
 
@@ -2723,7 +2744,7 @@ export async function getSalesByCategory(startDate: Date, endDate: Date): Promis
   const categoryColors: Record<string, string> = {
     Coffee: "#4A342A",
     "Milk Tea": "#7D5A44",
-    "Fruit Tea": "#B2967D",
+    "Fruit Soda": "#B2967D",
     Silog: "#D7C9B8",
   }
 

@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, CoffeeTemperature } from "@/lib/types"
 
-const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Tea", "Silog", "Combos"] as const
+const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Soda", "Silog", "Combos"] as const
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 const comboProductIdOffset = 100000
 
@@ -225,7 +225,12 @@ export default function POSPage() {
   }, [])
 
   const getAvailableAddOns = useCallback((product: Product): AddOn[] => {
-    if (product.category === "Coffee" || product.category === "Milk Tea" || product.category === "Fruit Tea") {
+    if (
+      product.category === "Coffee" ||
+      product.category === "Milk Tea" ||
+      product.category === "Fruit Soda" ||
+      product.category === "Fruit Tea"
+    ) {
       return allAddOns.filter(a => a.category === "drink")
     } else if (product.category === "Silog" || product.category === "Combos") {
       return allAddOns.filter(a => a.category === "meal")
