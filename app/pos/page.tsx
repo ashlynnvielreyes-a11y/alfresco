@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -629,6 +629,26 @@ export default function POSPage() {
     total,
   ])
 
+  useEffect(() => {
+    if (!currentUser || !activeOrderId) return
+
+    const matchingOrder = activeOrders.find((order) => order.id === activeOrderId)
+    if (!matchingOrder) return
+    if (matchingOrder.cashierUserId === currentUser.id) return
+
+    setCart([])
+    setPaymentMethod("cash")
+    setDiscountType("none")
+    setCashReceived("")
+    setActiveOrderId("")
+    setOrderStartedAt(null)
+
+    toast({
+      title: "Order taken over",
+      description: `${matchingOrder.cashierName} is now handling this active order.`,
+    })
+  }, [activeOrderId, activeOrders, currentUser])
+
   const confirmSale = async () => {
     // For non-cash payments, we don't need cash received
     const isValidPayment = isCashPayment ? cash >= total : true
@@ -691,6 +711,61 @@ export default function POSPage() {
     if (Number.isNaN(date.getTime())) return "--"
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }, [])
+
+  const handleTakeOverActiveOrder = useCallback(async (order: ActiveOrder) => {
+    if (!currentUser || currentUser.role !== "admin") return
+
+    const latestOrder = await getActiveOrderById(order.id)
+    if (!latestOrder) {
+      toast({
+        title: "Order unavailable",
+        description: "That active order is no longer available.",
+      })
+      void setActiveOrders(await getActiveOrders())
+      return
+    }
+
+    if (latestOrder.cashierUserId === currentUser.id) {
+      toast({
+        title: "Already assigned",
+        description: "This order is already on your station.",
+      })
+      return
+    }
+
+    if (cart.length > 0 && activeOrderId !== latestOrder.id) {
+      const shouldReplace = window.confirm("Your current cart will be replaced by the selected live order. Continue?")
+      if (!shouldReplace) return
+    }
+
+    setCart(latestOrder.items)
+    setPaymentMethod(latestOrder.paymentMethod)
+    setDiscountType(latestOrder.discountType || "none")
+    setCashReceived(latestOrder.paymentMethod === "gcash" ? latestOrder.total.toFixed(2) : "")
+    setOrderStartedAt(latestOrder.startedAt)
+    setActiveOrderId(latestOrder.id)
+
+    await upsertActiveOrderSnapshot({
+      id: latestOrder.id,
+      cashierUserId: currentUser.id,
+      cashierName: currentUser.username,
+      items: latestOrder.items,
+      subtotal: latestOrder.subtotal,
+      discountType: latestOrder.discountType || "none",
+      discountPercent: latestOrder.discountPercent || 0,
+      discountAmount: latestOrder.discountAmount,
+      total: latestOrder.total,
+      paymentMethod: latestOrder.paymentMethod,
+      cartItemCount: latestOrder.cartItemCount,
+      startedAt: latestOrder.startedAt,
+    })
+
+    setActiveOrders(await getActiveOrders())
+    toast({
+      title: "Order transferred",
+      description: `You are now processing ${latestOrder.cashierName}'s active order.`,
+    })
+  }, [activeOrderId, cart.length, currentUser])
 
   const closeReceipt = async () => {
     setShowReceipt(false)
@@ -1119,7 +1194,13 @@ export default function POSPage() {
                   ) : (
                     <div className="cafe-scrollbar max-h-56 space-y-2 overflow-y-auto pr-1">
                       {activeOrders.map((order) => (
-                        <div key={order.id} className="rounded-xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/75 p-3">
+                        <button
+                          key={order.id}
+                          type="button"
+                          onClick={() => void handleTakeOverActiveOrder(order)}
+                          disabled={currentUser?.role !== "admin"}
+                          className="w-full rounded-xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/75 p-3 text-left transition-colors hover:bg-[#ede3d8] disabled:cursor-default disabled:hover:bg-[#f5f1ea]/75"
+                        >
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-[#4a342a]">{order.cashierName}</p>
@@ -1155,7 +1236,12 @@ export default function POSPage() {
                               <p className="text-[10px] text-[#7d5a44]">+{order.items.length - 3} more line item(s)</p>
                             )}
                           </div>
-                        </div>
+                          {currentUser?.role === "admin" && (
+                            <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-[#7d5a44]">
+                              {order.cashierUserId === currentUser.id ? "Currently on your station" : "Click to take over"}
+                            </p>
+                          )}
+                        </button>
                       ))}
                     </div>
                   )}

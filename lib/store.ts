@@ -2381,6 +2381,49 @@ export async function clearActiveOrderSnapshot(activeOrderId: string): Promise<v
   }
 }
 
+export async function getActiveOrderById(activeOrderId: string): Promise<ActiveOrder | null> {
+  if (typeof window === "undefined" || !activeOrderId) return null
+
+  const localMatch = getStoredActiveOrders().find((order) => order.id === activeOrderId) || null
+
+  try {
+    const supabase = await getSupabaseBrowserClient()
+    const { data, error } = await supabase.from("active_orders").select("*").eq("id", activeOrderId).maybeSingle()
+
+    if (error) {
+      if (isSupabaseMissingTableError(error, "active_orders") || isSupabaseRlsError(error, "active_orders")) {
+        return localMatch
+      }
+      throw error
+    }
+
+    if (!data) return null
+
+    const mapped: ActiveOrder = {
+      id: data.id,
+      cashierUserId: data.cashier_user_id || "unknown",
+      cashierName: data.cashier_name || "Unknown",
+      stationId: data.station_id || "station-unknown",
+      items: typeof data.items === "string" ? JSON.parse(data.items) : data.items || [],
+      subtotal: Number(data.subtotal || 0),
+      discountType: data.discount_type === "senior" || data.discount_type === "pwd" ? data.discount_type : "none",
+      discountPercent: Number(data.discount_percent || 0),
+      discountAmount: Number(data.discount_amount || 0),
+      total: Number(data.total || 0),
+      paymentMethod: data.payment_method === "gcash" ? "gcash" : "cash",
+      cartItemCount: Number(data.cart_item_count || 0),
+      startedAt: data.started_at || data.created_at || new Date().toISOString(),
+      lastUpdatedAt: data.last_updated_at || data.updated_at || new Date().toISOString(),
+    }
+
+    upsertActiveOrderLocally(mapped)
+    return mapped
+  } catch (error) {
+    console.log("[v0] Active order fetch by id failed:", error)
+    return localMatch
+  }
+}
+
 function normalizeDateString(value: string) {
   if (!value) return ""
 
