@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot } from "@/lib/store"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity } from "lucide-react"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
-import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, CoffeeTemperature } from "@/lib/types"
+import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, CoffeeTemperature, ActiveOrder } from "@/lib/types"
 
 const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Soda", "Silog", "Combos"] as const
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
@@ -112,6 +112,7 @@ export default function POSPage() {
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null)
   const [activeOrderId, setActiveOrderId] = useState("")
   const [orderStartedAt, setOrderStartedAt] = useState<string | null>(null)
+  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([])
 
   // Payment and discount state
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
@@ -136,6 +137,7 @@ export default function POSPage() {
     setIngredients(getIngredients())
     setComboMeals(getComboMeals())
     setAllAddOns(getAddOns())
+    setActiveOrders(await getActiveOrders())
     const user = getCurrentUser()
     setCurrentUser(user)
     console.log("[v0] POS page initialized with user:", user?.username)
@@ -156,6 +158,7 @@ export default function POSPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "product_ingredients" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => void loadRecentTransactions())
+      .on("postgres_changes", { event: "*", schema: "public", table: "active_orders" }, async () => setActiveOrders(await getActiveOrders()))
       .on("postgres_changes", { event: "*", schema: "public", table: "combo_meals" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "combo_meal_items" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "addons" }, () => void refreshData())
@@ -683,6 +686,12 @@ export default function POSPage() {
     setOrderStartedAt(null)
   }
 
+  const formatMonitorTime = useCallback((value: string) => {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return "--"
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }, [])
+
   const closeReceipt = async () => {
     setShowReceipt(false)
     setLastTransaction(null)
@@ -1090,6 +1099,69 @@ export default function POSPage() {
             </div>
 
             <div className="space-y-4 border-t border-[#f5f1ea]/45 pt-4">
+              {currentUser?.role === "admin" && (
+                <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/58 p-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.72)]">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-[#7d5a44]">Live POS Monitor</p>
+                      <p className="text-sm font-semibold text-foreground">Cashier Active Orders</p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/75 px-2.5 py-2">
+                      <Activity className="h-4 w-4 text-[#4a342a]" />
+                      <span className="text-sm font-semibold text-[#4a342a]">{activeOrders.length}</span>
+                    </div>
+                  </div>
+
+                  {activeOrders.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-3 py-4 text-center text-xs text-muted-foreground">
+                      No active cashier orders right now.
+                    </p>
+                  ) : (
+                    <div className="cafe-scrollbar max-h-56 space-y-2 overflow-y-auto pr-1">
+                      {activeOrders.map((order) => (
+                        <div key={order.id} className="rounded-xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/75 p-3">
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#4a342a]">{order.cashierName}</p>
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7d5a44]">{order.stationId}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-[#4a342a]">P{order.total.toFixed(2)}</p>
+                              <p className="text-[10px] text-muted-foreground">Updated {formatMonitorTime(order.lastUpdatedAt)}</p>
+                            </div>
+                          </div>
+
+                          <div className="mb-2 flex items-center gap-2 text-[10px] text-[#7d5a44]">
+                            <span>{order.cartItemCount} item(s)</span>
+                            <span>•</span>
+                            <span className="capitalize">{order.paymentMethod}</span>
+                            <span>•</span>
+                            <span>Started {formatMonitorTime(order.startedAt)}</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {order.items.slice(0, 3).map((item, index) => (
+                              <div key={`${order.id}-${item.product.id}-${index}`} className="flex items-center justify-between text-xs">
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium text-foreground">{item.product.name}</p>
+                                  <p className="truncate text-muted-foreground">
+                                    {[item.temperature, item.addOns?.length ? `${item.addOns.length} add-on(s)` : null].filter(Boolean).join(" • ") || "Standard"}
+                                  </p>
+                                </div>
+                                <span className="ml-2 font-semibold text-[#4a342a]">x{item.quantity}</span>
+                              </div>
+                            ))}
+                            {order.items.length > 3 && (
+                              <p className="text-[10px] text-[#7d5a44]">+{order.items.length - 3} more line item(s)</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Payment Method */}
               <div>
                 <label className="text-xs lg:text-sm text-muted-foreground block mb-2">Mode of Payment</label>
