@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot } from "@/lib/store"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -110,6 +110,8 @@ export default function POSPage() {
   const [selectedAddOns, setSelectedAddOns] = useState<AddOn[]>([])
   const [selectedTemperature, setSelectedTemperature] = useState<CoffeeTemperature>("hot")
   const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null)
+  const [activeOrderId, setActiveOrderId] = useState("")
+  const [orderStartedAt, setOrderStartedAt] = useState<string | null>(null)
 
   // Payment and discount state
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
@@ -568,6 +570,62 @@ export default function POSPage() {
     setCashReceived(total > 0 ? total.toFixed(2) : "")
   }, [isCashPayment, total])
 
+  useEffect(() => {
+    if (cart.length > 0 && !orderStartedAt) {
+      setOrderStartedAt(new Date().toISOString())
+    }
+
+    if (cart.length === 0 && orderStartedAt) {
+      setOrderStartedAt(null)
+    }
+  }, [cart.length, orderStartedAt])
+
+  useEffect(() => {
+    if (!currentUser) return
+
+    if (cart.length === 0) {
+      if (!activeOrderId) return
+
+      void clearActiveOrderSnapshot(activeOrderId)
+      setActiveOrderId("")
+      return
+    }
+
+    if (!orderStartedAt) return
+
+    const cartSnapshotCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+    void upsertActiveOrderSnapshot({
+      id: activeOrderId || undefined,
+      cashierUserId: currentUser.id,
+      cashierName: currentUser.username,
+      items: cart,
+      subtotal,
+      discountType,
+      discountPercent,
+      discountAmount,
+      total,
+      paymentMethod,
+      cartItemCount: cartSnapshotCount,
+      startedAt: orderStartedAt,
+    }).then((nextActiveOrderId) => {
+      if (nextActiveOrderId && nextActiveOrderId !== activeOrderId) {
+        setActiveOrderId(nextActiveOrderId)
+      }
+    })
+  }, [
+    activeOrderId,
+    cart,
+    currentUser,
+    discountAmount,
+    discountPercent,
+    discountType,
+    orderStartedAt,
+    paymentMethod,
+    subtotal,
+    total,
+  ])
+
   const confirmSale = async () => {
     // For non-cash payments, we don't need cash received
     const isValidPayment = isCashPayment ? cash >= total : true
@@ -615,9 +673,14 @@ export default function POSPage() {
 
     saveIngredients(updatedIngredients)
     await saveTransaction(transaction)
+    if (activeOrderId) {
+      await clearActiveOrderSnapshot(activeOrderId)
+      setActiveOrderId("")
+    }
     setIngredients(updatedIngredients)
     setLastTransaction(transaction)
     setShowReceipt(true)
+    setOrderStartedAt(null)
   }
 
   const closeReceipt = async () => {

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { initializeSupabaseStore, getProducts, getIngredients, getProductAvailableStock, verifyDataPersistence, getTransactionsByDateRange, getSalesTotalByDateRange, getTopProducts, getInventoryAlerts, getIngredientExpirationSummary } from "@/lib/store"
-import type { Product, Transaction, Ingredient } from "@/lib/types"
-import { Package, ShoppingCart, TrendingUp, DollarSign, CalendarRange } from "lucide-react"
+import { initializeSupabaseStore, getProducts, getIngredients, getProductAvailableStock, verifyDataPersistence, getTransactionsByDateRange, getSalesTotalByDateRange, getTopProducts, getInventoryAlerts, getIngredientExpirationSummary, getActiveOrders, getCurrentUser } from "@/lib/store"
+import type { Product, Transaction, Ingredient, ActiveOrder } from "@/lib/types"
+import { Package, ShoppingCart, TrendingUp, DollarSign, CalendarRange, Activity } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 function getDefaultRange() {
@@ -28,6 +28,8 @@ export default function DashboardPage() {
   const [toDate, setToDate] = useState(defaults.toDate)
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("--:--:--")
   const [topSeller, setTopSeller] = useState("No sales yet")
+  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([])
+  const [currentUserRole, setCurrentUserRole] = useState("")
 
   const refreshData = useCallback(async () => {
     verifyDataPersistence()
@@ -41,6 +43,8 @@ export default function DashboardPage() {
     setIngredients(getIngredients())
     setTransactions(await getTransactionsByDateRange(fromDate, toDate))
     setRangeTotal(await getSalesTotalByDateRange(fromDate, toDate))
+    setActiveOrders(await getActiveOrders())
+    setCurrentUserRole(getCurrentUser()?.role || "")
 
     const topProducts = await getTopProducts(startDate, endDate, 1)
     setTopSeller(topProducts[0]?.name || "No sales yet")
@@ -59,6 +63,7 @@ export default function DashboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "active_orders" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => void refreshData())
       .subscribe()
 
@@ -131,6 +136,14 @@ export default function DashboardPage() {
       light: true,
     },
   ]
+
+  const activeOrderCount = activeOrders.length
+
+  const formatMonitorTime = (value: string) => {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return "--"
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
 
   return (
     <div className="flex min-h-screen bg-transparent">
@@ -207,6 +220,80 @@ export default function DashboardPage() {
             )
           })}
         </div>
+
+        {currentUserRole === "admin" && (
+          <div className="mb-6 rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/45 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl lg:mb-8 lg:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="mb-1 text-xs uppercase tracking-[0.24em] text-[#7d5a44]">Live POS Monitor</p>
+                <h2 className="text-lg font-bold text-[#4a342a] lg:text-2xl">Cashier Active Orders</h2>
+                <p className="text-sm text-[#7d5a44]">Real-time carts currently open at cashier stations.</p>
+              </div>
+              <div className="flex items-center gap-2 rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.75)]">
+                <Activity className="h-4 w-4 text-[#4a342a]" />
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7d5a44]">Stations Live</p>
+                  <p className="text-sm font-semibold text-foreground">{activeOrderCount}</p>
+                </div>
+              </div>
+            </div>
+
+            {activeOrders.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/60 px-4 py-8 text-center text-sm text-muted-foreground">
+                No active cashier orders right now.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                {activeOrders.map((order) => (
+                  <div key={order.id} className="rounded-[24px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/62 p-4 shadow-[0_16px_30px_rgba(74,52,42,0.06)]">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-base font-bold text-[#4a342a]">{order.cashierName}</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-[#7d5a44]">{order.stationId}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-[#4a342a]">{`\u20B1${order.total.toFixed(2)}`}</p>
+                        <p className="text-xs text-muted-foreground">Updated {formatMonitorTime(order.lastUpdatedAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-3 grid grid-cols-3 gap-2 text-sm">
+                      <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/72 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7d5a44]">Items</p>
+                        <p className="font-semibold text-foreground">{order.cartItemCount}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/72 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7d5a44]">Payment</p>
+                        <p className="font-semibold capitalize text-foreground">{order.paymentMethod}</p>
+                      </div>
+                      <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/72 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7d5a44]">Started</p>
+                        <p className="font-semibold text-foreground">{formatMonitorTime(order.startedAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {order.items.slice(0, 4).map((item, index) => (
+                        <div key={`${order.id}-${item.product.id}-${index}`} className="flex items-center justify-between rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/55 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">{item.product.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {[item.temperature, item.addOns?.length ? `${item.addOns.length} add-on(s)` : null].filter(Boolean).join(" • ") || "Standard"}
+                            </p>
+                          </div>
+                          <p className="ml-2 text-sm font-semibold text-[#4a342a]">x{item.quantity}</p>
+                        </div>
+                      ))}
+                      {order.items.length > 4 && (
+                        <p className="text-xs text-[#7d5a44]">+{order.items.length - 4} more line item(s)</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4 lg:gap-5 2xl:gap-6">
           <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/52 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.68)] backdrop-blur-xl lg:p-6">

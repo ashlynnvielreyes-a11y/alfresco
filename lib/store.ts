@@ -8,6 +8,7 @@ import type {
   ComboMeal,
   AddOn,
   CartItem,
+  ActiveOrder,
   IngredientExpirationSummary,
   InventoryAlerts,
   ExpirationLog,
@@ -25,6 +26,7 @@ const AUTH_KEY = "alfresco_auth"
 const CURRENT_USER_KEY = "currentUserData"
 const COMBOS_KEY = "alfresco_combos"
 const ADDONS_KEY = "alfresco_addons"
+const ACTIVE_ORDERS_KEY = "alfresco_active_orders"
 const EXPIRATION_LOGS_KEY = "alfresco_expiration_logs"
 const PRODUCT_EXPIRATION_LOGS_KEY = "alfresco_product_expiration_logs"
 const AUDIT_LOGS_KEY = "alfresco_audit_logs"
@@ -295,6 +297,17 @@ function readStoredAuth(key: string): string | null {
   const sessionValue = sessionStorage.getItem(key)
   if (sessionValue !== null) return sessionValue
   return localStorage.getItem(key)
+}
+
+function getStationId() {
+  if (typeof window === "undefined") return "station-unknown"
+
+  const existingStationId = sessionStorage.getItem("alfresco_station_id")
+  if (existingStationId) return existingStationId
+
+  const stationId = `station-${crypto.randomUUID().slice(0, 8)}`
+  sessionStorage.setItem("alfresco_station_id", stationId)
+  return stationId
 }
 
 function buildIngredientProductId(id: number) {
@@ -2224,6 +2237,148 @@ function saveToLocalStorage(transaction: Transaction): void {
   const list = transactions ? (JSON.parse(transactions) as Transaction[]) : []
   list.push(transaction)
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(getNormalizedTransactions(list)))
+}
+
+function getStoredActiveOrders(): ActiveOrder[] {
+  if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(ACTIVE_ORDERS_KEY)
+  if (!stored) return []
+
+  try {
+    return JSON.parse(stored) as ActiveOrder[]
+  } catch {
+    return []
+  }
+}
+
+function saveActiveOrdersLocally(activeOrders: ActiveOrder[]) {
+  writeLocalStorage(
+    ACTIVE_ORDERS_KEY,
+    activeOrders.sort((a, b) => new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime())
+  )
+}
+
+function upsertActiveOrderLocally(activeOrder: ActiveOrder) {
+  const existing = getStoredActiveOrders()
+  const next = [activeOrder, ...existing.filter((order) => order.id !== activeOrder.id)]
+  saveActiveOrdersLocally(next)
+}
+
+function removeActiveOrderLocally(activeOrderId: string) {
+  const existing = getStoredActiveOrders()
+  saveActiveOrdersLocally(existing.filter((order) => order.id !== activeOrderId))
+}
+
+export async function getActiveOrders(): Promise<ActiveOrder[]> {
+  if (typeof window === "undefined") return []
+
+  try {
+    const supabase = await getSupabaseBrowserClient()
+    const { data, error } = await supabase.from("active_orders").select("*").order("last_updated_at", { ascending: false })
+
+    if (error) {
+      if (
+        isSupabaseMissingTableError(error, "active_orders") ||
+        isSupabaseRlsError(error, "active_orders")
+      ) {
+        return getStoredActiveOrders()
+      }
+      throw error
+    }
+
+    const mapped = (data || []).map((order: any) => ({
+      id: order.id,
+      cashierUserId: order.cashier_user_id || "unknown",
+      cashierName: order.cashier_name || "Unknown",
+      stationId: order.station_id || "station-unknown",
+      items: typeof order.items === "string" ? JSON.parse(order.items) : order.items || [],
+      subtotal: Number(order.subtotal || 0),
+      discountType: order.discount_type === "senior" || order.discount_type === "pwd" ? order.discount_type : "none",
+      discountPercent: Number(order.discount_percent || 0),
+      discountAmount: Number(order.discount_amount || 0),
+      total: Number(order.total || 0),
+      paymentMethod: order.payment_method === "gcash" ? "gcash" : "cash",
+      cartItemCount: Number(order.cart_item_count || 0),
+      startedAt: order.started_at || order.created_at || new Date().toISOString(),
+      lastUpdatedAt: order.last_updated_at || order.updated_at || new Date().toISOString(),
+    })) as ActiveOrder[]
+
+    saveActiveOrdersLocally(mapped)
+    return mapped
+  } catch (error) {
+    console.log("[v0] Active orders fetch failed:", error)
+    return getStoredActiveOrders()
+  }
+}
+
+export async function upsertActiveOrderSnapshot(
+  snapshot: Omit<ActiveOrder, "id" | "stationId" | "lastUpdatedAt"> & { id?: string; stationId?: string }
+): Promise<string> {
+  if (typeof window === "undefined") return ""
+
+  const activeOrder: ActiveOrder = {
+    ...snapshot,
+    id: snapshot.id || `${snapshot.cashierUserId}-${snapshot.stationId || getStationId()}`,
+    stationId: snapshot.stationId || getStationId(),
+    discountType: snapshot.discountType === "senior" || snapshot.discountType === "pwd" ? snapshot.discountType : "none",
+    discountPercent:
+      snapshot.discountType === "senior" || snapshot.discountType === "pwd"
+        ? snapshot.discountPercent || 20
+        : 0,
+    lastUpdatedAt: new Date().toISOString(),
+  }
+
+  upsertActiveOrderLocally(activeOrder)
+
+  try {
+    const supabase = await getSupabaseBrowserClient()
+    const { error } = await supabase.from("active_orders").upsert(
+      [
+        {
+          id: activeOrder.id,
+          cashier_user_id: activeOrder.cashierUserId,
+          cashier_name: activeOrder.cashierName,
+          station_id: activeOrder.stationId,
+          items: JSON.stringify(activeOrder.items),
+          subtotal: activeOrder.subtotal,
+          discount_type: activeOrder.discountType,
+          discount_percent: activeOrder.discountPercent || 0,
+          discount_amount: activeOrder.discountAmount,
+          total: activeOrder.total,
+          payment_method: activeOrder.paymentMethod,
+          cart_item_count: activeOrder.cartItemCount,
+          started_at: activeOrder.startedAt,
+          last_updated_at: activeOrder.lastUpdatedAt,
+        },
+      ],
+      { onConflict: "id" }
+    )
+
+    if (error && !isSupabaseMissingTableError(error, "active_orders") && !isSupabaseRlsError(error, "active_orders")) {
+      throw error
+    }
+  } catch (error) {
+    console.log("[v0] Active order sync failed:", error)
+  }
+
+  return activeOrder.id
+}
+
+export async function clearActiveOrderSnapshot(activeOrderId: string): Promise<void> {
+  if (typeof window === "undefined" || !activeOrderId) return
+
+  removeActiveOrderLocally(activeOrderId)
+
+  try {
+    const supabase = await getSupabaseBrowserClient()
+    const { error } = await supabase.from("active_orders").delete().eq("id", activeOrderId)
+
+    if (error && !isSupabaseMissingTableError(error, "active_orders") && !isSupabaseRlsError(error, "active_orders")) {
+      throw error
+    }
+  } catch (error) {
+    console.log("[v0] Active order clear failed:", error)
+  }
 }
 
 function normalizeDateString(value: string) {

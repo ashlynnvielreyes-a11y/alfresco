@@ -129,6 +129,23 @@ export interface Transaction {
   voidedBy?: string
 }
 
+export interface ActiveOrder {
+  id: string
+  cashierUserId: string
+  cashierName: string
+  stationId: string
+  items: CartItem[]
+  subtotal: number
+  discountType?: "none" | "senior" | "pwd"
+  discountPercent?: number
+  discountAmount: number
+  total: number
+  paymentMethod: "cash" | "gcash"
+  cartItemCount: number
+  startedAt: string
+  lastUpdatedAt: string
+}
+
 export type AppUserRole = "admin" | "cashier" | "inventory_staff"
 
 export interface AppUser {
