@@ -11,6 +11,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   OFFLINE_SYNC_STATUS_EVENT,
@@ -93,17 +94,17 @@ type DashboardInsights = {
 }
 
 const salesTrendChartConfig = {
-  revenue: { label: "Revenue", color: "#171311" },
-  orders: { label: "Orders", color: "#8f6f5d" },
+  revenue: { label: "Revenue", color: "#4a342a" },
+  orders: { label: "Orders", color: "#7d5a44" },
 } satisfies ChartConfig
 
 const paymentMixChartConfig = {
-  cash: { label: "Cash", color: "#171311" },
-  gcash: { label: "GCash", color: "#a57d63" },
+  cash: { label: "Cash", color: "#4a342a" },
+  gcash: { label: "GCash", color: "#b2967d" },
 } satisfies ChartConfig
 
 const peakHoursChartConfig = {
-  transactions: { label: "Transactions", color: "#6b4d3d" },
+  transactions: { label: "Transactions", color: "#7d5a44" },
 } satisfies ChartConfig
 
 function formatCurrency(value: number) {
@@ -119,6 +120,16 @@ function formatSyncTime(value: number | null) {
   return new Date(value).toLocaleTimeString()
 }
 
+function formatPaymentMethod(value: Transaction["paymentMethod"]) {
+  return value === "gcash" ? "GCash" : "Cash"
+}
+
+function getTransactionItemTotal(item: Transaction["items"][number]) {
+  const addOnTotal = (item.addOns || []).reduce((sum, addOn) => sum + addOn.price * (addOn.selectedQuantity || 1), 0)
+  const basePrice = item.comboMeal ? item.comboMeal.price : item.product.price
+  return (basePrice + addOnTotal) * item.quantity
+}
+
 function MetricCard({
   label,
   value,
@@ -129,19 +140,19 @@ function MetricCard({
   detail: string
 }) {
   return (
-    <article className="rounded-[28px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-[#171311]">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-[#6b5d54]">{detail}</p>
+    <article className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-[#7d5a44]">{detail}</p>
     </article>
   )
 }
 
 function MetricCardSkeleton() {
   return (
-    <article className="rounded-[28px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
-      <Skeleton className="h-3 w-24 rounded-full bg-[#ece3db]" />
-      <Skeleton className="mt-3 h-10 w-28 rounded-2xl bg-[#e7ddd4]" />
+    <article className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl">
+      <Skeleton className="h-3 w-24 rounded-full bg-[#e8dbd1]" />
+      <Skeleton className="mt-3 h-10 w-28 rounded-2xl bg-[#e5d8cc]" />
       <Skeleton className="mt-3 h-4 w-full rounded-full bg-[#f0e7df]" />
     </article>
   )
@@ -149,9 +160,9 @@ function MetricCardSkeleton() {
 
 function ChartPanelSkeleton() {
   return (
-    <article className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
-      <Skeleton className="h-3 w-24 rounded-full bg-[#ece3db]" />
-      <Skeleton className="mt-3 h-8 w-64 rounded-2xl bg-[#e7ddd4]" />
+    <article className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl">
+      <Skeleton className="h-3 w-24 rounded-full bg-[#e8dbd1]" />
+      <Skeleton className="mt-3 h-8 w-64 rounded-2xl bg-[#e5d8cc]" />
       <Skeleton className="mt-4 h-64 w-full rounded-[24px] bg-[#f2ebe4]" />
     </article>
   )
@@ -164,8 +175,8 @@ function StatusPill({ status }: { status: OfflineSyncStatus }) {
     <div
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${
         isOffline
-          ? "border-[#cfae96] bg-[#f4e5da] text-[#6f4634]"
-          : "border-[#d3decf] bg-[#edf5eb] text-[#355337]"
+          ? "border-[#d7c9b8] bg-[#d7c9b8]/60 text-[#7d5a44]"
+          : "border-[#f5f1ea]/55 bg-[#f5f1ea]/70 text-[#7d5a44]"
       }`}
     >
       {isOffline ? <CloudOff className="h-3.5 w-3.5" /> : <Cloud className="h-3.5 w-3.5" />}
@@ -189,6 +200,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [username, setUsername] = useState("Operator")
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null)
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
 
   const applySnapshot = useCallback((snapshot: SnapshotBundle) => {
     setProducts(snapshot.products)
@@ -350,7 +362,7 @@ export default function DashboardPage() {
         .map(([key, value]) => ({
           name: key,
           value: Number(value.toFixed(2)),
-          fill: key === "cash" ? "#171311" : "#a57d63",
+          fill: key === "cash" ? "#4a342a" : "#b2967d",
         }))
 
       const highestHour = Math.max(...Array.from(peakHours.values()), 1)
@@ -360,7 +372,7 @@ export default function DashboardPage() {
         return {
           hour: `${String(hour).padStart(2, "0")}:00`,
           transactions: count,
-          fill: count === highestHour ? "#171311" : "#a57d63",
+          fill: count === highestHour ? "#4a342a" : "#b2967d",
         }
       })
 
@@ -404,30 +416,30 @@ export default function DashboardPage() {
               <div className="max-w-3xl">
                 <div className="flex flex-wrap items-center gap-3">
                   <StatusPill status={syncStatus} />
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[#e7ddd4] bg-white/75 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5f534c]">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">
                     <ShieldCheck className="h-3.5 w-3.5" />
                     IndexedDB cache active
                   </div>
                 </div>
-                <h1 className="mt-5 text-4xl font-semibold tracking-[-0.08em] text-[#171311] lg:text-[3.6rem]">
-                  Offline-first control for transactions and inventory.
+                <h1 className="mt-5 text-4xl font-semibold tracking-[-0.08em] text-[#4a342a] lg:text-[3.6rem]">
+                  Dashboard
                 </h1>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-[#5f534c]">
+                <p className="mt-4 max-w-2xl text-base leading-7 text-[#7d5a44]">
                   {username}, this dashboard keeps sales and stock work moving locally, caches every mutation in IndexedDB,
                   and pushes queued updates to the secured server the moment connectivity returns.
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[24px] border border-[#e7ddd4] bg-white/78 p-4">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Pending uploads</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#171311]">{syncStatus.pendingCount}</p>
-                  <p className="mt-2 text-sm leading-6 text-[#6b5d54]">{queueDetail}</p>
+                <div className="rounded-[24px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Pending uploads</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{syncStatus.pendingCount}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#7d5a44]">{queueDetail}</p>
                 </div>
-                <div className="rounded-[24px] border border-[#e7ddd4] bg-white/78 p-4">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Last server sync</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#171311]">{formatSyncTime(syncStatus.lastSyncedAt)}</p>
-                  <p className="mt-2 text-sm leading-6 text-[#6b5d54]">
+                <div className="rounded-[24px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Last server sync</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{formatSyncTime(syncStatus.lastSyncedAt)}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#7d5a44]">
                     {syncStatus.lastError ? syncStatus.lastError : refreshing ? "Refreshing in background." : "Connection state is being watched live."}
                   </p>
                 </div>
@@ -437,14 +449,14 @@ export default function DashboardPage() {
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href="/pos"
-                className="inline-flex items-center gap-2 rounded-full bg-[#171311] px-5 py-3 text-sm font-semibold text-[#fffaf7] transition-colors hover:bg-[#2b211c]"
+                className="inline-flex items-center gap-2 rounded-full bg-[#4a342a] px-5 py-3 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
               >
                 Open POS
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/inventory"
-                className="inline-flex items-center gap-2 rounded-full border border-[#d8c9bc] bg-white/82 px-5 py-3 text-sm font-semibold text-[#3e312b] transition-colors hover:bg-[#f6efe8]"
+                className="inline-flex items-center gap-2 rounded-full border border-[#b2967d] bg-[#f5f1ea]/80 px-5 py-3 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
               >
                 Review inventory
                 <Boxes className="h-4 w-4" />
@@ -452,7 +464,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => void refreshDashboard(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-[#d8c9bc] bg-white/82 px-5 py-3 text-sm font-semibold text-[#3e312b] transition-colors hover:bg-[#f6efe8]"
+                className="inline-flex items-center gap-2 rounded-full border border-[#b2967d] bg-[#f5f1ea]/80 px-5 py-3 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
               >
                 <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                 Sync now
@@ -486,16 +498,16 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
-                <article className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+                <article className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Business chart</p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">7-day sales and order performance</h2>
+                      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Business chart</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">7-day sales and order performance</h2>
                     </div>
                     <LineChart className="h-5 w-5 text-[#6f5d53]" />
                   </div>
 
-                  <div className="mt-5 rounded-[24px] border border-[#ece3db] bg-[#fcfaf8] p-3">
+                  <div className="mt-5 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-3">
                     <ChartContainer config={salesTrendChartConfig} className="h-[320px] w-full">
                       <BarChart data={salesTrendData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
@@ -524,16 +536,16 @@ export default function DashboardPage() {
                   </div>
                 </article>
 
-                <article className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+                <article className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Revenue mix</p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Cash vs GCash sales share</h2>
+                      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Revenue mix</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Cash vs GCash sales share</h2>
                     </div>
                     <PieChartIcon className="h-5 w-5 text-[#6f5d53]" />
                   </div>
 
-                  <div className="mt-5 rounded-[24px] border border-[#ece3db] bg-[#fcfaf8] p-3">
+                  <div className="mt-5 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-3">
                     {paymentMixData.length === 0 ? (
                       <div className="flex h-[320px] items-center justify-center text-sm text-[#7a6c62]">
                         Payment mix will appear after transactions are processed.
@@ -570,37 +582,37 @@ export default function DashboardPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+            <div className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Sync channel</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Offline cache and upload state</h2>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Sync channel</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Offline cache and upload state</h2>
                 </div>
                 <DatabaseZap className="h-5 w-5 text-[#6f5d53]" />
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-3">
-                <div className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Transport</p>
-                  <p className="mt-2 text-lg font-semibold text-[#171311]">{syncStatus.isOnline ? "Online" : "Offline"}</p>
-                  <p className="mt-2 text-sm text-[#6b5d54]">The dashboard watches browser connectivity continuously.</p>
+                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Transport</p>
+                  <p className="mt-2 text-lg font-semibold text-[#4a342a]">{syncStatus.isOnline ? "Online" : "Offline"}</p>
+                  <p className="mt-2 text-sm text-[#7d5a44]">The dashboard watches browser connectivity continuously.</p>
                 </div>
-                <div className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Queue state</p>
-                  <p className="mt-2 text-lg font-semibold text-[#171311]">{syncStatus.isSyncing ? "Flushing" : "Stable"}</p>
-                  <p className="mt-2 text-sm text-[#6b5d54]">Products, ingredients, and transactions are persisted before upload attempts.</p>
+                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Queue state</p>
+                  <p className="mt-2 text-lg font-semibold text-[#4a342a]">{syncStatus.isSyncing ? "Flushing" : "Stable"}</p>
+                  <p className="mt-2 text-sm text-[#7d5a44]">Products, ingredients, and transactions are persisted before upload attempts.</p>
                 </div>
-                <div className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Snapshot loaded</p>
-                  <p className="mt-2 text-lg font-semibold text-[#171311]">{lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "--:--:--"}</p>
-                  <p className="mt-2 text-sm text-[#6b5d54]">Warm starts come from IndexedDB even when the network is unavailable.</p>
+                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Snapshot loaded</p>
+                  <p className="mt-2 text-lg font-semibold text-[#4a342a]">{lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "--:--:--"}</p>
+                  <p className="mt-2 text-sm text-[#7d5a44]">Warm starts come from IndexedDB even when the network is unavailable.</p>
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[24px] border border-dashed border-[#dccdc0] bg-[#f8f2ec] p-4">
+              <div className="mt-5 rounded-[24px] border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
                 <div className="flex items-center gap-3">
-                  <Activity className="h-4 w-4 text-[#6b5d54]" />
-                  <p className="text-sm font-medium text-[#3d322c]">
+                  <Activity className="h-4 w-4 text-[#7d5a44]" />
+                  <p className="text-sm font-medium text-[#4a342a]">
                     {syncStatus.pendingCount === 0
                       ? "Local cache and server are aligned."
                       : `${syncStatus.pendingCount} update${syncStatus.pendingCount === 1 ? "" : "s"} are still pending upload.`}
@@ -609,16 +621,16 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+            <div className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Performance monitoring</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Peak-hour throughput</h2>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Performance monitoring</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Peak-hour throughput</h2>
                 </div>
                 <TimerReset className="h-5 w-5 text-[#6f5d53]" />
               </div>
 
-              <div className="mt-5 rounded-[24px] border border-[#ece3db] bg-[#fcfaf8] p-3">
+              <div className="mt-5 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-3">
                 {showSkeletons ? (
                   <ChartPanelSkeleton />
                 ) : (
@@ -641,11 +653,11 @@ export default function DashboardPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+            <div className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Recent sales</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Transactions processed locally first</h2>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Recent sales</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Transactions processed locally first</h2>
                 </div>
                 <Package className="h-5 w-5 text-[#6f5d53]" />
               </div>
@@ -657,32 +669,37 @@ export default function DashboardPage() {
                     <MetricCardSkeleton />
                   </>
                 ) : recentTransactions.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-[#dccdc0] px-4 py-10 text-center text-sm text-[#7a6c62]">
+                  <div className="rounded-[24px] border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-10 text-center text-sm text-[#7d5a44]">
                     No transactions have been recorded yet.
                   </div>
                 ) : (
                   recentTransactions.map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between gap-3 rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] px-4 py-4">
+                    <button
+                      key={transaction.id}
+                      type="button"
+                      onClick={() => setSelectedTransaction(transaction)}
+                      className="flex w-full items-center justify-between gap-3 rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-4 text-left transition-colors hover:bg-[#ede3d8]"
+                    >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#171311]">{transaction.id}</p>
-                        <p className="truncate text-sm text-[#6b5d54]">
+                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#4a342a]">{transaction.id}</p>
+                        <p className="truncate text-sm text-[#7d5a44]">
                           {transaction.date} {transaction.time} • {transaction.processedBy}
                         </p>
                       </div>
-                      <span className="rounded-full bg-[#171311] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#fffaf7]">
+                      <span className="rounded-full bg-[#4a342a] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#f5f1ea]">
                         {formatCurrency(transaction.total)}
                       </span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+            <div className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Inventory pressure</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Ingredients closest to blocking service</h2>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Inventory pressure</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Ingredients closest to blocking service</h2>
                 </div>
                 <BarChart3 className="h-5 w-5 text-[#6f5d53]" />
               </div>
@@ -694,17 +711,17 @@ export default function DashboardPage() {
                     <MetricCardSkeleton />
                   </>
                 ) : inventoryPressure.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-[#dccdc0] px-4 py-10 text-center text-sm text-[#7a6c62]">
+                  <div className="rounded-[24px] border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-10 text-center text-sm text-[#7d5a44]">
                     No ingredient pressure detected right now.
                   </div>
                 ) : (
                   inventoryPressure.map(({ ingredient, usableStock }) => (
-                    <div key={ingredient.id} className="flex items-center justify-between gap-3 rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] px-4 py-4">
+                    <div key={ingredient.id} className="flex items-center justify-between gap-3 rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-4">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#171311]">{ingredient.name}</p>
-                        <p className="truncate text-sm text-[#6b5d54]">{ingredient.unit} • usable stock snapshot from IndexedDB and local cache</p>
+                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#4a342a]">{ingredient.name}</p>
+                        <p className="truncate text-sm text-[#7d5a44]">{ingredient.unit} • usable stock snapshot from IndexedDB and local cache</p>
                       </div>
-                      <span className="rounded-full border border-[#d9c8bc] bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#4b3d35]">
+                      <span className="rounded-full border border-[#b2967d] bg-[#f5f1ea] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#4a342a]">
                         {usableStock} left
                       </span>
                     </div>
@@ -713,9 +730,9 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Operating notes</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">What this dashboard guarantees</h2>
+            <div className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Operating notes</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">What this dashboard guarantees</h2>
 
               <div className="mt-5 space-y-3">
                 {[
@@ -723,7 +740,7 @@ export default function DashboardPage() {
                   "Inventory and product edits are written to local state and mirrored into IndexedDB for fast dashboard warm starts.",
                   "Queued writes flush automatically on reconnect and can also be pushed manually from this page.",
                 ].map((item) => (
-                  <div key={item} className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] px-4 py-4 text-sm leading-7 text-[#5f534c]">
+                  <div key={item} className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-4 text-sm leading-7 text-[#7d5a44]">
                     {item}
                   </div>
                 ))}
@@ -731,6 +748,90 @@ export default function DashboardPage() {
             </div>
           </section>
         </div>
+
+        <Dialog open={Boolean(selectedTransaction)} onOpenChange={(open) => !open && setSelectedTransaction(null)}>
+          <DialogContent className="max-h-[90vh] max-w-2xl overflow-hidden border border-[#f5f1ea]/55 bg-[#f5f1ea] text-[#4a342a] shadow-[0_24px_48px_rgba(123,111,25,0.1)]">
+            {selectedTransaction ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Past Order Details</DialogTitle>
+                  <DialogDescription>
+                    {selectedTransaction.id} - {selectedTransaction.date} {selectedTransaction.time}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Processed by</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{selectedTransaction.processedBy}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Payment</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatPaymentMethod(selectedTransaction.paymentMethod)}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Total</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatCurrency(selectedTransaction.total)}</p>
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/70">
+                  <div className="border-b border-[#d7c9b8] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#4a342a]">Order Items</p>
+                  </div>
+                  <div className="max-h-[44vh] space-y-3 overflow-y-auto px-4 py-4">
+                    {selectedTransaction.items.map((item, index) => (
+                      <div key={`${selectedTransaction.id}-${item.product.id}-${index}`} className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-[#4a342a]">
+                              {item.product.name}
+                              {item.temperature ? ` (${item.temperature})` : ""}
+                            </p>
+                            <p className="mt-1 text-sm text-[#7d5a44]">Quantity: {item.quantity}</p>
+                            {item.comboMeal ? <p className="mt-1 text-sm text-[#7d5a44]">Combo meal order</p> : null}
+                          </div>
+                          <span className="rounded-full bg-[#4a342a] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#f5f1ea]">
+                            {formatCurrency(getTransactionItemTotal(item))}
+                          </span>
+                        </div>
+
+                        {item.addOns && item.addOns.length > 0 ? (
+                          <div className="mt-3 space-y-1">
+                            {item.addOns.map((addOn) => (
+                              <p key={`${item.product.id}-${addOn.id}`} className="text-sm text-[#7d5a44]">
+                                + {addOn.name} x{addOn.selectedQuantity || 1}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Subtotal</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatCurrency(selectedTransaction.subtotal)}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Discount</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatCurrency(selectedTransaction.discountAmount || 0)}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Cash received</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatCurrency(selectedTransaction.cashReceived)}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Change</p>
+                    <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatCurrency(selectedTransaction.change)}</p>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   )
