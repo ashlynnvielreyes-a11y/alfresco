@@ -3,755 +3,482 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  OFFLINE_SYNC_STATUS_EVENT,
+  getOfflineSyncStatus,
+  readOfflineSnapshot,
+  type OfflineSyncStatus,
+} from "@/lib/offline-sync"
+import {
+  flushOfflineSyncQueue,
   getCurrentUser,
-  getIngredients,
   getIngredientExpirationSummary,
+  getIngredients,
   getInventoryAlerts,
   getProductAvailableStock,
   getProducts,
-  getSalesTotalByDateRange,
-  getTopProducts,
-  getTransactionsByDateRange,
-  getUserRole,
+  getTransactions,
   initializeSupabaseStore,
-  verifyDataPersistence,
-  type UserRole,
 } from "@/lib/store"
 import type { Ingredient, Product, Transaction } from "@/lib/types"
-import { createClient } from "@/lib/supabase/client"
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts"
 import {
-  AlertTriangle,
-  ArrowRight,
+  Activity,
+  ArrowUpRight,
+  BarChart3,
   Boxes,
-  CalendarRange,
-  ClipboardList,
-  Crown,
-  DollarSign,
-  Leaf,
+  Cloud,
+  CloudOff,
+  DatabaseZap,
+  LineChart,
   Package,
-  ReceiptText,
+  PieChart as PieChartIcon,
+  RefreshCw,
   ShieldCheck,
-  ShoppingCart,
-  Sparkles,
-  Users,
+  TimerReset,
 } from "lucide-react"
+import { Bar, BarChart, CartesianGrid, Cell, Line, Pie, PieChart, XAxis, YAxis } from "recharts"
 
-type DashboardSnapshot = {
+type SnapshotBundle = {
   products: Product[]
   ingredients: Ingredient[]
   transactions: Transaction[]
-  rangeTotal: number
-  topSeller: string
-  lastUpdatedLabel: string
-  cachedAt: number
 }
 
-const DASHBOARD_CACHE_PREFIX = "alfresco_dashboard_snapshot"
-const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000
-
-function getDefaultRange() {
-  const endDate = new Date()
-  const startDate = new Date()
-  startDate.setDate(endDate.getDate() - 6)
-
-  return {
-    fromDate: startDate.toISOString().split("T")[0],
-    toDate: endDate.toISOString().split("T")[0],
-  }
+type SalesTrendPoint = {
+  date: string
+  label: string
+  revenue: number
+  orders: number
 }
 
-function getDashboardCacheKey(role: UserRole, fromDate: string, toDate: string) {
-  return `${DASHBOARD_CACHE_PREFIX}:${role}:${fromDate}:${toDate}`
+type PaymentMixPoint = {
+  name: "cash" | "gcash"
+  value: number
+  fill: string
 }
 
-function readDashboardCache(role: UserRole, fromDate: string, toDate: string): DashboardSnapshot | null {
-  if (typeof window === "undefined") return null
-
-  try {
-    const raw = window.localStorage.getItem(getDashboardCacheKey(role, fromDate, toDate))
-    if (!raw) return null
-
-    const parsed = JSON.parse(raw) as DashboardSnapshot
-    if (Date.now() - parsed.cachedAt > DASHBOARD_CACHE_TTL_MS) return null
-
-    return parsed
-  } catch {
-    return null
-  }
+type PeakHourPoint = {
+  hour: string
+  transactions: number
+  fill: string
 }
 
-function writeDashboardCache(role: UserRole, fromDate: string, toDate: string, snapshot: DashboardSnapshot) {
-  if (typeof window === "undefined") return
-
-  try {
-    window.localStorage.setItem(getDashboardCacheKey(role, fromDate, toDate), JSON.stringify(snapshot))
-  } catch {
-    // Ignore local cache write failures
-  }
+type InventoryPressurePoint = {
+  ingredient: Ingredient
+  usableStock: number
 }
 
-function formatRoleLabel(role: UserRole) {
-  switch (role) {
-    case "admin":
-      return "Admin"
-    case "inventory_staff":
-      return "Manager"
-    default:
-      return "Staff"
-  }
+type DashboardInsights = {
+  todaySales: number
+  todayTransactions: number
+  lowStockCount: number
+  atRiskProducts: number
+  queueDetail: string
+  recentTransactions: Transaction[]
+  inventoryPressure: InventoryPressurePoint[]
+  salesTrendData: SalesTrendPoint[]
+  paymentMixData: PaymentMixPoint[]
+  peakHoursData: PeakHourPoint[]
+  bestProductLabel: string
+  averageTicket: number
 }
 
-function getRoleConfig(role: UserRole) {
-  switch (role) {
-    case "admin":
-      return {
-        icon: Crown,
-        badge: "Executive View",
-        title: "Command the full cafe operation",
-        description: "Monitor sales, staffing, stock health, and access control from one focused control surface.",
-        gradient: "from-[#4a342a] via-[#7d5a44] to-[#b2967d]",
-        panelTone: "from-[#3b2a22]/98 via-[#5c4336]/94 to-[#87654f]/88",
-        quickLinks: [
-          { href: "/user-management", label: "Manage team access", detail: "Create accounts and adjust permissions", icon: Users },
-          { href: "/sales-history", label: "Review sales reports", detail: "Track revenue and trend movement", icon: ReceiptText },
-          { href: "/inventory", label: "Inspect inventory", detail: "Catch stock risk before it slows service", icon: Boxes },
-        ],
-      }
-    case "inventory_staff":
-      return {
-        icon: ShieldCheck,
-        badge: "Operations View",
-        title: "Keep stock, prep, and products in sync",
-        description: "Watch ingredient pressure points, expiring batches, and menu readiness with a cleaner operational dashboard.",
-        gradient: "from-[#5a4134] via-[#8a6a55] to-[#d7c9b8]",
-        panelTone: "from-[#463227]/98 via-[#6b4f3e]/94 to-[#9a775f]/88",
-        quickLinks: [
-          { href: "/inventory", label: "Update inventory", detail: "Restock, audit, and reconcile availability", icon: Package },
-          { href: "/ingredients", label: "Manage ingredients", detail: "Adjust item-level supply details", icon: Leaf },
-          { href: "/expiration-logs", label: "Review expiry logs", detail: "Prevent spoilage and service gaps", icon: AlertTriangle },
-        ],
-      }
-    default:
-      return {
-        icon: Sparkles,
-        badge: "Frontline View",
-        title: "Stay ready for the next rush",
-        description: "See the sales pulse, top movers, and checkout shortcuts without leaving the floor-focused workflow.",
-        gradient: "from-[#6a4b3a] via-[#9a7258] to-[#d7c4ae]",
-        panelTone: "from-[#523a2c]/98 via-[#7a5945]/94 to-[#a77e61]/88",
-        quickLinks: [
-          { href: "/pos", label: "Open checkout", detail: "Jump straight into current orders", icon: ShoppingCart },
-          { href: "/sales-history", label: "Check recent sales", detail: "Review completed transactions quickly", icon: ReceiptText },
-          { href: "/settings", label: "Update preferences", detail: "Keep your station set up your way", icon: ClipboardList },
-        ],
-      }
-  }
+const salesTrendChartConfig = {
+  revenue: { label: "Revenue", color: "#171311" },
+  orders: { label: "Orders", color: "#8f6f5d" },
+} satisfies ChartConfig
+
+const paymentMixChartConfig = {
+  cash: { label: "Cash", color: "#171311" },
+  gcash: { label: "GCash", color: "#a57d63" },
+} satisfies ChartConfig
+
+const peakHoursChartConfig = {
+  transactions: { label: "Transactions", color: "#6b4d3d" },
+} satisfies ChartConfig
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 2,
+  }).format(value)
 }
 
-function StatCard({
+function formatSyncTime(value: number | null) {
+  if (!value) return "Not synced yet"
+  return new Date(value).toLocaleTimeString()
+}
+
+function MetricCard({
   label,
   value,
   detail,
-  icon: Icon,
 }: {
   label: string
   value: string
   detail: string
-  icon: typeof DollarSign
 }) {
   return (
-    <article className="rounded-[22px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#8b7a6e]">{label}</p>
-          <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916] lg:text-[1.75rem]">{value}</p>
-          <p className="mt-2 max-w-[16rem] text-[0.8rem] leading-5 text-[#72645a]">{detail}</p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e4d7cc] bg-white/80 text-[#54443a]">
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
+    <article className="rounded-[28px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-[#171311]">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-[#6b5d54]">{detail}</p>
     </article>
   )
 }
 
-function StatCardSkeleton() {
+function MetricCardSkeleton() {
   return (
-    <article className="rounded-[22px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
-          <Skeleton className="h-3 w-28 rounded-full bg-[#e9ddd3]" />
-          <Skeleton className="mt-3 h-8 w-24 rounded-xl bg-[#e5d8cc]" />
-          <Skeleton className="mt-2 h-4 w-40 rounded-full bg-[#eee4db]" />
-        </div>
-        <Skeleton className="h-10 w-10 rounded-xl bg-[#ece1d7]" />
-      </div>
+    <article className="rounded-[28px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+      <Skeleton className="h-3 w-24 rounded-full bg-[#ece3db]" />
+      <Skeleton className="mt-3 h-10 w-28 rounded-2xl bg-[#e7ddd4]" />
+      <Skeleton className="mt-3 h-4 w-full rounded-full bg-[#f0e7df]" />
     </article>
-  )
-}
-
-function PanelSkeleton({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: lines }).map((_, index) => (
-        <div key={index} className="rounded-[24px] border border-[#ebdfd5] bg-white/78 px-4 py-4">
-          <Skeleton className="h-4 w-32 rounded-full bg-[#e8dbd1]" />
-          <Skeleton className="mt-3 h-3 w-44 rounded-full bg-[#f0e7de]" />
-        </div>
-      ))}
-    </div>
   )
 }
 
 function ChartPanelSkeleton() {
   return (
-    <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-      <Skeleton className="h-3 w-28 rounded-full bg-[#e8dbd1]" />
-      <Skeleton className="mt-2 h-6 w-44 rounded-xl bg-[#e5d8cc]" />
-      <Skeleton className="mt-3 h-12 w-full rounded-[18px] bg-[#f2e9e1]" />
-      <Skeleton className="mt-3 h-[180px] w-full rounded-[20px] bg-[#f1e7de]" />
-    </div>
+    <article className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+      <Skeleton className="h-3 w-24 rounded-full bg-[#ece3db]" />
+      <Skeleton className="mt-3 h-8 w-64 rounded-2xl bg-[#e7ddd4]" />
+      <Skeleton className="mt-4 h-64 w-full rounded-[24px] bg-[#f2ebe4]" />
+    </article>
   )
 }
 
-function InlineMetric({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string
-  value: string
-  tone?: "default" | "accent"
-}) {
+function StatusPill({ status }: { status: OfflineSyncStatus }) {
+  const isOffline = !status.isOnline
+
   return (
     <div
-      className={`rounded-xl border px-2.5 py-2 ${
-        tone === "accent"
-          ? "border-[#d8c7b8] bg-[#f3ece5] text-[#4a342a]"
-          : "border-[#eadfd6] bg-white/72 text-[#5f4f45]"
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${
+        isOffline
+          ? "border-[#cfae96] bg-[#f4e5da] text-[#6f4634]"
+          : "border-[#d3decf] bg-[#edf5eb] text-[#355337]"
       }`}
     >
-      <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[#8d7d71]">{label}</p>
-      <p className="mt-1 text-[0.82rem] font-semibold tracking-[-0.02em]">{value}</p>
+      {isOffline ? <CloudOff className="h-3.5 w-3.5" /> : <Cloud className="h-3.5 w-3.5" />}
+      {isOffline ? "Offline mode" : status.isSyncing ? "Syncing now" : "Server linked"}
     </div>
   )
 }
 
 export default function DashboardPage() {
-  const defaults = getDefaultRange()
   const [products, setProducts] = useState<Product[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [rangeTotal, setRangeTotal] = useState(0)
-  const [fromDate, setFromDate] = useState(defaults.fromDate)
-  const [toDate, setToDate] = useState(defaults.toDate)
-  const [lastUpdatedLabel, setLastUpdatedLabel] = useState("--:--:--")
-  const [topSeller, setTopSeller] = useState("No sales yet")
-  const [userRole, setUserRole] = useState<UserRole>("cashier")
-  const [username, setUsername] = useState("User")
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [hasWarmCache, setHasWarmCache] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<OfflineSyncStatus>({
+    isOnline: true,
+    isSyncing: false,
+    pendingCount: 0,
+    lastSyncedAt: null,
+    lastError: null,
+  })
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [username, setUsername] = useState("Operator")
+  const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null)
 
-  const applySnapshot = useCallback((snapshot: DashboardSnapshot) => {
+  const applySnapshot = useCallback((snapshot: SnapshotBundle) => {
     setProducts(snapshot.products)
     setIngredients(snapshot.ingredients)
     setTransactions(snapshot.transactions)
-    setRangeTotal(snapshot.rangeTotal)
-    setTopSeller(snapshot.topSeller)
-    setLastUpdatedLabel(snapshot.lastUpdatedLabel)
   }, [])
 
-  const buildSnapshot = useCallback(async (): Promise<DashboardSnapshot | null> => {
-    const startDate = new Date(fromDate)
-    const endDate = new Date(toDate)
-    if (startDate > endDate) return null
-
-    verifyDataPersistence()
-    await initializeSupabaseStore()
-
-    const [transactionsInRange, salesTotal, topProducts] = await Promise.all([
-      getTransactionsByDateRange(fromDate, toDate),
-      getSalesTotalByDateRange(fromDate, toDate),
-      getTopProducts(startDate, endDate, 1),
+  const hydrateFromIndexedDb = useCallback(async () => {
+    const [cachedProducts, cachedIngredients, cachedTransactions] = await Promise.all([
+      readOfflineSnapshot<Product[]>("products"),
+      readOfflineSnapshot<Ingredient[]>("ingredients"),
+      readOfflineSnapshot<Transaction[]>("transactions"),
     ])
 
-    return {
-      products: getProducts(),
-      ingredients: getIngredients(),
-      transactions: transactionsInRange,
-      rangeTotal: salesTotal,
-      topSeller: topProducts[0]?.name || "No sales yet",
-      lastUpdatedLabel: new Date().toLocaleTimeString(),
-      cachedAt: Date.now(),
+    if (!cachedProducts && !cachedIngredients && !cachedTransactions) return false
+
+    applySnapshot({
+      products: cachedProducts || [],
+      ingredients: cachedIngredients || [],
+      transactions: cachedTransactions || [],
+    })
+
+    setLoading(false)
+    return true
+  }, [applySnapshot])
+
+  const refreshDashboard = useCallback(async (background = false) => {
+    if (background) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
     }
-  }, [fromDate, toDate])
 
-  const loadDashboardData = useCallback(
-    async (options?: { background?: boolean }) => {
-      const background = options?.background ?? false
+    try {
+      await initializeSupabaseStore()
+      await flushOfflineSyncQueue()
 
-      if (background) {
-        setIsRefreshing(true)
-      } else {
-        setIsInitialLoading(true)
-      }
+      const [nextTransactions, nextStatus] = await Promise.all([
+        getTransactions(),
+        getOfflineSyncStatus(),
+      ])
 
-      try {
-        const snapshot = await buildSnapshot()
-        if (!snapshot) return
+      applySnapshot({
+        products: getProducts(),
+        ingredients: getIngredients(),
+        transactions: nextTransactions,
+      })
 
-        applySnapshot(snapshot)
-        writeDashboardCache(userRole, fromDate, toDate, snapshot)
-      } finally {
-        setIsInitialLoading(false)
-        setIsRefreshing(false)
-      }
-    },
-    [applySnapshot, buildSnapshot, fromDate, toDate, userRole]
-  )
+      setSyncStatus(nextStatus)
+      setLastLoadedAt(Date.now())
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [applySnapshot])
 
   useEffect(() => {
-    const currentUser = getCurrentUser()
-    const currentRole = getUserRole()
-    setUserRole(currentRole)
-    setUsername(currentUser?.username || "User")
+    const user = getCurrentUser()
+    setUsername(user?.username || "Operator")
+
+    void (async () => {
+      const [warmed, status] = await Promise.all([hydrateFromIndexedDb(), getOfflineSyncStatus()])
+      setSyncStatus(status)
+      if (warmed) {
+        void refreshDashboard(true)
+        return
+      }
+      void refreshDashboard()
+    })()
+  }, [hydrateFromIndexedDb, refreshDashboard])
+
+  useEffect(() => {
+    const handleStatus = (event: Event) => {
+      const detail = (event as CustomEvent<OfflineSyncStatus>).detail
+      setSyncStatus(detail)
+    }
+
+    window.addEventListener(OFFLINE_SYNC_STATUS_EVENT, handleStatus)
+    return () => window.removeEventListener(OFFLINE_SYNC_STATUS_EVENT, handleStatus)
   }, [])
 
   useEffect(() => {
-    const cachedSnapshot = readDashboardCache(userRole, fromDate, toDate)
-
-    if (cachedSnapshot) {
-      applySnapshot(cachedSnapshot)
-      setHasWarmCache(true)
-      setIsInitialLoading(false)
-      void loadDashboardData({ background: true })
-      return
-    }
-
-    setHasWarmCache(false)
-    void loadDashboardData()
-  }, [applySnapshot, fromDate, loadDashboardData, toDate, userRole])
-
-  useEffect(() => {
-    const supabase = createClient()
-    const triggerRefresh = () => void loadDashboardData({ background: true })
-
-    const channel = supabase
-      .channel("dashboard-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, triggerRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, triggerRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, triggerRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, triggerRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, triggerRefresh)
-      .subscribe()
-
     const intervalId = window.setInterval(() => {
-      void loadDashboardData({ background: true })
+      void refreshDashboard(true)
     }, 60000)
 
-    return () => {
-      window.clearInterval(intervalId)
-      void supabase.removeChannel(channel)
-    }
-  }, [loadDashboardData])
+    return () => window.clearInterval(intervalId)
+  }, [refreshDashboard])
 
-  const roleConfig = getRoleConfig(userRole)
-  const RoleIcon = roleConfig.icon
+  const todayKey = new Date().toISOString().split("T")[0]
 
-  const { lowStockItems, itemsSold, ingredientAlerts, criticalIngredients, nearExpiryCount } = useMemo(() => {
-    const low = products.filter((product) => getProductAvailableStock(product, ingredients) < 15)
-    const sold = transactions.reduce((sum, transaction) => sum + transaction.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0)
-    const criticalById = new Map<number, Ingredient>()
+  const {
+    todaySales,
+    todayTransactions,
+    lowStockCount,
+    atRiskProducts,
+    queueDetail,
+    recentTransactions,
+    inventoryPressure,
+    salesTrendData,
+    paymentMixData,
+    peakHoursData,
+    bestProductLabel,
+    averageTicket,
+  } =
+    useMemo<DashboardInsights>(() => {
+      const alerts = getInventoryAlerts(ingredients, { lowStockThreshold: 10, expiringThresholdDays: 3 })
+      const filteredTransactions = transactions.filter((transaction) => !transaction.voided)
+      const todaysTransactions = filteredTransactions.filter((transaction) => transaction.date === todayKey)
+      const todaySalesTotal = todaysTransactions.reduce((sum, transaction) => sum + transaction.total, 0)
+      const riskyProducts = products.filter((product) => getProductAvailableStock(product, ingredients) < 10)
+      const pressure: InventoryPressurePoint[] = ingredients
+        .map((ingredient) => ({
+          ingredient,
+          usableStock: getIngredientExpirationSummary(ingredient).usableStock,
+        }))
+        .sort((left, right) => left.usableStock - right.usableStock)
+        .slice(0, 5)
+      const salesByDay = new Map<string, { revenue: number; orders: number }>()
+      const productSales = new Map<string, number>()
+      const paymentMix = new Map<"cash" | "gcash", number>([
+        ["cash", 0],
+        ["gcash", 0],
+      ])
+      const peakHours = new Map<number, number>()
 
-    products.forEach((product) => {
-      product.ingredients.forEach((productIngredient) => {
-        const ingredient = ingredients.find((entry) => entry.id === productIngredient.ingredientId)
-        if (!ingredient) return
+      for (let offset = 6; offset >= 0; offset -= 1) {
+        const date = new Date()
+        date.setDate(date.getDate() - offset)
+        const key = date.toISOString().split("T")[0]
+        salesByDay.set(key, { revenue: 0, orders: 0 })
+      }
 
-        const usableStock = getIngredientExpirationSummary(ingredient).usableStock
-        if (usableStock < productIngredient.quantity) {
-          criticalById.set(ingredient.id, ingredient)
-        }
+      filteredTransactions.forEach((transaction) => {
+        const currentDay = salesByDay.get(transaction.date) || { revenue: 0, orders: 0 }
+        currentDay.revenue += transaction.total
+        currentDay.orders += 1
+        salesByDay.set(transaction.date, currentDay)
+
+        paymentMix.set(transaction.paymentMethod, (paymentMix.get(transaction.paymentMethod) || 0) + transaction.total)
+
+        const hour = Number(transaction.time.split(":")[0] || 0)
+        peakHours.set(hour, (peakHours.get(hour) || 0) + 1)
+
+        transaction.items.forEach((item) => {
+          productSales.set(item.product.name, (productSales.get(item.product.name) || 0) + item.quantity)
+        })
       })
-    })
 
-    const alerts = getInventoryAlerts(ingredients, { lowStockThreshold: 10, expiringThresholdDays: 3 })
-
-    return {
-      lowStockItems: low,
-      itemsSold: sold,
-      ingredientAlerts: alerts,
-      criticalIngredients: Array.from(criticalById.values()),
-      nearExpiryCount: alerts.expiringSoonIngredients.length + alerts.expiredIngredients.length,
-    }
-  }, [products, ingredients, transactions])
-
-  const roleStats = useMemo(() => {
-    const shared = [
-      {
-        label: "Sales Window",
-        value: `\u20B1${rangeTotal.toFixed(2)}`,
-        detail: `${fromDate} to ${toDate}`,
-        icon: DollarSign,
-      },
-      {
-        label: "Orders",
-        value: String(transactions.length),
-        detail: `${itemsSold} items processed`,
-        icon: ShoppingCart,
-      },
-    ]
-
-    if (userRole === "admin") {
-      return [
-        ...shared,
-        {
-          label: "Low Stock Products",
-          value: String(lowStockItems.length),
-          detail: lowStockItems[0]?.name ? `${lowStockItems[0].name} needs attention` : "Stock levels look stable",
-          icon: Package,
-        },
-        {
-          label: "Expiry Signals",
-          value: String(nearExpiryCount),
-          detail: nearExpiryCount > 0 ? "Immediate review recommended" : "No urgent batch issues",
-          icon: AlertTriangle,
-        },
-      ]
-    }
-
-    if (userRole === "inventory_staff") {
-      return [
-        ...shared,
-        {
-          label: "Critical Ingredients",
-          value: String(criticalIngredients.length),
-          detail: criticalIngredients[0]?.name ? `${criticalIngredients[0].name} could block menu items` : "No ingredient bottlenecks",
-          icon: Leaf,
-        },
-        {
-          label: "Products at Risk",
-          value: String(lowStockItems.length),
-          detail: "Quick scan for menu readiness",
-          icon: Boxes,
-        },
-      ]
-    }
-
-    return [
-      ...shared,
-      {
-        label: "Top Seller",
-        value: topSeller,
-        detail: "Best performer in the selected range",
-        icon: Sparkles,
-      },
-      {
-        label: "Ready to Serve",
-        value: String(products.length - lowStockItems.length),
-        detail: `${lowStockItems.length} products need support`,
-        icon: Package,
-      },
-    ]
-  }, [criticalIngredients.length, fromDate, itemsSold, lowStockItems, nearExpiryCount, products.length, rangeTotal, toDate, topSeller, transactions.length, userRole])
-
-  const operationalFeed = useMemo(() => {
-    const items = [
-      ...transactions.slice(-3).reverse().map((transaction) => ({
-        title: transaction.id,
-        description: `${transaction.date} ${transaction.time}`,
-        value: `\u20B1${transaction.total.toFixed(2)}`,
-      })),
-      ...criticalIngredients.slice(0, 2).map((ingredient) => ({
-        title: ingredient.name,
-        description: "Ingredient threshold reached",
-        value: `${getIngredientExpirationSummary(ingredient).usableStock} left`,
-      })),
-    ]
-
-    return items.slice(0, 5)
-  }, [criticalIngredients, transactions])
-
-  const salesTrendData = useMemo(() => {
-    const dailyTotals = new Map<string, { sales: number; orders: number }>()
-
-    transactions.forEach((transaction) => {
-      const existing = dailyTotals.get(transaction.date) || { sales: 0, orders: 0 }
-      existing.sales += transaction.total
-      existing.orders += 1
-      dailyTotals.set(transaction.date, existing)
-    })
-
-    return Array.from(dailyTotals.entries())
-      .sort(([left], [right]) => new Date(left).getTime() - new Date(right).getTime())
-      .map(([date, values]) => ({
+      const salesTrend: SalesTrendPoint[] = Array.from(salesByDay.entries()).map(([date, values]) => ({
         date,
-        shortDate: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        sales: Number(values.sales.toFixed(2)),
+        label: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        revenue: Number(values.revenue.toFixed(2)),
         orders: values.orders,
       }))
-  }, [transactions])
 
-  const categoryChartData = useMemo(() => {
-    const categoryTotals = new Map<string, number>()
+      const paymentData: PaymentMixPoint[] = Array.from(paymentMix.entries())
+        .filter(([, value]) => value > 0)
+        .map(([key, value]) => ({
+          name: key,
+          value: Number(value.toFixed(2)),
+          fill: key === "cash" ? "#171311" : "#a57d63",
+        }))
 
-    transactions.forEach((transaction) => {
-      transaction.items.forEach((item) => {
-        const category = item.product.category || "Other"
-        categoryTotals.set(category, (categoryTotals.get(category) || 0) + item.quantity)
+      const highestHour = Math.max(...Array.from(peakHours.values()), 1)
+      const hourlyData: PeakHourPoint[] = Array.from({ length: 8 }, (_, index) => {
+        const hour = 8 + index
+        const count = peakHours.get(hour) || 0
+        return {
+          hour: `${String(hour).padStart(2, "0")}:00`,
+          transactions: count,
+          fill: count === highestHour ? "#171311" : "#a57d63",
+        }
       })
-    })
 
-    return Array.from(categoryTotals.entries())
-      .map(([category, quantity], index) => ({
-        category,
-        quantity,
-        fill: ["#4a342a", "#7d5a44", "#b2967d", "#d7c9b8", "#8a6c5b"][index % 5],
-      }))
-      .sort((left, right) => right.quantity - left.quantity)
-      .slice(0, 5)
-  }, [transactions])
+      const bestProduct = Array.from(productSales.entries()).sort((left, right) => right[1] - left[1])[0]
 
-  const stockRiskChartData = useMemo(() => {
-    return lowStockItems
-      .slice()
-      .sort((left, right) => getProductAvailableStock(left, ingredients) - getProductAvailableStock(right, ingredients))
-      .slice(0, 5)
-      .map((product) => ({
-        name: product.name.length > 16 ? `${product.name.slice(0, 16)}...` : product.name,
-        stock: getProductAvailableStock(product, ingredients),
-      }))
-  }, [ingredients, lowStockItems])
+      return {
+        todaySales: todaySalesTotal,
+        todayTransactions: todaysTransactions.length,
+        lowStockCount: alerts.lowStockIngredients.length + alerts.expiringSoonIngredients.length + alerts.expiredIngredients.length,
+        atRiskProducts: riskyProducts.length,
+        queueDetail:
+          syncStatus.pendingCount === 0
+            ? "All local changes are already mirrored to the secured server."
+            : `${syncStatus.pendingCount} cached update${syncStatus.pendingCount === 1 ? "" : "s"} waiting for upload.`,
+        recentTransactions: filteredTransactions.slice(0, 6),
+        inventoryPressure: pressure,
+        salesTrendData: salesTrend,
+        paymentMixData: paymentData,
+        peakHoursData: hourlyData,
+        bestProductLabel: bestProduct ? `${bestProduct[0]} (${bestProduct[1]})` : "No sales yet",
+        averageTicket: todaysTransactions.length > 0 ? todaySalesTotal / todaysTransactions.length : 0,
+      }
+    }, [ingredients, products, syncStatus.pendingCount, todayKey, transactions])
 
-  const ingredientAlertChartData = useMemo(() => {
-    return [
-      { name: "Critical", value: criticalIngredients.length, fill: "#7d5a44" },
-      { name: "Expiring", value: ingredientAlerts.expiringSoonIngredients.length, fill: "#b2967d" },
-      { name: "Expired", value: ingredientAlerts.expiredIngredients.length, fill: "#4a342a" },
-    ]
-  }, [criticalIngredients.length, ingredientAlerts.expiredIngredients.length, ingredientAlerts.expiringSoonIngredients.length])
-
-  const spotlightItems = useMemo(() => {
-    if (userRole === "admin") {
-      return [
-        { title: "Team access", body: "Use Team Access to create or revoke accounts without disrupting verification flows." },
-        { title: "Sales posture", body: `${transactions.length} orders and ${itemsSold} items moved in the selected period.` },
-        { title: "Stock watch", body: `${lowStockItems.length} products and ${criticalIngredients.length} ingredients need a closer look.` },
-      ]
-    }
-
-    if (userRole === "inventory_staff") {
-      return [
-        { title: "Menu protection", body: `${criticalIngredients.length} ingredients can affect active menu items if they are not restocked soon.` },
-        { title: "Expiry radar", body: `${nearExpiryCount} batches need monitoring for spoilage or write-off risk.` },
-        { title: "Best seller demand", body: `${topSeller} is currently the strongest mover in this date window.` },
-      ]
-    }
-
-    return [
-      { title: "Fast lane", body: "Jump straight into Checkout from the sidebar to continue serving without extra clicks." },
-      { title: "Sales pulse", body: `${transactions.length} orders were completed in the selected period.` },
-      { title: "Popular item", body: `${topSeller} is leading performance right now.` },
-    ]
-  }, [criticalIngredients.length, itemsSold, lowStockItems.length, nearExpiryCount, topSeller, transactions.length, userRole])
-
-  const showSkeletons = isInitialLoading && !hasWarmCache
-
-  const salesTrendChartConfig = {
-    sales: { label: "Sales", color: "#7d5a44" },
-    orders: { label: "Orders", color: "#b2967d" },
-  }
-
-  const categoryChartConfig = {
-    quantity: { label: "Items Sold", color: "#7d5a44" },
-  }
-
-  const stockRiskChartConfig = {
-    stock: { label: "Remaining Stock", color: "#8a6a55" },
-  }
-
-  const ingredientAlertChartConfig = {
-    value: { label: "Alerts", color: "#7d5a44" },
-    Critical: { label: "Critical", color: "#7d5a44" },
-    Expiring: { label: "Expiring", color: "#b2967d" },
-    Expired: { label: "Expired", color: "#4a342a" },
-  }
-
-  const topCategory = categoryChartData[0]
-  const stockRiskLeader = stockRiskChartData[0]
-  const totalAlertSignals = ingredientAlertChartData.reduce((sum, item) => sum + item.value, 0)
+  const showSkeletons = loading && products.length === 0 && ingredients.length === 0 && transactions.length === 0
 
   return (
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
 
-      <main className="relative flex-1 overflow-hidden p-4 pt-24 lg:p-5 lg:pt-5 xl:p-6 xl:pt-6">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -left-12 top-6 h-52 w-52 rounded-full bg-[#d8c8bb]/22 blur-3xl" />
-          <div className="absolute right-4 top-0 h-72 w-72 rounded-full bg-[#8b6d57]/12 blur-3xl" />
-          <div className="absolute bottom-10 left-1/3 h-44 w-44 rounded-full bg-[#3b2b21]/8 blur-3xl" />
+      <main className="relative flex-1 overflow-hidden p-4 pt-20 lg:p-6 lg:pt-6">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(125,90,68,0.16),transparent_58%)]" />
+          <div className="absolute right-0 top-24 h-72 w-72 rounded-full bg-[#d9c4b2]/20 blur-3xl" />
+          <div className="absolute left-12 bottom-10 h-64 w-64 rounded-full bg-[#ebe2d8]/45 blur-3xl" />
         </div>
 
-        <div className="relative z-10 space-y-4 lg:space-y-5">
-          <section className={`rounded-[26px] bg-gradient-to-br ${roleConfig.gradient} p-[1px] shadow-[0_22px_56px_rgba(40,29,23,0.12)]`}>
-            <div className={`rounded-[25px] bg-gradient-to-br ${roleConfig.panelTone} p-5 text-[#f8f4ef] backdrop-blur-2xl lg:p-6`}>
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="max-w-3xl">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-white/82">
-                    <RoleIcon className="h-4 w-4" />
-                    {roleConfig.badge}
+        <div className="relative z-10 mx-auto max-w-7xl space-y-4">
+          <section className="rounded-[36px] border border-[#ebe2d8] bg-[linear-gradient(135deg,rgba(255,252,249,0.92),rgba(244,236,229,0.84))] p-6 shadow-[0_28px_70px_rgba(51,38,29,0.08)] backdrop-blur-xl lg:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusPill status={syncStatus} />
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#e7ddd4] bg-white/75 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5f534c]">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    IndexedDB cache active
                   </div>
-                  <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.05em] text-white lg:text-[3.3rem]">{roleConfig.title}</h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/72">
-                    {roleConfig.description}
+                </div>
+                <h1 className="mt-5 text-4xl font-semibold tracking-[-0.08em] text-[#171311] lg:text-[3.6rem]">
+                  Offline-first control for transactions and inventory.
+                </h1>
+                <p className="mt-4 max-w-2xl text-base leading-7 text-[#5f534c]">
+                  {username}, this dashboard keeps sales and stock work moving locally, caches every mutation in IndexedDB,
+                  and pushes queued updates to the secured server the moment connectivity returns.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[24px] border border-[#e7ddd4] bg-white/78 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Pending uploads</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#171311]">{syncStatus.pendingCount}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#6b5d54]">{queueDetail}</p>
+                </div>
+                <div className="rounded-[24px] border border-[#e7ddd4] bg-white/78 p-4">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Last server sync</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#171311]">{formatSyncTime(syncStatus.lastSyncedAt)}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#6b5d54]">
+                    {syncStatus.lastError ? syncStatus.lastError : refreshing ? "Refreshing in background." : "Connection state is being watched live."}
                   </p>
                 </div>
-
-                <div className="grid gap-2.5 sm:grid-cols-2 xl:min-w-[21rem]">
-                  <div className="rounded-[22px] border border-white/10 bg-white/10 p-3.5 backdrop-blur-xl">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/62">Signed In As</p>
-                    <p className="mt-2 text-xl font-semibold tracking-[-0.04em]">{username}</p>
-                    <p className="mt-1 text-xs text-white/70">{formatRoleLabel(userRole)}</p>
-                  </div>
-                  <div className="rounded-[22px] border border-white/10 bg-white/10 p-3.5 backdrop-blur-xl">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/62">Live Refresh</p>
-                      {isRefreshing && !showSkeletons ? (
-                        <span className="rounded-full border border-white/14 bg-white/10 px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/72">
-                          Syncing
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-xl font-semibold tracking-[-0.04em]">{lastUpdatedLabel}</p>
-                    <p className="mt-1 text-xs text-white/70">Realtime updates on sales and inventory</p>
-                  </div>
-                </div>
               </div>
+            </div>
 
-              <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
-                <div className="rounded-[18px] border border-white/10 bg-white/8 px-3.5 py-2.5">
-                  <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/60">Revenue</p>
-                  <p className="mt-1.5 text-lg font-semibold tracking-[-0.03em] text-white">{`\u20B1${rangeTotal.toFixed(2)}`}</p>
-                </div>
-                <div className="rounded-[18px] border border-white/10 bg-white/8 px-3.5 py-2.5">
-                  <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/60">Orders</p>
-                  <p className="mt-1.5 text-lg font-semibold tracking-[-0.03em] text-white">{transactions.length}</p>
-                </div>
-                <div className="rounded-[18px] border border-white/10 bg-white/8 px-3.5 py-2.5">
-                  <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/60">Momentum</p>
-                  <p className="mt-1.5 text-lg font-semibold tracking-[-0.03em] text-white">{topSeller}</p>
-                </div>
-              </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/pos"
+                className="inline-flex items-center gap-2 rounded-full bg-[#171311] px-5 py-3 text-sm font-semibold text-[#fffaf7] transition-colors hover:bg-[#2b211c]"
+              >
+                Open POS
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/inventory"
+                className="inline-flex items-center gap-2 rounded-full border border-[#d8c9bc] bg-white/82 px-5 py-3 text-sm font-semibold text-[#3e312b] transition-colors hover:bg-[#f6efe8]"
+              >
+                Review inventory
+                <Boxes className="h-4 w-4" />
+              </Link>
+              <button
+                type="button"
+                onClick={() => void refreshDashboard(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-[#d8c9bc] bg-white/82 px-5 py-3 text-sm font-semibold text-[#3e312b] transition-colors hover:bg-[#f6efe8]"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                Sync now
+              </button>
             </div>
           </section>
 
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1.35fr_0.65fr]">
-            <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Date Window</p>
-                  <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[#1f1916]">Dashboard pulse</h2>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex items-center gap-2.5 rounded-xl border border-[#e8ddd3] bg-white/80 px-3 py-2.5 text-sm text-[#5d5149]">
-                    <CalendarRange className="h-4 w-4 text-[#5d5149]" />
-                    <span>From</span>
-                    <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="bg-transparent outline-none" />
-                  </label>
-                  <label className="flex items-center gap-2.5 rounded-xl border border-[#e8ddd3] bg-white/80 px-3 py-2.5 text-sm text-[#5d5149]">
-                    <CalendarRange className="h-4 w-4 text-[#5d5149]" />
-                    <span>To</span>
-                    <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="bg-transparent outline-none" />
-                  </label>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <InlineMetric label="Window" value={`${fromDate} - ${toDate}`} />
-                <InlineMetric label="Refresh" value={isRefreshing && !showSkeletons ? "Background sync" : "Stable snapshot"} tone="accent" />
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Top Seller</p>
-              {showSkeletons ? (
-                <>
-                  <Skeleton className="mt-2 h-8 w-44 rounded-xl bg-[#e5d8cc]" />
-                  <Skeleton className="mt-2 h-4 w-52 rounded-full bg-[#eee4db]" />
-                </>
-              ) : (
-                <>
-                  <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#1f1916]">{topSeller}</p>
-                  <p className="mt-1.5 text-sm text-[#706159]">Highest performer across the selected range.</p>
-                </>
-              )}
-            </div>
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {showSkeletons ? (
+              <>
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+                <MetricCardSkeleton />
+              </>
+            ) : (
+              <>
+                <MetricCard label="Today sales" value={formatCurrency(todaySales)} detail={`${todayTransactions} completed transactions cached locally and mirrored when possible.`} />
+                <MetricCard label="Queue depth" value={String(syncStatus.pendingCount)} detail={syncStatus.isOnline ? "Queued writes will flush immediately." : "Writes are safely held until the network returns."} />
+                <MetricCard label="Best seller" value={bestProductLabel} detail="Top product by quantity sold across cached and synced transactions." />
+                <MetricCard label="Avg ticket" value={formatCurrency(averageTicket)} detail={`${lowStockCount} inventory alerts and ${atRiskProducts} products currently at risk.`} />
+              </>
+            )}
           </section>
 
-          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {showSkeletons
-              ? Array.from({ length: 4 }).map((_, index) => <StatCardSkeleton key={index} />)
-              : roleStats.map((card) => (
-                  <StatCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} />
-                ))}
-          </section>
-
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Quick Access</p>
-                  <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[#1f1916]">Links tuned to your role</h2>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2.5">
-                {roleConfig.quickLinks.map((link) => {
-                  const Icon = link.icon
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="group flex items-center justify-between rounded-[20px] border border-[#ebdfd5] bg-white/78 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#d7c7ba] hover:shadow-[0_14px_28px_rgba(58,41,31,0.08)]"
-                    >
-                      <div className="flex min-w-0 items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cc] bg-[#fbf7f2] text-[#5d4d43]">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold tracking-[-0.03em] text-[#1f1916]">{link.label}</p>
-                          <p className="truncate text-xs text-[#7a6b61]">{link.detail}</p>
-                        </div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-[#85766c] transition-transform duration-300 group-hover:translate-x-1" />
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Role Spotlight</p>
-              <div className="mt-4 space-y-2.5">
-                {showSkeletons ? (
-                  <PanelSkeleton />
-                ) : (
-                  spotlightItems.map((item) => (
-                    <div key={item.title} className="rounded-[18px] border border-[#eadfd6] bg-white/75 p-3.5">
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">{item.title}</p>
-                      <p className="mt-1.5 text-sm leading-5 text-[#61554d]">{item.body}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
             {showSkeletons ? (
               <>
                 <ChartPanelSkeleton />
@@ -759,206 +486,247 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
-                <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <article className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Analytics Chart</p>
-                      <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[#1f1916]">Sales trend across the selected range</h2>
+                      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Business chart</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">7-day sales and order performance</h2>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <InlineMetric label="Revenue" value={`\u20B1${rangeTotal.toFixed(2)}`} tone="accent" />
-                      <InlineMetric label="Orders" value={String(transactions.length)} />
-                    </div>
+                    <LineChart className="h-5 w-5 text-[#6f5d53]" />
                   </div>
-                  <div className="mt-4 overflow-hidden rounded-[20px] border border-[#eadfd6] bg-[rgba(255,251,247,0.84)] p-2.5">
-                    <ChartContainer config={salesTrendChartConfig} className="h-[210px] w-full">
-                      <AreaChart data={salesTrendData}>
-                        <defs>
-                          <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--color-sales)" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="var(--color-sales)" stopOpacity={0.03} />
-                          </linearGradient>
-                        </defs>
+
+                  <div className="mt-5 rounded-[24px] border border-[#ece3db] bg-[#fcfaf8] p-3">
+                    <ChartContainer config={salesTrendChartConfig} className="h-[320px] w-full">
+                      <BarChart data={salesTrendData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
-                        <XAxis dataKey="shortDate" tickLine={false} axisLine={false} />
-                        <YAxis tickLine={false} axisLine={false} width={32} />
-                        <ChartTooltip content={<ChartTooltipContent labelKey="shortDate" />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Area
-                          type="monotone"
-                          dataKey="sales"
-                          stroke="var(--color-sales)"
-                          fill="url(#salesFill)"
-                          strokeWidth={2.5}
+                        <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="revenue" tickLine={false} axisLine={false} width={42} />
+                        <YAxis yAxisId="orders" orientation="right" tickLine={false} axisLine={false} width={30} />
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              formatter={(value, name) => (
+                                <div className="flex min-w-[140px] items-center justify-between gap-3">
+                                  <span>{name}</span>
+                                  <span className="font-mono font-semibold">
+                                    {name === "Revenue" ? formatCurrency(Number(value)) : Number(value).toLocaleString()}
+                                  </span>
+                                </div>
+                              )}
+                            />
+                          }
                         />
-                      </AreaChart>
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar yAxisId="revenue" dataKey="revenue" radius={[10, 10, 0, 0]} fill="var(--color-revenue)" />
+                        <Line yAxisId="orders" type="monotone" dataKey="orders" stroke="var(--color-orders)" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </BarChart>
                     </ChartContainer>
                   </div>
-                </div>
+                </article>
 
-                <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <article className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Role Focus</p>
-                      <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[#1f1916]">
-                        {userRole === "inventory_staff" ? "Products closest to stockout" : userRole === "admin" ? "Alert distribution" : "Best-selling categories"}
-                      </h2>
+                      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Revenue mix</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Cash vs GCash sales share</h2>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {userRole === "inventory_staff" ? (
-                        <>
-                          <InlineMetric label="Most at risk" value={stockRiskLeader?.name || "None"} tone="accent" />
-                          <InlineMetric label="Units left" value={stockRiskLeader ? String(stockRiskLeader.stock) : "0"} />
-                        </>
-                      ) : userRole === "admin" ? (
-                        <>
-                          <InlineMetric label="Total alerts" value={String(totalAlertSignals)} tone="accent" />
-                          <InlineMetric label="Critical" value={String(criticalIngredients.length)} />
-                        </>
-                      ) : (
-                        <>
-                          <InlineMetric label="Top category" value={topCategory?.category || "None"} tone="accent" />
-                          <InlineMetric label="Items sold" value={topCategory ? String(topCategory.quantity) : "0"} />
-                        </>
-                      )}
-                    </div>
+                    <PieChartIcon className="h-5 w-5 text-[#6f5d53]" />
                   </div>
-                  <div className="mt-4 overflow-hidden rounded-[20px] border border-[#eadfd6] bg-[rgba(255,251,247,0.84)] p-2.5">
-                    {userRole === "inventory_staff" ? (
-                      <ChartContainer config={stockRiskChartConfig} className="h-[210px] w-full">
-                        <BarChart data={stockRiskChartData} layout="vertical" margin={{ left: 10, right: 8 }}>
-                          <CartesianGrid horizontal={false} stroke="#d7c9b8" strokeDasharray="3 3" />
-                          <XAxis type="number" tickLine={false} axisLine={false} />
-                          <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={78} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <ChartLegend content={<ChartLegendContent />} />
-                          <Bar dataKey="stock" fill="var(--color-stock)" radius={[0, 8, 8, 0]} />
-                        </BarChart>
-                      </ChartContainer>
-                    ) : userRole === "admin" ? (
-                      <ChartContainer config={ingredientAlertChartConfig} className="h-[210px] w-full">
+
+                  <div className="mt-5 rounded-[24px] border border-[#ece3db] bg-[#fcfaf8] p-3">
+                    {paymentMixData.length === 0 ? (
+                      <div className="flex h-[320px] items-center justify-center text-sm text-[#7a6c62]">
+                        Payment mix will appear after transactions are processed.
+                      </div>
+                    ) : (
+                      <ChartContainer config={paymentMixChartConfig} className="h-[320px] w-full">
                         <PieChart>
-                          <Pie data={ingredientAlertChartData} dataKey="value" nameKey="name" innerRadius={46} outerRadius={74} paddingAngle={3}>
-                            {ingredientAlertChartData.map((entry) => (
+                          <Pie data={paymentMixData} dataKey="value" nameKey="name" innerRadius={72} outerRadius={104} paddingAngle={4}>
+                            {paymentMixData.map((entry) => (
                               <Cell key={entry.name} fill={entry.fill} />
                             ))}
                           </Pie>
-                          <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+                          <ChartTooltip
+                            content={
+                              <ChartTooltipContent
+                                nameKey="name"
+                                formatter={(value, name) => (
+                                  <div className="flex min-w-[120px] items-center justify-between gap-3">
+                                    <span>{name}</span>
+                                    <span className="font-mono font-semibold">{formatCurrency(Number(value))}</span>
+                                  </div>
+                                )}
+                              />
+                            }
+                          />
                           <ChartLegend content={<ChartLegendContent nameKey="name" />} />
                         </PieChart>
                       </ChartContainer>
-                    ) : (
-                      <ChartContainer config={categoryChartConfig} className="h-[210px] w-full">
-                        <BarChart data={categoryChartData} margin={{ left: 4, right: 4 }}>
-                          <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
-                          <XAxis dataKey="category" tickLine={false} axisLine={false} />
-                          <YAxis tickLine={false} axisLine={false} width={28} />
-                          <ChartTooltip content={<ChartTooltipContent nameKey="category" />} />
-                          <ChartLegend content={<ChartLegendContent />} />
-                          <Bar dataKey="quantity" radius={[8, 8, 0, 0]}>
-                            {categoryChartData.map((entry) => (
-                              <Cell key={entry.category} fill={entry.fill} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ChartContainer>
                     )}
                   </div>
-                </div>
+                </article>
               </>
             )}
           </section>
 
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Live Feed</p>
-              <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[#1f1916]">Operational highlights</h2>
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Sync channel</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Offline cache and upload state</h2>
+                </div>
+                <DatabaseZap className="h-5 w-5 text-[#6f5d53]" />
+              </div>
 
-              <div className="mt-4 space-y-2.5">
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Transport</p>
+                  <p className="mt-2 text-lg font-semibold text-[#171311]">{syncStatus.isOnline ? "Online" : "Offline"}</p>
+                  <p className="mt-2 text-sm text-[#6b5d54]">The dashboard watches browser connectivity continuously.</p>
+                </div>
+                <div className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Queue state</p>
+                  <p className="mt-2 text-lg font-semibold text-[#171311]">{syncStatus.isSyncing ? "Flushing" : "Stable"}</p>
+                  <p className="mt-2 text-sm text-[#6b5d54]">Products, ingredients, and transactions are persisted before upload attempts.</p>
+                </div>
+                <div className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7b71]">Snapshot loaded</p>
+                  <p className="mt-2 text-lg font-semibold text-[#171311]">{lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "--:--:--"}</p>
+                  <p className="mt-2 text-sm text-[#6b5d54]">Warm starts come from IndexedDB even when the network is unavailable.</p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-dashed border-[#dccdc0] bg-[#f8f2ec] p-4">
+                <div className="flex items-center gap-3">
+                  <Activity className="h-4 w-4 text-[#6b5d54]" />
+                  <p className="text-sm font-medium text-[#3d322c]">
+                    {syncStatus.pendingCount === 0
+                      ? "Local cache and server are aligned."
+                      : `${syncStatus.pendingCount} update${syncStatus.pendingCount === 1 ? "" : "s"} are still pending upload.`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Performance monitoring</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Peak-hour throughput</h2>
+                </div>
+                <TimerReset className="h-5 w-5 text-[#6f5d53]" />
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-[#ece3db] bg-[#fcfaf8] p-3">
                 {showSkeletons ? (
-                  <PanelSkeleton lines={4} />
-                ) : operationalFeed.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-[#dccfc4] px-4 py-8 text-center text-sm text-[#84766b]">
-                    No recent items to show yet.
+                  <ChartPanelSkeleton />
+                ) : (
+                  <ChartContainer config={peakHoursChartConfig} className="h-[320px] w-full">
+                    <BarChart data={peakHoursData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" tickLine={false} axisLine={false} />
+                      <YAxis tickLine={false} axisLine={false} width={28} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="transactions" radius={[10, 10, 0, 0]}>
+                        {peakHoursData.map((entry) => (
+                          <Cell key={entry.hour} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Recent sales</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Transactions processed locally first</h2>
+                </div>
+                <Package className="h-5 w-5 text-[#6f5d53]" />
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {showSkeletons ? (
+                  <>
+                    <MetricCardSkeleton />
+                    <MetricCardSkeleton />
+                  </>
+                ) : recentTransactions.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-[#dccdc0] px-4 py-10 text-center text-sm text-[#7a6c62]">
+                    No transactions have been recorded yet.
                   </div>
                 ) : (
-                  operationalFeed.map((item) => (
-                    <div key={`${item.title}-${item.value}`} className="flex items-center justify-between gap-3 rounded-[18px] border border-[#ebdfd5] bg-white/78 px-3.5 py-3">
+                  recentTransactions.map((transaction) => (
+                    <div key={transaction.id} className="flex items-center justify-between gap-3 rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] px-4 py-4">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#1f1916]">{item.title}</p>
-                        <p className="truncate text-sm text-[#7a6b61]">{item.description}</p>
+                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#171311]">{transaction.id}</p>
+                        <p className="truncate text-sm text-[#6b5d54]">
+                          {transaction.date} {transaction.time} • {transaction.processedBy}
+                        </p>
                       </div>
-                      <span className="rounded-full bg-[#f3ece5] px-2.5 py-1 text-xs font-semibold text-[#5f4f45]">{item.value}</span>
+                      <span className="rounded-full bg-[#171311] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#fffaf7]">
+                        {formatCurrency(transaction.total)}
+                      </span>
                     </div>
                   ))
                 )}
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-white/45 bg-[rgba(255,251,247,0.78)] p-4 shadow-[0_18px_36px_rgba(60,42,31,0.06)] backdrop-blur-xl lg:p-5">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Alerts</p>
-              <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em] text-[#1f1916]">What needs attention now</h2>
-
-              <div className="mt-4 grid gap-2.5 md:grid-cols-2">
-                {showSkeletons ? (
-                  <>
-                    <div className="rounded-[18px] border border-[#ebdfd5] bg-white/78 p-3.5">
-                      <Skeleton className="h-3 w-32 rounded-full bg-[#e8dbd1]" />
-                      <Skeleton className="mt-4 h-9 w-16 rounded-xl bg-[#e5d8cc]" />
-                      <Skeleton className="mt-3 h-4 w-44 rounded-full bg-[#f0e7de]" />
-                    </div>
-                    <div className="rounded-[18px] border border-[#ebdfd5] bg-white/78 p-3.5">
-                      <Skeleton className="h-3 w-32 rounded-full bg-[#e8dbd1]" />
-                      <Skeleton className="mt-4 h-9 w-16 rounded-xl bg-[#e5d8cc]" />
-                      <Skeleton className="mt-3 h-4 w-44 rounded-full bg-[#f0e7de]" />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="rounded-[18px] border border-[#ebdfd5] bg-white/78 p-3.5">
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">Ingredient Pressure</p>
-                      <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916]">{criticalIngredients.length}</p>
-                      <p className="mt-1.5 text-sm text-[#706159]">Ingredients currently limiting available menu output.</p>
-                    </div>
-                    <div className="rounded-[18px] border border-[#ebdfd5] bg-white/78 p-3.5">
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">Expiring Batches</p>
-                      <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916]">{nearExpiryCount}</p>
-                      <p className="mt-1.5 text-sm text-[#706159]">Items due soon or already expired in the active window.</p>
-                    </div>
-                  </>
-                )}
+            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Inventory pressure</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">Ingredients closest to blocking service</h2>
+                </div>
+                <BarChart3 className="h-5 w-5 text-[#6f5d53]" />
               </div>
 
-              <div className="mt-3.5 space-y-2.5">
+              <div className="mt-5 space-y-3">
                 {showSkeletons ? (
-                  <PanelSkeleton lines={4} />
-                ) : (
                   <>
-                    {[...criticalIngredients.slice(0, 2), ...ingredientAlerts.expiredIngredients.slice(0, 1), ...ingredientAlerts.expiringSoonIngredients.slice(0, 1)]
-                      .slice(0, 4)
-                      .map((ingredient) => (
-                        <div key={ingredient.id} className="flex items-center justify-between rounded-[18px] border border-[#ebdfd5] bg-white/78 px-3.5 py-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#1f1916]">{ingredient.name}</p>
-                            <p className="truncate text-sm text-[#7a6b61]">
-                              Usable stock: {getIngredientExpirationSummary(ingredient).usableStock}
-                            </p>
-                          </div>
-                          <span className="rounded-full bg-[#f3ece5] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#68574c]">
-                            Review
-                          </span>
-                        </div>
-                      ))}
-
-                    {criticalIngredients.length === 0 &&
-                      ingredientAlerts.expiredIngredients.length === 0 &&
-                      ingredientAlerts.expiringSoonIngredients.length === 0 && (
-                        <div className="rounded-[24px] border border-dashed border-[#dccfc4] px-4 py-8 text-center text-sm text-[#84766b]">
-                          No urgent alerts right now.
-                        </div>
-                      )}
+                    <MetricCardSkeleton />
+                    <MetricCardSkeleton />
                   </>
+                ) : inventoryPressure.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-[#dccdc0] px-4 py-10 text-center text-sm text-[#7a6c62]">
+                    No ingredient pressure detected right now.
+                  </div>
+                ) : (
+                  inventoryPressure.map(({ ingredient, usableStock }) => (
+                    <div key={ingredient.id} className="flex items-center justify-between gap-3 rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] px-4 py-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#171311]">{ingredient.name}</p>
+                        <p className="truncate text-sm text-[#6b5d54]">{ingredient.unit} • usable stock snapshot from IndexedDB and local cache</p>
+                      </div>
+                      <span className="rounded-full border border-[#d9c8bc] bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#4b3d35]">
+                        {usableStock} left
+                      </span>
+                    </div>
+                  ))
                 )}
+              </div>
+            </div>
+
+            <div className="rounded-[30px] border border-[#e7ddd4] bg-white/82 p-5 shadow-[0_22px_50px_rgba(53,39,29,0.06)] backdrop-blur-xl">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#8a7b71]">Operating notes</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#171311]">What this dashboard guarantees</h2>
+
+              <div className="mt-5 space-y-3">
+                {[
+                  "Transactions are persisted locally before the server upload completes, so checkout can continue offline.",
+                  "Inventory and product edits are written to local state and mirrored into IndexedDB for fast dashboard warm starts.",
+                  "Queued writes flush automatically on reconnect and can also be pushed manually from this page.",
+                ].map((item) => (
+                  <div key={item} className="rounded-[22px] border border-[#ece3db] bg-[#fcfaf8] px-4 py-4 text-sm leading-7 text-[#5f534c]">
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
           </section>

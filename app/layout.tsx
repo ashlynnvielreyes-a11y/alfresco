@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { SyncErrorListener } from '@/components/sync-error-listener'
 import { LowStockNotificationListener } from '@/components/low-stock-notification-listener'
+import { OfflineSyncListener } from '@/components/offline-sync-listener'
 import { SessionEnforcer } from '@/components/session-enforcer'
 import { SourceProtection } from '@/components/source-protection'
 import './globals.css'
@@ -49,6 +50,7 @@ export default function RootLayout({
         <SessionEnforcer />
         {children}
         <SyncErrorListener />
+        <OfflineSyncListener />
         <LowStockNotificationListener />
         <Toaster />
         {process.env.NODE_ENV === 'production' && <Analytics />}

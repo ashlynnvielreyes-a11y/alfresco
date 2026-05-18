@@ -18,6 +18,13 @@ import type {
   AuditLog,
 } from "./types"
 import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory, serializeProductCategoryForDatabase } from "./product-categories"
+import {
+  cacheOfflineSnapshot,
+  enqueueOfflineOperation,
+  flushOfflineOperations,
+  refreshOfflineSyncStatus,
+  restoreLocalStorageFromSnapshot,
+} from "./offline-sync"
 
 const PRODUCTS_KEY = "alfresco_products"
 const TRANSACTIONS_KEY = "alfresco_transactions"
@@ -724,8 +731,19 @@ function getNormalizedTransactions(list: Transaction[]): Transaction[] {
   }))
 }
 
+async function hydrateLocalStateFromOfflineCache() {
+  if (typeof window === "undefined") return
+
+  await Promise.all([
+    restoreLocalStorageFromSnapshot<Product[]>(PRODUCTS_KEY, "products"),
+    restoreLocalStorageFromSnapshot<Ingredient[]>(INGREDIENTS_KEY, "ingredients"),
+    restoreLocalStorageFromSnapshot<Transaction[]>(TRANSACTIONS_KEY, "transactions"),
+  ])
+}
+
 function saveProductsLocally(products: Product[]): void {
   writeLocalStorage(PRODUCTS_KEY, products.map(normalizeProduct))
+  void cacheOfflineSnapshot("products", products.map(normalizeProduct))
 }
 
 function getStoredExpirationLogs(): ExpirationLog[] {
@@ -770,6 +788,7 @@ function mergeProductExpirationLogsWithLocal(remoteLogs: ProductExpirationLog[])
 
 function saveIngredientsLocally(ingredients: Ingredient[]): void {
   writeLocalStorage(INGREDIENTS_KEY, ingredients.map(normalizeIngredient))
+  void cacheOfflineSnapshot("ingredients", ingredients.map(normalizeIngredient))
 }
 
 function saveComboMealsLocally(combos: ComboMeal[]): void {
@@ -1226,6 +1245,30 @@ function queueSupabaseSync(task: Promise<unknown>, scope: string) {
   })
 }
 
+function queueOfflineAwareSync<T>(
+  scope: string,
+  type: "sync_products" | "sync_ingredients",
+  payload: T,
+  execute: () => Promise<void>
+) {
+  void (async () => {
+    if (typeof window === "undefined") return
+
+    if (!navigator.onLine) {
+      await enqueueOfflineOperation(type, payload, scope, scope)
+      return
+    }
+
+    try {
+      await execute()
+      await refreshOfflineSyncStatus()
+    } catch (error) {
+      await enqueueOfflineOperation(type, payload, scope, scope)
+      notifySupabaseSyncError(scope, error)
+    }
+  })()
+}
+
 export async function initializeSupabaseStore(): Promise<void> {
   if (typeof window === "undefined") return
   if (sessionStorage.getItem(SUPABASE_SYNC_LOCK_KEY) === "true") return
@@ -1233,6 +1276,7 @@ export async function initializeSupabaseStore(): Promise<void> {
   sessionStorage.setItem(SUPABASE_SYNC_LOCK_KEY, "true")
 
   try {
+    await hydrateLocalStateFromOfflineCache()
     const supabase = await getSupabaseBrowserClient()
 
     const [
@@ -1508,7 +1552,9 @@ export function saveIngredients(ingredients: Ingredient[]): void {
   if (typeof window === "undefined") return
   const normalizedIngredients = ingredients.map(normalizeIngredient)
   saveIngredientsLocally(normalizedIngredients)
-  queueSupabaseSync(syncIngredientsToSupabase(normalizedIngredients), "ingredients")
+  queueOfflineAwareSync("ingredients", "sync_ingredients", normalizedIngredients, () =>
+    syncIngredientsToSupabase(normalizedIngredients)
+  )
 }
 
 export function archiveIngredientExpiredBatches(id: number): Ingredient | null {
@@ -1536,7 +1582,9 @@ export function archiveIngredientExpiredBatches(id: number): Ingredient | null {
   saveIngredientsLocally(updatedIngredients)
   saveExpirationLogsLocally(archivedData.logs)
   saveProductExpirationLogsLocally(archivedData.productLogs)
-  queueSupabaseSync(syncIngredientsToSupabase(updatedIngredients), "ingredients")
+  queueOfflineAwareSync("ingredients", "sync_ingredients", updatedIngredients, () =>
+    syncIngredientsToSupabase(updatedIngredients)
+  )
 
   return updatedIngredient
 }
@@ -1784,7 +1832,9 @@ export function saveProducts(products: Product[]): void {
   if (typeof window === "undefined") return
   const normalizedProducts = products.map(normalizeProduct)
   saveProductsLocally(normalizedProducts)
-  queueSupabaseSync(syncProductsToSupabase(normalizedProducts), "products")
+  queueOfflineAwareSync("products", "sync_products", normalizedProducts, () =>
+    syncProductsToSupabase(normalizedProducts)
+  )
 }
 
 export function addProduct(product: Omit<Product, "id">): Product {
@@ -2136,6 +2186,8 @@ export async function resetUserPassword(userId: string, nextPassword: string): P
 // Transactions functions
 export async function getTransactions(): Promise<Transaction[]> {
   if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(TRANSACTIONS_KEY)
+  const localTransactions = stored ? getNormalizedTransactions(JSON.parse(stored)) : []
 
   try {
     const { createClient } = await import("./supabase/client")
@@ -2161,14 +2213,54 @@ export async function getTransactions(): Promise<Transaction[]> {
         voided: t.voided || false,
       })) as Transaction[]
 
-      return getNormalizedTransactions(mapped)
+        const merged = new Map<string, Transaction>()
+        for (const transaction of [...localTransactions, ...getNormalizedTransactions(mapped)]) {
+          merged.set(transaction.id, transaction)
+        }
+
+        return Array.from(merged.values()).sort((left, right) => {
+          const leftTime = new Date(`${left.date}T${left.time}`).getTime()
+          const rightTime = new Date(`${right.date}T${right.time}`).getTime()
+          return rightTime - leftTime
+        })
+      }
+    } catch (error) {
+      console.log("[v0] Supabase fetch failed:", error)
     }
-  } catch (error) {
-    console.log("[v0] Supabase fetch failed:", error)
+
+    return localTransactions
   }
 
-  const stored = localStorage.getItem(TRANSACTIONS_KEY)
-  return stored ? getNormalizedTransactions(JSON.parse(stored)) : []
+async function syncTransactionToSupabase(transaction: Transaction): Promise<void> {
+  const currentUser = getCurrentUser()
+
+  if (!currentUser) return
+
+  const { createClient } = await import("./supabase/client")
+  const supabase = createClient()
+
+  const transactionData = {
+    transaction_number: transaction.id,
+    date: transaction.date,
+    time: transaction.time,
+    items: JSON.stringify(transaction.items),
+    subtotal: transaction.subtotal,
+    total: transaction.total,
+    payment_method: transaction.paymentMethod,
+    cash_received: transaction.cashReceived,
+    change_amount: transaction.change,
+    discount_type: transaction.discountType,
+    discount_percent: transaction.discountPercent,
+    discount_amount: transaction.discountAmount,
+    processed_by: transaction.processedBy || currentUser.username,
+    voided: transaction.voided || false,
+  }
+
+  const { error } = await supabase.from("transactions").insert([transactionData]).select()
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function saveTransaction(transaction: Transaction): Promise<void> {
@@ -2186,49 +2278,27 @@ export async function saveTransaction(transaction: Transaction): Promise<void> {
     change: transaction.change || 0,
   }
 
+  saveToLocalStorage(normalizedTransaction)
+
   try {
     const currentUser = getCurrentUser()
 
     if (!currentUser) {
-      saveToLocalStorage(normalizedTransaction)
       return
     }
 
-    const { createClient } = await import("./supabase/client")
-    const supabase = createClient()
-
-    const transactionData = {
-      transaction_number: normalizedTransaction.id,
-      date: normalizedTransaction.date,
-      time: normalizedTransaction.time,
-      items: JSON.stringify(normalizedTransaction.items),
-      subtotal: normalizedTransaction.subtotal,
-      total: normalizedTransaction.total,
-      payment_method: normalizedTransaction.paymentMethod,
-      cash_received: normalizedTransaction.cashReceived,
-      change_amount: normalizedTransaction.change,
-      discount_type: normalizedTransaction.discountType,
-      discount_percent: normalizedTransaction.discountPercent,
-      discount_amount: normalizedTransaction.discountAmount,
-      processed_by: normalizedTransaction.processedBy || currentUser.username,
-      voided: normalizedTransaction.voided || false,
+    if (!navigator.onLine) {
+      await enqueueOfflineOperation("save_transaction", normalizedTransaction, "transactions")
+      await logAuditEvent("sale_created", "transaction", normalizedTransaction.id, `Sale recorded for ${normalizedTransaction.total}`)
+      return
     }
 
-    const { error } = await supabase.from("transactions").insert([transactionData]).select()
-
-    if (error) {
-      console.log("[v0] Supabase save ERROR:", {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-      })
-    }
-
-    saveToLocalStorage(normalizedTransaction)
+    await syncTransactionToSupabase(normalizedTransaction)
+    await refreshOfflineSyncStatus()
     await logAuditEvent("sale_created", "transaction", normalizedTransaction.id, `Sale recorded for ${normalizedTransaction.total}`)
   } catch (error) {
     console.log("[v0] Error saving to Supabase:", error)
-    saveToLocalStorage(normalizedTransaction)
+    await enqueueOfflineOperation("save_transaction", normalizedTransaction, "transactions")
   }
 }
 
@@ -2236,7 +2306,23 @@ function saveToLocalStorage(transaction: Transaction): void {
   const transactions = localStorage.getItem(TRANSACTIONS_KEY)
   const list = transactions ? (JSON.parse(transactions) as Transaction[]) : []
   list.push(transaction)
-  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(getNormalizedTransactions(list)))
+  const normalized = getNormalizedTransactions(list)
+  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(normalized))
+  void cacheOfflineSnapshot("transactions", normalized)
+}
+
+export async function flushOfflineSyncQueue() {
+  await flushOfflineOperations({
+    sync_products: async (payload) => {
+      await syncProductsToSupabase((payload as Product[]).map(normalizeProduct))
+    },
+    sync_ingredients: async (payload) => {
+      await syncIngredientsToSupabase((payload as Ingredient[]).map(normalizeIngredient))
+    },
+    save_transaction: async (payload) => {
+      await syncTransactionToSupabase(payload as Transaction)
+    },
+  })
 }
 
 function getStoredActiveOrders(): ActiveOrder[] {

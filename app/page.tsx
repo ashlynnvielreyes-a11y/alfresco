@@ -5,7 +5,9 @@ import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
+import { notifyPrivilegedLogin, shouldNotifyPrivilegedLogin } from "@/lib/browser-notifications"
 import { getDefaultRouteForRole, persistAuthSession, validatePassword } from "@/lib/store"
+import { toast } from "@/hooks/use-toast"
 import { Eye, EyeOff, Loader2, Mail } from "lucide-react"
 
 const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
@@ -140,7 +142,20 @@ function LoginPageContent() {
         localStorage.removeItem(REMEMBERED_USERNAME_KEY)
       }
 
-      router.push(getDefaultRouteForRole(user.role || "cashier"))
+      const userRole = user.role === "admin" || user.role === "inventory_staff" || user.role === "cashier"
+        ? user.role
+        : "cashier"
+
+      if (shouldNotifyPrivilegedLogin(userRole)) {
+        const normalizedRole = userRole === "admin" ? "Admin" : "Inventory Staff"
+        toast({
+          title: "Login successful",
+          description: `${normalizedRole} login confirmed for ${user.username}.`,
+        })
+        await notifyPrivilegedLogin(user.username, userRole)
+      }
+
+      router.push(getDefaultRouteForRole(userRole))
     } catch (err) {
       console.error("Login error:", err)
       setError("An error occurred. Please try again.")
