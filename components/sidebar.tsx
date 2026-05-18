@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { LayoutDashboard, ShoppingCart, Package, FileText, LogOut, Leaf, Settings, UtensilsCrossed, Menu, X, Plus, AlertTriangle, Users } from "lucide-react"
-import { logout, getUserRole, getCurrentUser, canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, type UserRole } from "@/lib/store"
+import { logout, getUserRole, getCurrentUser, canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, getDefaultRouteForRole, type UserRole } from "@/lib/store"
 
 interface NavItem {
   href: string
@@ -112,6 +112,7 @@ export const Sidebar = memo(function Sidebar() {
   }, [isMobileMenuOpen])
 
   const navItems = getNavItemsForRole(userRole)
+  const homeRoute = getDefaultRouteForRole(userRole)
 
   const handleLogout = useCallback(() => {
     logout()
@@ -126,7 +127,7 @@ export const Sidebar = memo(function Sidebar() {
     <>
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 border-b border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.88)] backdrop-blur-xl px-4 py-3 flex items-center justify-between shadow-[0_10px_24px_rgba(74,52,42,0.08)]">
-        <Link href="/dashboard" className="flex items-center justify-center">
+        <Link href={homeRoute} className="flex items-center justify-center">
           <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={210} height={86} className="h-12 w-auto object-contain" priority />
         </Link>
         <button
@@ -190,7 +191,7 @@ export const Sidebar = memo(function Sidebar() {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex h-screen w-64 flex-col border-r border-[rgba(74,52,42,0.08)] bg-[rgba(245,241,234,0.88)] shadow-[20px_0_45px_rgba(74,52,42,0.08)] sticky top-0 backdrop-blur-xl">
         <div className="p-5 pb-3">
-          <Link href="/dashboard" className="flex items-center justify-center">
+          <Link href={homeRoute} className="flex items-center justify-center">
             <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={240} height={100} className="h-16 w-auto object-contain" priority />
           </Link>
         </div>

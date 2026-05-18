@@ -2688,7 +2688,13 @@ export function canAccessSales(role: UserRole): boolean {
 }
 
 export function canAccessDashboard(role: UserRole): boolean {
-  return role === "admin" || role === "cashier" || role === "inventory_staff"
+  return role === "admin" || role === "inventory_staff"
+}
+
+export function getDefaultRouteForRole(role: UserRole): string {
+  if (role === "cashier") return "/pos"
+  if (role === "inventory_staff") return "/dashboard"
+  return "/dashboard"
 }
 
 export function persistAuthSession(user: AuthUser, rememberMe: boolean): void {

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
+import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, getDefaultRouteForRole, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
 
 const PUBLIC_PATHS = ["/"]
 
@@ -52,7 +52,7 @@ export function SessionEnforcer() {
 
       const role = getUserRole()
       if (!canAccessPath(pathname, role)) {
-        router.replace("/dashboard")
+        router.replace(getDefaultRouteForRole(role))
       }
     }
 

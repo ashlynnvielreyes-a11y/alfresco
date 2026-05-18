@@ -5,7 +5,7 @@ import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
-import { persistAuthSession, validatePassword } from "@/lib/store"
+import { getDefaultRouteForRole, persistAuthSession, validatePassword } from "@/lib/store"
 import { Eye, EyeOff, Loader2, Mail } from "lucide-react"
 
 const REMEMBERED_USERNAME_KEY = "alfresco_remembered_username"
@@ -140,7 +140,7 @@ function LoginPageContent() {
         localStorage.removeItem(REMEMBERED_USERNAME_KEY)
       }
 
-      router.push("/dashboard")
+      router.push(getDefaultRouteForRole(user.role || "cashier"))
     } catch (err) {
       console.error("Login error:", err)
       setError("An error occurred. Please try again.")

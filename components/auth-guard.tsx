@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessSales, validateCurrentSession, type UserRole } from "@/lib/store"
+import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessSales, getDefaultRouteForRole, validateCurrentSession, type UserRole } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 
 interface AuthGuardProps {
@@ -45,34 +45,35 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
       }
 
       const userRole = getUserRole()
+      const defaultRoute = getDefaultRouteForRole(userRole)
 
       // If a specific role is required, check it
       if (requiredRole && requiredRole === "admin" && userRole !== "admin") {
         // Redirect cashiers trying to access admin pages
         setIsAuthorized(false)
         setIsLoading(false)
-        router.replace("/dashboard")
+        router.replace(defaultRoute)
         return
       }
 
       if (requiredPermission === "pos" && !canAccessPos(userRole)) {
         setIsAuthorized(false)
         setIsLoading(false)
-        router.replace("/dashboard")
+        router.replace(defaultRoute)
         return
       }
 
       if (requiredPermission === "inventory" && !canAccessInventory(userRole)) {
         setIsAuthorized(false)
         setIsLoading(false)
-        router.replace("/dashboard")
+        router.replace(defaultRoute)
         return
       }
 
       if (requiredPermission === "sales" && !canAccessSales(userRole)) {
         setIsAuthorized(false)
         setIsLoading(false)
-        router.replace("/dashboard")
+        router.replace(defaultRoute)
         return
       }
       setIsAuthorized(true)

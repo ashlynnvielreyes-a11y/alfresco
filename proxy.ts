@@ -8,6 +8,12 @@ type AuthCookiePayload = {
 
 const publicPaths = ["/"]
 
+function getDefaultRouteForRole(role: AuthCookiePayload["role"]) {
+  if (role === "cashier") return "/pos"
+  if (role === "inventory_staff") return "/dashboard"
+  return "/dashboard"
+}
+
 function parseAuthCookie(request: NextRequest): AuthCookiePayload | null {
   const raw = request.cookies.get("alfresco_auth_state")?.value
   if (!raw) return null
@@ -62,7 +68,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (!isAllowed(auth.role, pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return NextResponse.redirect(new URL(getDefaultRouteForRole(auth.role), request.url))
   }
 
   return NextResponse.next()

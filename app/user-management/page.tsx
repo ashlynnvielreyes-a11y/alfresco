@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Ban, CheckCircle2, Search, ShieldCheck, UserCog, Users } from "lucide-react"
-import { getCurrentUser, getUserRole, getUsers, logout } from "@/lib/store"
+import { getCurrentUser, getDefaultRouteForRole, getUserRole, getUsers, logout } from "@/lib/store"
 import type { AppUser } from "@/lib/types"
 
 function formatRole(role: AppUser["role"]) {
@@ -55,7 +55,7 @@ export default function UserManagementPage() {
 
     const role = getUserRole()
     if (role !== "admin") {
-      router.replace("/dashboard")
+      router.replace(getDefaultRouteForRole(role))
       return
     }
 
