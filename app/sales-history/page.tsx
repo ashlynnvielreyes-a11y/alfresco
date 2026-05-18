@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { SalesSnapshotCard } from "@/components/sales-snapshot-card"
 import type { SalesSnapshotData } from "@/components/sales-snapshot-card"
 import { FileText, Calendar, Download, TrendingUp } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 import {
   initializeSupabaseStore,
   getTransactionsByDateRange,
@@ -180,6 +181,7 @@ export default function SalesHistoryPage() {
   const [fromDate, setFromDate] = useState(defaults.fromDate)
   const [toDate, setToDate] = useState(defaults.toDate)
   const [chartPeriod, setChartPeriod] = useState<"daily" | "weekly">("daily")
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [rangeTotal, setRangeTotal] = useState(0)
@@ -234,130 +236,149 @@ export default function SalesHistoryPage() {
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [peakHours, setPeakHours] = useState<PeakHour[]>([])
 
-  useEffect(() => {
-    const loadData = async () => {
-      await initializeSupabaseStore()
-      const startDate = new Date(fromDate)
-      const endDate = new Date(toDate)
-      const today = new Date()
+  const loadData = useCallback(async () => {
+    await initializeSupabaseStore()
+    const startDate = new Date(fromDate)
+    const endDate = new Date(toDate)
+    const today = new Date()
 
-      if (startDate > endDate) return
-      const todayKey = formatDateKey(today)
-      const previousDay = addDays(today, -1)
-      const previousWeekDate = addDays(today, -7)
-      const previousWeekStart = startOfWeek(previousWeekDate)
-      const previousWeekEnd = endOfWeek(previousWeekDate)
-      const previousMonthDate = addMonths(today, -1)
-      const previousYear = today.getFullYear() - 1
+    if (startDate > endDate) return
+    const todayKey = formatDateKey(today)
+    const previousDay = addDays(today, -1)
+    const previousWeekDate = addDays(today, -7)
+    const previousWeekStart = startOfWeek(previousWeekDate)
+    const previousWeekEnd = endOfWeek(previousWeekDate)
+    const previousMonthDate = addMonths(today, -1)
+    const previousYear = today.getFullYear() - 1
 
-      const [
-        nextTransactions,
-        nextRangeTotal,
-        nextDailySales,
-        nextWeeklySales,
-        nextMonthlySales,
-        nextYearlySales,
-        nextSalesOverTime,
-        nextSalesByCategory,
-        nextTopProducts,
-        nextPeakHours,
-        previousDailySales,
-        previousWeeklySales,
-        previousMonthlySales,
-        previousYearlySales,
-        dailySparkline,
-        weeklySparkline,
-        monthlySparkline,
-        yearlySparkline,
-      ] = await Promise.all([
-        getTransactionsByDateRange(fromDate, toDate),
-        getSalesTotalByDateRange(fromDate, toDate),
-        getDailySales(todayKey),
-        getWeeklySales(today.getFullYear(), getWeekNumber(today)),
-        getMonthlySales(today.getFullYear(), today.getMonth()),
-        getYearlySales(today.getFullYear()),
-        getSalesOverTime(startDate, endDate),
-        getSalesByCategory(startDate, endDate),
-        getTopProducts(startDate, endDate, 5),
-        getPeakHours(startDate, endDate),
-        getDailySales(formatDateKey(previousDay)),
-        getSalesTotalByDateRange(formatDateKey(previousWeekStart), formatDateKey(previousWeekEnd)),
-        getMonthlySales(previousMonthDate.getFullYear(), previousMonthDate.getMonth()),
-        getYearlySales(previousYear),
-        Promise.all(
-          Array.from({ length: 7 }, (_, index) => {
-            const date = addDays(today, index - 6)
-            return getDailySales(formatDateKey(date))
-          })
-        ),
-        Promise.all(
-          Array.from({ length: 8 }, (_, index) => {
-            const weekAnchor = addDays(today, (index - 7) * 7)
-            const weekStart = startOfWeek(weekAnchor)
-            const weekEnd = endOfWeek(weekAnchor)
-            return getSalesTotalByDateRange(formatDateKey(weekStart), formatDateKey(weekEnd))
-          })
-        ),
-        Promise.all(
-          Array.from({ length: 6 }, (_, index) => {
-            const monthDate = addMonths(today, index - 5)
-            return getMonthlySales(monthDate.getFullYear(), monthDate.getMonth())
-          })
-        ),
-        Promise.all(
-          Array.from({ length: 5 }, (_, index) => getYearlySales(today.getFullYear() + index - 4))
-        ),
-      ])
+    const [
+      nextTransactions,
+      nextRangeTotal,
+      nextDailySales,
+      nextWeeklySales,
+      nextMonthlySales,
+      nextYearlySales,
+      nextSalesOverTime,
+      nextSalesByCategory,
+      nextTopProducts,
+      nextPeakHours,
+      previousDailySales,
+      previousWeeklySales,
+      previousMonthlySales,
+      previousYearlySales,
+      dailySparkline,
+      weeklySparkline,
+      monthlySparkline,
+      yearlySparkline,
+    ] = await Promise.all([
+      getTransactionsByDateRange(fromDate, toDate),
+      getSalesTotalByDateRange(fromDate, toDate),
+      getDailySales(todayKey),
+      getWeeklySales(today.getFullYear(), getWeekNumber(today)),
+      getMonthlySales(today.getFullYear(), today.getMonth()),
+      getYearlySales(today.getFullYear()),
+      getSalesOverTime(startDate, endDate),
+      getSalesByCategory(startDate, endDate),
+      getTopProducts(startDate, endDate, 5),
+      getPeakHours(startDate, endDate),
+      getDailySales(formatDateKey(previousDay)),
+      getSalesTotalByDateRange(formatDateKey(previousWeekStart), formatDateKey(previousWeekEnd)),
+      getMonthlySales(previousMonthDate.getFullYear(), previousMonthDate.getMonth()),
+      getYearlySales(previousYear),
+      Promise.all(
+        Array.from({ length: 7 }, (_, index) => {
+          const date = addDays(today, index - 6)
+          return getDailySales(formatDateKey(date))
+        })
+      ),
+      Promise.all(
+        Array.from({ length: 8 }, (_, index) => {
+          const weekAnchor = addDays(today, (index - 7) * 7)
+          const weekStart = startOfWeek(weekAnchor)
+          const weekEnd = endOfWeek(weekAnchor)
+          return getSalesTotalByDateRange(formatDateKey(weekStart), formatDateKey(weekEnd))
+        })
+      ),
+      Promise.all(
+        Array.from({ length: 6 }, (_, index) => {
+          const monthDate = addMonths(today, index - 5)
+          return getMonthlySales(monthDate.getFullYear(), monthDate.getMonth())
+        })
+      ),
+      Promise.all(
+        Array.from({ length: 5 }, (_, index) => getYearlySales(today.getFullYear() + index - 4))
+      ),
+    ])
 
-      setTransactions(nextTransactions)
-      setRangeTotal(nextRangeTotal)
-      setDailySales(nextDailySales)
-      setWeeklySales(nextWeeklySales)
-      setMonthlySales(nextMonthlySales)
-      setYearlySales(nextYearlySales)
-      setSalesOverTime(nextSalesOverTime)
-      setSalesByCategory(nextSalesByCategory)
-      setTopProducts(nextTopProducts)
-      setPeakHours(nextPeakHours)
+    setTransactions(nextTransactions)
+    setRangeTotal(nextRangeTotal)
+    setDailySales(nextDailySales)
+    setWeeklySales(nextWeeklySales)
+    setMonthlySales(nextMonthlySales)
+    setYearlySales(nextYearlySales)
+    setSalesOverTime(nextSalesOverTime)
+    setSalesByCategory(nextSalesByCategory)
+    setTopProducts(nextTopProducts)
+    setPeakHours(nextPeakHours)
 
-      setSalesSnapshotData({
-        daily: {
-          label: "Daily Sales",
-          value: nextDailySales,
-          comparisonLabel: "Compared with yesterday",
-          sparkline: dailySparkline,
-          sparklineLabel: "Last 7 days",
-          ...buildTrendLabel(nextDailySales, previousDailySales),
-        },
-        weekly: {
-          label: "Weekly Sales",
-          value: nextWeeklySales,
-          comparisonLabel: "Compared with last week",
-          sparkline: weeklySparkline,
-          sparklineLabel: "Last 8 weeks",
-          ...buildTrendLabel(nextWeeklySales, previousWeeklySales),
-        },
-        monthly: {
-          label: "Monthly Sales",
-          value: nextMonthlySales,
-          comparisonLabel: "Compared with last month",
-          sparkline: monthlySparkline,
-          sparklineLabel: "Last 6 months",
-          ...buildTrendLabel(nextMonthlySales, previousMonthlySales),
-        },
-        yearly: {
-          label: "Yearly Sales",
-          value: nextYearlySales,
-          comparisonLabel: "Compared with last year",
-          sparkline: yearlySparkline,
-          sparklineLabel: "Last 5 years",
-          ...buildTrendLabel(nextYearlySales, previousYearlySales),
-        },
-      })
-    }
-
-    loadData()
+    setSalesSnapshotData({
+      daily: {
+        label: "Daily Sales",
+        value: nextDailySales,
+        comparisonLabel: "Compared with yesterday",
+        sparkline: dailySparkline,
+        sparklineLabel: "Last 7 days",
+        ...buildTrendLabel(nextDailySales, previousDailySales),
+      },
+      weekly: {
+        label: "Weekly Sales",
+        value: nextWeeklySales,
+        comparisonLabel: "Compared with last week",
+        sparkline: weeklySparkline,
+        sparklineLabel: "Last 8 weeks",
+        ...buildTrendLabel(nextWeeklySales, previousWeeklySales),
+      },
+      monthly: {
+        label: "Monthly Sales",
+        value: nextMonthlySales,
+        comparisonLabel: "Compared with last month",
+        sparkline: monthlySparkline,
+        sparklineLabel: "Last 6 months",
+        ...buildTrendLabel(nextMonthlySales, previousMonthlySales),
+      },
+      yearly: {
+        label: "Yearly Sales",
+        value: nextYearlySales,
+        comparisonLabel: "Compared with last year",
+        sparkline: yearlySparkline,
+        sparklineLabel: "Last 5 years",
+        ...buildTrendLabel(nextYearlySales, previousYearlySales),
+      },
+    })
+    setLastSyncedAt(new Date())
   }, [fromDate, toDate])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel("sales-history-transactions")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "transactions" },
+        () => {
+          void loadData()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [loadData])
 
   const exportToCSV = () => {
     const headers = ["Transaction ID", "Date", "Time", "Items", "Payment Method", "Amount"]
@@ -426,6 +447,9 @@ export default function SalesHistoryPage() {
               <h1 className="mb-2 text-2xl font-bold text-[#4a342a] lg:text-4xl">Sales History & Analytics</h1>
               <p className="max-w-3xl text-sm text-muted-foreground lg:text-base">
                 Filter history, charts, and summary cards by the same date range for a cleaner reporting flow.
+              </p>
+              <p className="mt-3 text-xs font-medium uppercase tracking-[0.24em] text-[#7d5a44]/75">
+                {lastSyncedAt ? `Live sync active • Updated ${lastSyncedAt.toLocaleTimeString()}` : "Connecting live sync..."}
               </p>
             </div>
 
