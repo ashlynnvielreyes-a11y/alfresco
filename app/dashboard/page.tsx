@@ -67,8 +67,8 @@ function getRoleConfig(role: UserRole) {
         badge: "Executive View",
         title: "Command the full cafe operation",
         description: "Monitor sales, staffing, stock health, and access control from one focused control surface.",
-        gradient: "from-[#1a2421] via-[#30584f] to-[#81b6ac]",
-        panelTone: "from-[#1a2421]/98 via-[#233833]/95 to-[#2f4f48]/90",
+        gradient: "from-[#4a342a] via-[#7d5a44] to-[#b2967d]",
+        panelTone: "from-[#3b2a22]/98 via-[#5c4336]/94 to-[#87654f]/88",
         quickLinks: [
           { href: "/user-management", label: "Manage team access", detail: "Create accounts and adjust permissions", icon: Users },
           { href: "/sales-history", label: "Review sales reports", detail: "Track revenue and trend movement", icon: ReceiptText },
@@ -81,8 +81,8 @@ function getRoleConfig(role: UserRole) {
         badge: "Operations View",
         title: "Keep stock, prep, and products in sync",
         description: "Watch ingredient pressure points, expiring batches, and menu readiness with a cleaner operational dashboard.",
-        gradient: "from-[#3a271b] via-[#76533c] to-[#d4b69e]",
-        panelTone: "from-[#2e2017]/98 via-[#523829]/94 to-[#755641]/88",
+        gradient: "from-[#5a4134] via-[#8a6a55] to-[#d7c9b8]",
+        panelTone: "from-[#463227]/98 via-[#6b4f3e]/94 to-[#9a775f]/88",
         quickLinks: [
           { href: "/inventory", label: "Update inventory", detail: "Restock, audit, and reconcile availability", icon: Package },
           { href: "/ingredients", label: "Manage ingredients", detail: "Adjust item-level supply details", icon: Leaf },
@@ -95,8 +95,8 @@ function getRoleConfig(role: UserRole) {
         badge: "Frontline View",
         title: "Stay ready for the next rush",
         description: "See the sales pulse, top movers, and checkout shortcuts without leaving the floor-focused workflow.",
-        gradient: "from-[#261c30] via-[#504061] to-[#a89aba]",
-        panelTone: "from-[#21192a]/98 via-[#3f3350]/94 to-[#5a4c6c]/88",
+        gradient: "from-[#6a4b3a] via-[#9a7258] to-[#d7c4ae]",
+        panelTone: "from-[#523a2c]/98 via-[#7a5945]/94 to-[#a77e61]/88",
         quickLinks: [
           { href: "/pos", label: "Open checkout", detail: "Jump straight into current orders", icon: ShoppingCart },
           { href: "/sales-history", label: "Check recent sales", detail: "Review completed transactions quickly", icon: ReceiptText },

@@ -96,19 +96,19 @@ function getRoleAccent(role: UserRole) {
     case "admin":
       return {
         icon: ShieldCheck,
-        gradient: "from-[#254d45] via-[#3d7b6b] to-[#95c8bb]",
+        gradient: "from-[#4a342a] via-[#7d5a44] to-[#b2967d]",
         summary: "Full platform visibility and control",
       }
     case "inventory_staff":
       return {
         icon: BriefcaseBusiness,
-        gradient: "from-[#5e4736] via-[#8b6a54] to-[#d3b9a2]",
+        gradient: "from-[#5a4134] via-[#8a6a55] to-[#d7c9b8]",
         summary: "Operations, stock health, and planning",
       }
     default:
       return {
         icon: ArrowUpRight,
-        gradient: "from-[#3a2f45] via-[#5b4d72] to-[#a99abc]",
+        gradient: "from-[#6a4b3a] via-[#9a7258] to-[#d7c4ae]",
         summary: "Frontline transactions and daily momentum",
       }
   }
@@ -273,11 +273,10 @@ export const Sidebar = memo(function Sidebar() {
       <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/35 bg-[rgba(248,244,239,0.88)] px-4 py-3 shadow-[0_12px_30px_rgba(42,30,23,0.08)] backdrop-blur-2xl lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <Link href={homeRoute} className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#171412] text-[#f8f4ef] shadow-[0_12px_24px_rgba(23,20,18,0.2)]">
-              <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={28} height={28} className="h-7 w-7 object-contain" priority />
+            <div className="rounded-2xl border border-[#eadfd5] bg-[rgba(255,251,247,0.82)] px-3 py-2 shadow-[0_10px_22px_rgba(42,30,23,0.08)]">
+              <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={150} height={54} className="h-10 w-auto object-contain" priority />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-[-0.03em] text-[#1d1917]">Al Fresco</p>
               <p className="truncate text-xs uppercase tracking-[0.22em] text-[#86766a]">{formatRoleLabel(userRole)} Workspace</p>
             </div>
           </Link>
@@ -341,14 +340,14 @@ export const Sidebar = memo(function Sidebar() {
       >
         <div className={`p-4 ${isCollapsed ? "pb-4" : "pb-3"}`}>
           <div className="flex items-center justify-between gap-3">
-            <Link href={homeRoute} className={`min-w-0 ${isCollapsed ? "mx-auto" : "flex items-center gap-3"}`}>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#171412] text-[#f8f4ef] shadow-[0_14px_30px_rgba(23,20,18,0.2)]">
-                <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={28} height={28} className="h-7 w-7 object-contain" priority />
-              </div>
-              {!isCollapsed && (
-                <div className="min-w-0">
-                  <p className="truncate text-base font-semibold tracking-[-0.03em] text-[#1d1917]">Al Fresco</p>
-                  <p className="truncate text-xs uppercase tracking-[0.22em] text-[#87786c]">Control Dashboard</p>
+            <Link href={homeRoute} className={`min-w-0 ${isCollapsed ? "mx-auto" : "block"}`}>
+              {isCollapsed ? (
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#eadfd5] bg-[rgba(255,251,247,0.82)] shadow-[0_12px_24px_rgba(42,30,23,0.08)]">
+                  <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={34} height={34} className="h-8 w-8 object-contain" priority />
+                </div>
+              ) : (
+                <div className="rounded-[26px] border border-[#eadfd5] bg-[rgba(255,251,247,0.82)] px-4 py-3 shadow-[0_14px_28px_rgba(42,30,23,0.08)]">
+                  <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={220} height={78} className="h-14 w-auto object-contain" priority />
                 </div>
               )}
             </Link>
