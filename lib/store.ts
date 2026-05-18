@@ -2369,12 +2369,20 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
 
   if (orderItems.length > 0) {
     const deleteOrderItemsResult = await supabase.from("order_items").delete().eq("transaction_number", transaction.id)
-    if (deleteOrderItemsResult.error && !isSupabaseMissingTableError(deleteOrderItemsResult.error, "order_items")) {
+    if (
+      deleteOrderItemsResult.error &&
+      !isSupabaseMissingTableError(deleteOrderItemsResult.error, "order_items") &&
+      !isSupabaseRlsError(deleteOrderItemsResult.error, "order_items")
+    ) {
       throw new Error(deleteOrderItemsResult.error.message)
     }
 
     const orderItemsResult = await supabase.from("order_items").insert(orderItems)
-    if (orderItemsResult.error && !isSupabaseMissingTableError(orderItemsResult.error, "order_items")) {
+    if (
+      orderItemsResult.error &&
+      !isSupabaseMissingTableError(orderItemsResult.error, "order_items") &&
+      !isSupabaseRlsError(orderItemsResult.error, "order_items")
+    ) {
       if (
         !isSupabaseMissingColumnError(orderItemsResult.error, "modifier_summary", "order_items") &&
         !isSupabaseMissingColumnError(orderItemsResult.error, "combo_name", "order_items") &&
@@ -2386,7 +2394,11 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
 
       const legacyOrderItems = orderItems.map(({ modifier_summary, combo_name, metadata, notes, ...row }) => row)
       const legacyResult = await supabase.from("order_items").insert(legacyOrderItems)
-      if (legacyResult.error && !isSupabaseMissingTableError(legacyResult.error, "order_items")) {
+      if (
+        legacyResult.error &&
+        !isSupabaseMissingTableError(legacyResult.error, "order_items") &&
+        !isSupabaseRlsError(legacyResult.error, "order_items")
+      ) {
         throw new Error(legacyResult.error.message)
       }
     }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical, Archive } from "lucide-react"
+import { Plus, Pencil, Trash2, Link, X, Check, Search, AlertTriangle, MoreVertical, Archive, RotateCcw } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +22,7 @@ import {
   deleteIngredient,
   getProducts,
   addIngredientStock,
+  restoreIngredientStock,
   getIngredientExpirationSummary,
   archiveIngredientExpiredBatches,
 } from "@/lib/store"
@@ -211,7 +212,7 @@ function IngredientsPageContent() {
   const handleRestockSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (restockingIngredient && restockQuantity) {
-      addIngredientStock(restockingIngredient.id, parseFloat(restockQuantity) || 0, restockExpirationDate || null)
+      restoreIngredientStock(restockingIngredient.id, parseFloat(restockQuantity) || 0, restockExpirationDate || null)
       setIngredients(getIngredients())
       resetForm()
     }
@@ -327,7 +328,7 @@ function IngredientsPageContent() {
           </div>
           <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.76)] p-6 shadow-[0_24px_56px_rgba(74,52,42,0.08)] backdrop-blur-xl lg:p-8">
             <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a] text-center mb-6 lg:mb-8">
-              Restock {restockingIngredient?.name}
+              Restore Stock for {restockingIngredient?.name}
             </h1>
 
             <form onSubmit={handleRestockSubmit} className="space-y-6">
@@ -381,7 +382,7 @@ function IngredientsPageContent() {
               </div>
 
               <button type="submit" className="w-full py-4 bg-[#7d5a44] hover:bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg transition-colors">
-                ADD STOCK (FIFO)
+                RESTORE STOCK (FIFO)
               </button>
 
               <button type="button" onClick={resetForm} className="w-full text-center text-muted-foreground hover:text-foreground transition-colors">
@@ -674,8 +675,8 @@ function IngredientsPageContent() {
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">{ingredient.stockBatches?.length || 0} batch(es)</span>
                   <div className="flex gap-1">
-                    <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Add stock">
-                      <Plus className="h-4 w-4 text-[#7d5a44]" />
+                    <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Restore stock">
+                      <RotateCcw className="h-4 w-4 text-[#7d5a44]" />
                     </button>
                     {hasExpiredBatches ? (
                       <button onClick={() => handleArchive(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Archive expired batches">
@@ -783,8 +784,8 @@ function IngredientsPageContent() {
                               onClick={() => handleRestock(ingredient)}
                               className="rounded-lg text-[#4f8a63] transition-colors focus:bg-[#dcefdc] focus:text-[#2f7d32]"
                             >
-                              <Plus className="h-4 w-4" />
-                              <span>Add Stock</span>
+                              <RotateCcw className="h-4 w-4" />
+                              <span>Restore Stock</span>
                             </DropdownMenuItem>
                             {hasExpiredBatches ? (
                               <DropdownMenuItem
