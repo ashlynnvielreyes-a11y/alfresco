@@ -108,20 +108,26 @@ export interface CartItem {
   temperature?: CoffeeTemperature
   addOns?: AddOn[]
   comboMeal?: ComboMeal
+  notes?: string | null
 }
 
 export interface Transaction {
   id: string
   items: CartItem[]
+  queueNumber?: string | null
+  customerName?: string | null
   subtotal: number
   discountType?: "none" | "senior" | "pwd"
   discountPercent?: number
   discountAmount: number
+  taxAmount?: number
   total: number
   paymentMethod: "cash" | "gcash"
   cashReceived: number
   change: number
   processedBy: string
+  notes?: string | null
+  orderStatus?: "pending" | "completed" | "voided" | "cancelled"
   date: string
   time: string
   voided?: boolean

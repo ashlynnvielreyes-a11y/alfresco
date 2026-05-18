@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { SalesSnapshotCard } from "@/components/sales-snapshot-card"
+import { TransactionDetailsModal } from "@/components/transaction-details-modal"
 import type { SalesSnapshotData } from "@/components/sales-snapshot-card"
 import { FileText, Calendar, Download, TrendingUp } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -184,6 +185,7 @@ export default function SalesHistoryPage() {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [rangeTotal, setRangeTotal] = useState(0)
   const [dailySales, setDailySales] = useState(0)
   const [weeklySales, setWeeklySales] = useState(0)
@@ -613,14 +615,19 @@ export default function SalesHistoryPage() {
               <div className="p-6 text-center text-muted-foreground">No transactions</div>
             ) : (
               transactions.map((transaction) => (
-                <div key={transaction.id} className="border-b border-[#f5f1ea]/45 p-4 last:border-0">
-                  <div className="mb-2 flex items-start justify-between">
-                    <p className="font-medium">{transaction.id}</p>
+                <button
+                  key={transaction.id}
+                  type="button"
+                  onClick={() => setSelectedTransaction(transaction)}
+                  className="block w-full border-b border-[#f5f1ea]/45 p-4 text-left transition-colors hover:bg-[#f5f1ea]/35 last:border-0"
+                >
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <p className="font-medium text-[#4a342a]">{transaction.id}</p>
                     <p className="font-bold text-[#4a342a]">{`\u20B1${transaction.total.toFixed(2)}`}</p>
                   </div>
                   <p className="text-xs text-muted-foreground">{transaction.date} {transaction.time}</p>
                   <p className="text-xs text-muted-foreground">{paymentMethodLabel(transaction.paymentMethod)}</p>
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -646,7 +653,18 @@ export default function SalesHistoryPage() {
                   </tr>
                 ) : (
                   transactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b border-[#f5f1ea]/45 last:border-0 hover:bg-[#f5f1ea]/30">
+                    <tr
+                      key={transaction.id}
+                      onClick={() => setSelectedTransaction(transaction)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          setSelectedTransaction(transaction)
+                        }
+                      }}
+                      tabIndex={0}
+                      className="cursor-pointer border-b border-[#f5f1ea]/45 transition-colors hover:bg-[#f5f1ea]/30 focus:outline-none focus:ring-2 focus:ring-[#b2967d]/30 last:border-0"
+                    >
                       <td className="px-6 py-4 font-medium">{transaction.id}</td>
                       <td className="px-6 py-4 text-muted-foreground">{transaction.date}</td>
                       <td className="px-6 py-4 text-muted-foreground">{transaction.time}</td>
@@ -664,6 +682,15 @@ export default function SalesHistoryPage() {
             </table>
           </div>
         </div>
+
+        <TransactionDetailsModal
+          open={Boolean(selectedTransaction)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedTransaction(null)
+          }}
+          transactionId={selectedTransaction?.id || null}
+          fallbackTransaction={selectedTransaction}
+        />
       </main>
     </div>
   )

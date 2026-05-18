@@ -720,13 +720,18 @@ export function getInventoryAlerts(
 function getNormalizedTransactions(list: Transaction[]): Transaction[] {
   return list.map((transaction) => ({
     ...transaction,
+    queueNumber: transaction.queueNumber || null,
+    customerName: transaction.customerName || null,
     discountType: transaction.discountType === "senior" || transaction.discountType === "pwd" ? transaction.discountType : "none",
     discountPercent:
       transaction.discountType === "senior" || transaction.discountType === "pwd"
         ? transaction.discountPercent || 20
         : 0,
     discountAmount: transaction.discountAmount || 0,
+    taxAmount: transaction.taxAmount || 0,
     change: transaction.change || 0,
+    notes: transaction.notes || null,
+    orderStatus: transaction.voided ? "voided" : transaction.orderStatus || "completed",
     paymentMethod: transaction.paymentMethod === "gcash" ? "gcash" : "cash",
   }))
 }
@@ -2198,6 +2203,8 @@ export async function getTransactions(): Promise<Transaction[]> {
     if (!error && data && data.length > 0) {
       const mapped = data.map((t: any) => ({
         id: t.transaction_number || t.id || `#${Math.random().toString().slice(2, 7)}`,
+        queueNumber: t.queue_number || null,
+        customerName: t.customer_name || null,
         date: t.date,
         time: t.time,
         items: typeof t.items === "string" ? JSON.parse(t.items) : t.items,
@@ -2205,11 +2212,14 @@ export async function getTransactions(): Promise<Transaction[]> {
         discountType: t.discount_type === "senior" || t.discount_type === "pwd" ? t.discount_type : "none",
         discountPercent: t.discount_percent || 0,
         discountAmount: t.discount_amount || 0,
+        taxAmount: t.tax_amount || 0,
         total: t.total,
         paymentMethod: t.payment_method === "gcash" ? "gcash" : "cash",
         cashReceived: t.cash_received,
         change: t.change_amount || 0,
         processedBy: t.processed_by || "Unknown",
+        notes: t.notes || null,
+        orderStatus: t.voided ? "voided" : t.order_status || "completed",
         voided: t.voided || false,
       })) as Transaction[]
 
@@ -2241,10 +2251,13 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
 
   const transactionData = {
     transaction_number: transaction.id,
+    queue_number: transaction.queueNumber || null,
+    customer_name: transaction.customerName || null,
     date: transaction.date,
     time: transaction.time,
     items: JSON.stringify(transaction.items),
     subtotal: transaction.subtotal,
+    tax_amount: transaction.taxAmount || 0,
     total: transaction.total,
     payment_method: transaction.paymentMethod,
     cash_received: transaction.cashReceived,
@@ -2253,13 +2266,93 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
     discount_percent: transaction.discountPercent,
     discount_amount: transaction.discountAmount,
     processed_by: transaction.processedBy || currentUser.username,
+    notes: transaction.notes || null,
+    order_status: transaction.voided ? "voided" : transaction.orderStatus || "completed",
     voided: transaction.voided || false,
   }
 
-  const { error } = await supabase.from("transactions").insert([transactionData]).select()
+  let { error } = await supabase.from("transactions").insert([transactionData]).select()
+
+  if (error) {
+    const fallbackData = {
+      transaction_number: transaction.id,
+      date: transaction.date,
+      time: transaction.time,
+      items: JSON.stringify(transaction.items),
+      subtotal: transaction.subtotal,
+      total: transaction.total,
+      payment_method: transaction.paymentMethod,
+      cash_received: transaction.cashReceived,
+      change_amount: transaction.change,
+      discount_type: transaction.discountType,
+      discount_percent: transaction.discountPercent,
+      discount_amount: transaction.discountAmount,
+      processed_by: transaction.processedBy || currentUser.username,
+      voided: transaction.voided || false,
+    }
+
+    const fallbackResult = await supabase.from("transactions").insert([fallbackData]).select()
+    error = fallbackResult.error
+  }
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  const orderItems = transaction.items.map((item, index) => {
+    const selectedAddOns = item.addOns || []
+    const addOnTotal = selectedAddOns.reduce((sum, addOn) => sum + addOn.price * (addOn.selectedQuantity || 1), 0)
+    const itemPrice = item.comboMeal ? item.comboMeal.price : item.product.price
+
+    return {
+      transaction_number: transaction.id,
+      line_number: index + 1,
+      item_name: item.product.name,
+      quantity: item.quantity,
+      item_price: itemPrice,
+      total_price: (itemPrice + addOnTotal) * item.quantity,
+      temperature: item.temperature || null,
+      modifier_summary: [
+        item.temperature ? `${item.temperature.charAt(0).toUpperCase()}${item.temperature.slice(1)}` : null,
+        selectedAddOns.length > 0
+          ? selectedAddOns.map((addOn) => `${addOn.name} x${addOn.selectedQuantity || 1}`).join(", ")
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" • "),
+      notes: item.notes || null,
+      combo_name: item.comboMeal?.name || null,
+      metadata: {
+        productName: item.product.name,
+        comboMealName: item.comboMeal?.name || null,
+        addOns: selectedAddOns.map((addOn) => ({
+          id: addOn.id,
+          name: addOn.name,
+          price: addOn.price,
+          selectedQuantity: addOn.selectedQuantity || 1,
+        })),
+      },
+    }
+  })
+
+  if (orderItems.length > 0) {
+    const orderItemsResult = await supabase.from("order_items").insert(orderItems)
+    if (orderItemsResult.error && !isSupabaseMissingTableError(orderItemsResult.error, "order_items")) {
+      if (
+        !isSupabaseMissingColumnError(orderItemsResult.error, "modifier_summary", "order_items") &&
+        !isSupabaseMissingColumnError(orderItemsResult.error, "combo_name", "order_items") &&
+        !isSupabaseMissingColumnError(orderItemsResult.error, "metadata", "order_items") &&
+        !isSupabaseMissingColumnError(orderItemsResult.error, "notes", "order_items")
+      ) {
+        throw new Error(orderItemsResult.error.message)
+      }
+
+      const legacyOrderItems = orderItems.map(({ modifier_summary, combo_name, metadata, notes, ...row }) => row)
+      const legacyResult = await supabase.from("order_items").insert(legacyOrderItems)
+      if (legacyResult.error && !isSupabaseMissingTableError(legacyResult.error, "order_items")) {
+        throw new Error(legacyResult.error.message)
+      }
+    }
   }
 }
 
@@ -2268,14 +2361,19 @@ export async function saveTransaction(transaction: Transaction): Promise<void> {
 
   const normalizedTransaction: Transaction = {
     ...transaction,
+    queueNumber: transaction.queueNumber || null,
+    customerName: transaction.customerName || null,
     discountType: transaction.discountType === "senior" || transaction.discountType === "pwd" ? transaction.discountType : "none",
     discountPercent:
       transaction.discountType === "senior" || transaction.discountType === "pwd"
         ? transaction.discountPercent || 20
         : 0,
     discountAmount: transaction.discountAmount || 0,
+    taxAmount: transaction.taxAmount || 0,
     paymentMethod: transaction.paymentMethod === "gcash" ? "gcash" : "cash",
     change: transaction.change || 0,
+    notes: transaction.notes || null,
+    orderStatus: transaction.voided ? "voided" : transaction.orderStatus || "completed",
   }
 
   saveToLocalStorage(normalizedTransaction)
@@ -2583,13 +2681,28 @@ export async function voidTransaction(transactionId: string, voidedBy: string, i
     const { createClient } = await import("./supabase/client")
     const supabase = createClient()
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from("transactions")
       .update({
         voided: true,
+        order_status: "voided",
         updated_at: new Date().toISOString(),
       })
       .eq("transaction_number", transactionId)
+
+    if (error) {
+      if (isSupabaseMissingColumnError(error, "order_status", "transactions")) {
+        const fallbackResult = await supabase
+          .from("transactions")
+          .update({
+            voided: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("transaction_number", transactionId)
+
+        error = fallbackResult.error
+      }
+    }
 
     if (error) {
       console.log("[v0] Failed to void transaction in Supabase:", error.message)
