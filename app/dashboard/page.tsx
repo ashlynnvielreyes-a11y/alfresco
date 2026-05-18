@@ -3,9 +3,12 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import {
   getCurrentUser,
   getIngredients,
+  getIngredientExpirationSummary,
   getInventoryAlerts,
   getProductAvailableStock,
   getProducts,
@@ -13,13 +16,13 @@ import {
   getTopProducts,
   getTransactionsByDateRange,
   getUserRole,
-  getIngredientExpirationSummary,
   initializeSupabaseStore,
   verifyDataPersistence,
   type UserRole,
 } from "@/lib/store"
 import type { Ingredient, Product, Transaction } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts"
 import {
   AlertTriangle,
   ArrowRight,
@@ -37,6 +40,19 @@ import {
   Users,
 } from "lucide-react"
 
+type DashboardSnapshot = {
+  products: Product[]
+  ingredients: Ingredient[]
+  transactions: Transaction[]
+  rangeTotal: number
+  topSeller: string
+  lastUpdatedLabel: string
+  cachedAt: number
+}
+
+const DASHBOARD_CACHE_PREFIX = "alfresco_dashboard_snapshot"
+const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000
+
 function getDefaultRange() {
   const endDate = new Date()
   const startDate = new Date()
@@ -45,6 +61,36 @@ function getDefaultRange() {
   return {
     fromDate: startDate.toISOString().split("T")[0],
     toDate: endDate.toISOString().split("T")[0],
+  }
+}
+
+function getDashboardCacheKey(role: UserRole, fromDate: string, toDate: string) {
+  return `${DASHBOARD_CACHE_PREFIX}:${role}:${fromDate}:${toDate}`
+}
+
+function readDashboardCache(role: UserRole, fromDate: string, toDate: string): DashboardSnapshot | null {
+  if (typeof window === "undefined") return null
+
+  try {
+    const raw = window.localStorage.getItem(getDashboardCacheKey(role, fromDate, toDate))
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as DashboardSnapshot
+    if (Date.now() - parsed.cachedAt > DASHBOARD_CACHE_TTL_MS) return null
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeDashboardCache(role: UserRole, fromDate: string, toDate: string, snapshot: DashboardSnapshot) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(getDashboardCacheKey(role, fromDate, toDate), JSON.stringify(snapshot))
+  } catch {
+    // Ignore local cache write failures
   }
 }
 
@@ -133,6 +179,68 @@ function StatCard({
   )
 }
 
+function StatCardSkeleton() {
+  return (
+    <article className="rounded-[28px] border border-white/40 bg-[rgba(255,251,247,0.7)] p-5 shadow-[0_24px_48px_rgba(60,42,31,0.08)] backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <Skeleton className="h-3 w-28 rounded-full bg-[#e9ddd3]" />
+          <Skeleton className="mt-4 h-9 w-24 rounded-xl bg-[#e5d8cc]" />
+          <Skeleton className="mt-3 h-4 w-40 rounded-full bg-[#eee4db]" />
+        </div>
+        <Skeleton className="h-12 w-12 rounded-2xl bg-[#ece1d7]" />
+      </div>
+    </article>
+  )
+}
+
+function PanelSkeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: lines }).map((_, index) => (
+        <div key={index} className="rounded-[24px] border border-[#ebdfd5] bg-white/78 px-4 py-4">
+          <Skeleton className="h-4 w-32 rounded-full bg-[#e8dbd1]" />
+          <Skeleton className="mt-3 h-3 w-44 rounded-full bg-[#f0e7de]" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ChartPanelSkeleton() {
+  return (
+    <div className="rounded-[30px] border border-white/40 bg-[rgba(255,251,247,0.68)] p-5 shadow-[0_24px_48px_rgba(60,42,31,0.08)] backdrop-blur-xl lg:p-6">
+      <Skeleton className="h-3 w-28 rounded-full bg-[#e8dbd1]" />
+      <Skeleton className="mt-3 h-7 w-44 rounded-xl bg-[#e5d8cc]" />
+      <Skeleton className="mt-3 h-16 w-full rounded-[22px] bg-[#f2e9e1]" />
+      <Skeleton className="mt-4 h-[220px] w-full rounded-[26px] bg-[#f1e7de]" />
+    </div>
+  )
+}
+
+function InlineMetric({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string
+  value: string
+  tone?: "default" | "accent"
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-3 py-2 ${
+        tone === "accent"
+          ? "border-[#d8c7b8] bg-[#f3ece5] text-[#4a342a]"
+          : "border-[#eadfd6] bg-white/72 text-[#5f4f45]"
+      }`}
+    >
+      <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[#8d7d71]">{label}</p>
+      <p className="mt-1 text-sm font-semibold tracking-[-0.02em]">{value}</p>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const defaults = getDefaultRange()
   const [products, setProducts] = useState<Product[]>([])
@@ -145,55 +253,112 @@ export default function DashboardPage() {
   const [topSeller, setTopSeller] = useState("No sales yet")
   const [userRole, setUserRole] = useState<UserRole>("cashier")
   const [username, setUsername] = useState("User")
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [hasWarmCache, setHasWarmCache] = useState(false)
 
-  const refreshData = useCallback(async () => {
+  const applySnapshot = useCallback((snapshot: DashboardSnapshot) => {
+    setProducts(snapshot.products)
+    setIngredients(snapshot.ingredients)
+    setTransactions(snapshot.transactions)
+    setRangeTotal(snapshot.rangeTotal)
+    setTopSeller(snapshot.topSeller)
+    setLastUpdatedLabel(snapshot.lastUpdatedLabel)
+  }, [])
+
+  const buildSnapshot = useCallback(async (): Promise<DashboardSnapshot | null> => {
+    const startDate = new Date(fromDate)
+    const endDate = new Date(toDate)
+    if (startDate > endDate) return null
+
     verifyDataPersistence()
     await initializeSupabaseStore()
 
-    const startDate = new Date(fromDate)
-    const endDate = new Date(toDate)
-    if (startDate > endDate) return
+    const [transactionsInRange, salesTotal, topProducts] = await Promise.all([
+      getTransactionsByDateRange(fromDate, toDate),
+      getSalesTotalByDateRange(fromDate, toDate),
+      getTopProducts(startDate, endDate, 1),
+    ])
 
-    setProducts(getProducts())
-    setIngredients(getIngredients())
-    setTransactions(await getTransactionsByDateRange(fromDate, toDate))
-    setRangeTotal(await getSalesTotalByDateRange(fromDate, toDate))
-
-    const topProducts = await getTopProducts(startDate, endDate, 1)
-    setTopSeller(topProducts[0]?.name || "No sales yet")
-    setLastUpdatedLabel(new Date().toLocaleTimeString())
+    return {
+      products: getProducts(),
+      ingredients: getIngredients(),
+      transactions: transactionsInRange,
+      rangeTotal: salesTotal,
+      topSeller: topProducts[0]?.name || "No sales yet",
+      lastUpdatedLabel: new Date().toLocaleTimeString(),
+      cachedAt: Date.now(),
+    }
   }, [fromDate, toDate])
+
+  const loadDashboardData = useCallback(
+    async (options?: { background?: boolean }) => {
+      const background = options?.background ?? false
+
+      if (background) {
+        setIsRefreshing(true)
+      } else {
+        setIsInitialLoading(true)
+      }
+
+      try {
+        const snapshot = await buildSnapshot()
+        if (!snapshot) return
+
+        applySnapshot(snapshot)
+        writeDashboardCache(userRole, fromDate, toDate, snapshot)
+      } finally {
+        setIsInitialLoading(false)
+        setIsRefreshing(false)
+      }
+    },
+    [applySnapshot, buildSnapshot, fromDate, toDate, userRole]
+  )
 
   useEffect(() => {
     const currentUser = getCurrentUser()
-    setUserRole(getUserRole())
+    const currentRole = getUserRole()
+    setUserRole(currentRole)
     setUsername(currentUser?.username || "User")
   }, [])
 
   useEffect(() => {
-    void refreshData()
-  }, [refreshData])
+    const cachedSnapshot = readDashboardCache(userRole, fromDate, toDate)
+
+    if (cachedSnapshot) {
+      applySnapshot(cachedSnapshot)
+      setHasWarmCache(true)
+      setIsInitialLoading(false)
+      void loadDashboardData({ background: true })
+      return
+    }
+
+    setHasWarmCache(false)
+    void loadDashboardData()
+  }, [applySnapshot, fromDate, loadDashboardData, toDate, userRole])
 
   useEffect(() => {
     const supabase = createClient()
+    const triggerRefresh = () => void loadDashboardData({ background: true })
+
     const channel = supabase
       .channel("dashboard-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, () => void refreshData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, () => void refreshData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, () => void refreshData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => void refreshData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => void refreshData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredients" }, triggerRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ingredient_batches" }, triggerRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "expiration_logs" }, triggerRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, triggerRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, triggerRefresh)
       .subscribe()
 
     const intervalId = window.setInterval(() => {
-      void refreshData()
+      void loadDashboardData({ background: true })
     }, 60000)
 
     return () => {
       window.clearInterval(intervalId)
       void supabase.removeChannel(channel)
     }
-  }, [refreshData])
+  }, [loadDashboardData])
 
   const roleConfig = getRoleConfig(userRole)
   const RoleIcon = roleConfig.icon
@@ -312,6 +477,65 @@ export default function DashboardPage() {
     return items.slice(0, 5)
   }, [criticalIngredients, transactions])
 
+  const salesTrendData = useMemo(() => {
+    const dailyTotals = new Map<string, { sales: number; orders: number }>()
+
+    transactions.forEach((transaction) => {
+      const existing = dailyTotals.get(transaction.date) || { sales: 0, orders: 0 }
+      existing.sales += transaction.total
+      existing.orders += 1
+      dailyTotals.set(transaction.date, existing)
+    })
+
+    return Array.from(dailyTotals.entries())
+      .sort(([left], [right]) => new Date(left).getTime() - new Date(right).getTime())
+      .map(([date, values]) => ({
+        date,
+        shortDate: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        sales: Number(values.sales.toFixed(2)),
+        orders: values.orders,
+      }))
+  }, [transactions])
+
+  const categoryChartData = useMemo(() => {
+    const categoryTotals = new Map<string, number>()
+
+    transactions.forEach((transaction) => {
+      transaction.items.forEach((item) => {
+        const category = item.product.category || "Other"
+        categoryTotals.set(category, (categoryTotals.get(category) || 0) + item.quantity)
+      })
+    })
+
+    return Array.from(categoryTotals.entries())
+      .map(([category, quantity], index) => ({
+        category,
+        quantity,
+        fill: ["#4a342a", "#7d5a44", "#b2967d", "#d7c9b8", "#8a6c5b"][index % 5],
+      }))
+      .sort((left, right) => right.quantity - left.quantity)
+      .slice(0, 5)
+  }, [transactions])
+
+  const stockRiskChartData = useMemo(() => {
+    return lowStockItems
+      .slice()
+      .sort((left, right) => getProductAvailableStock(left, ingredients) - getProductAvailableStock(right, ingredients))
+      .slice(0, 5)
+      .map((product) => ({
+        name: product.name.length > 16 ? `${product.name.slice(0, 16)}...` : product.name,
+        stock: getProductAvailableStock(product, ingredients),
+      }))
+  }, [ingredients, lowStockItems])
+
+  const ingredientAlertChartData = useMemo(() => {
+    return [
+      { name: "Critical", value: criticalIngredients.length, fill: "#7d5a44" },
+      { name: "Expiring", value: ingredientAlerts.expiringSoonIngredients.length, fill: "#b2967d" },
+      { name: "Expired", value: ingredientAlerts.expiredIngredients.length, fill: "#4a342a" },
+    ]
+  }, [criticalIngredients.length, ingredientAlerts.expiredIngredients.length, ingredientAlerts.expiringSoonIngredients.length])
+
   const spotlightItems = useMemo(() => {
     if (userRole === "admin") {
       return [
@@ -335,6 +559,32 @@ export default function DashboardPage() {
       { title: "Popular item", body: `${topSeller} is leading performance right now.` },
     ]
   }, [criticalIngredients.length, itemsSold, lowStockItems.length, nearExpiryCount, topSeller, transactions.length, userRole])
+
+  const showSkeletons = isInitialLoading && !hasWarmCache
+
+  const salesTrendChartConfig = {
+    sales: { label: "Sales", color: "#7d5a44" },
+    orders: { label: "Orders", color: "#b2967d" },
+  }
+
+  const categoryChartConfig = {
+    quantity: { label: "Items Sold", color: "#7d5a44" },
+  }
+
+  const stockRiskChartConfig = {
+    stock: { label: "Remaining Stock", color: "#8a6a55" },
+  }
+
+  const ingredientAlertChartConfig = {
+    value: { label: "Alerts", color: "#7d5a44" },
+    Critical: { label: "Critical", color: "#7d5a44" },
+    Expiring: { label: "Expiring", color: "#b2967d" },
+    Expired: { label: "Expired", color: "#4a342a" },
+  }
+
+  const topCategory = categoryChartData[0]
+  const stockRiskLeader = stockRiskChartData[0]
+  const totalAlertSignals = ingredientAlertChartData.reduce((sum, item) => sum + item.value, 0)
 
   return (
     <div className="flex min-h-screen bg-transparent">
@@ -369,10 +619,32 @@ export default function DashboardPage() {
                     <p className="mt-1 text-sm text-white/70">{formatRoleLabel(userRole)}</p>
                   </div>
                   <div className="rounded-[28px] border border-white/10 bg-white/10 p-4 backdrop-blur-xl">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/62">Live Refresh</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/62">Live Refresh</p>
+                      {isRefreshing && !showSkeletons ? (
+                        <span className="rounded-full border border-white/14 bg-white/10 px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/72">
+                          Syncing
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{lastUpdatedLabel}</p>
                     <p className="mt-1 text-sm text-white/70">Realtime updates on sales and inventory</p>
                   </div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[24px] border border-white/10 bg-white/8 px-4 py-3">
+                  <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/60">Revenue</p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">{`\u20B1${rangeTotal.toFixed(2)}`}</p>
+                </div>
+                <div className="rounded-[24px] border border-white/10 bg-white/8 px-4 py-3">
+                  <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/60">Orders</p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">{transactions.length}</p>
+                </div>
+                <div className="rounded-[24px] border border-white/10 bg-white/8 px-4 py-3">
+                  <p className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/60">Momentum</p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">{topSeller}</p>
                 </div>
               </div>
             </div>
@@ -398,19 +670,34 @@ export default function DashboardPage() {
                   </label>
                 </div>
               </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <InlineMetric label="Window" value={`${fromDate} - ${toDate}`} />
+                <InlineMetric label="Refresh" value={isRefreshing && !showSkeletons ? "Background sync" : "Stable snapshot"} tone="accent" />
+              </div>
             </div>
 
             <div className="rounded-[30px] border border-white/40 bg-[rgba(255,251,247,0.68)] p-5 shadow-[0_24px_48px_rgba(60,42,31,0.08)] backdrop-blur-xl lg:p-6">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Top Seller</p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#1f1916]">{topSeller}</p>
-              <p className="mt-2 text-sm text-[#706159]">Highest performer across the selected range.</p>
+              {showSkeletons ? (
+                <>
+                  <Skeleton className="mt-3 h-10 w-44 rounded-xl bg-[#e5d8cc]" />
+                  <Skeleton className="mt-3 h-4 w-52 rounded-full bg-[#eee4db]" />
+                </>
+              ) : (
+                <>
+                  <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#1f1916]">{topSeller}</p>
+                  <p className="mt-2 text-sm text-[#706159]">Highest performer across the selected range.</p>
+                </>
+              )}
             </div>
           </section>
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {roleStats.map((card) => (
-              <StatCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} />
-            ))}
+            {showSkeletons
+              ? Array.from({ length: 4 }).map((_, index) => <StatCardSkeleton key={index} />)
+              : roleStats.map((card) => (
+                  <StatCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} />
+                ))}
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -450,14 +737,136 @@ export default function DashboardPage() {
             <div className="rounded-[30px] border border-white/40 bg-[rgba(255,251,247,0.68)] p-5 shadow-[0_24px_48px_rgba(60,42,31,0.08)] backdrop-blur-xl lg:p-6">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Role Spotlight</p>
               <div className="mt-5 space-y-3">
-                {spotlightItems.map((item) => (
-                  <div key={item.title} className="rounded-[24px] border border-[#eadfd6] bg-white/75 p-4">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">{item.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-[#61554d]">{item.body}</p>
-                  </div>
-                ))}
+                {showSkeletons ? (
+                  <PanelSkeleton />
+                ) : (
+                  spotlightItems.map((item) => (
+                    <div key={item.title} className="rounded-[24px] border border-[#eadfd6] bg-white/75 p-4">
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">{item.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#61554d]">{item.body}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            {showSkeletons ? (
+              <>
+                <ChartPanelSkeleton />
+                <ChartPanelSkeleton />
+              </>
+            ) : (
+              <>
+                <div className="rounded-[30px] border border-white/40 bg-[rgba(255,251,247,0.68)] p-5 shadow-[0_24px_48px_rgba(60,42,31,0.08)] backdrop-blur-xl lg:p-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Analytics Chart</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916]">Sales trend across the selected range</h2>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <InlineMetric label="Revenue" value={`\u20B1${rangeTotal.toFixed(2)}`} tone="accent" />
+                      <InlineMetric label="Orders" value={String(transactions.length)} />
+                    </div>
+                  </div>
+                  <div className="mt-5 overflow-hidden rounded-[26px] border border-[#eadfd6] bg-[rgba(255,251,247,0.84)] p-3">
+                    <ChartContainer config={salesTrendChartConfig} className="h-[260px] w-full">
+                      <AreaChart data={salesTrendData}>
+                        <defs>
+                          <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-sales)" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="var(--color-sales)" stopOpacity={0.03} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
+                        <XAxis dataKey="shortDate" tickLine={false} axisLine={false} />
+                        <YAxis tickLine={false} axisLine={false} width={36} />
+                        <ChartTooltip content={<ChartTooltipContent labelKey="shortDate" />} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Area
+                          type="monotone"
+                          dataKey="sales"
+                          stroke="var(--color-sales)"
+                          fill="url(#salesFill)"
+                          strokeWidth={3}
+                        />
+                      </AreaChart>
+                    </ChartContainer>
+                  </div>
+                </div>
+
+                <div className="rounded-[30px] border border-white/40 bg-[rgba(255,251,247,0.68)] p-5 shadow-[0_24px_48px_rgba(60,42,31,0.08)] backdrop-blur-xl lg:p-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#8f7f73]">Role Focus</p>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916]">
+                        {userRole === "inventory_staff" ? "Products closest to stockout" : userRole === "admin" ? "Alert distribution" : "Best-selling categories"}
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {userRole === "inventory_staff" ? (
+                        <>
+                          <InlineMetric label="Most at risk" value={stockRiskLeader?.name || "None"} tone="accent" />
+                          <InlineMetric label="Units left" value={stockRiskLeader ? String(stockRiskLeader.stock) : "0"} />
+                        </>
+                      ) : userRole === "admin" ? (
+                        <>
+                          <InlineMetric label="Total alerts" value={String(totalAlertSignals)} tone="accent" />
+                          <InlineMetric label="Critical" value={String(criticalIngredients.length)} />
+                        </>
+                      ) : (
+                        <>
+                          <InlineMetric label="Top category" value={topCategory?.category || "None"} tone="accent" />
+                          <InlineMetric label="Items sold" value={topCategory ? String(topCategory.quantity) : "0"} />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-5 overflow-hidden rounded-[26px] border border-[#eadfd6] bg-[rgba(255,251,247,0.84)] p-3">
+                    {userRole === "inventory_staff" ? (
+                      <ChartContainer config={stockRiskChartConfig} className="h-[260px] w-full">
+                        <BarChart data={stockRiskChartData} layout="vertical" margin={{ left: 10, right: 8 }}>
+                          <CartesianGrid horizontal={false} stroke="#d7c9b8" strokeDasharray="3 3" />
+                          <XAxis type="number" tickLine={false} axisLine={false} />
+                          <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={92} />
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <ChartLegend content={<ChartLegendContent />} />
+                          <Bar dataKey="stock" fill="var(--color-stock)" radius={[0, 10, 10, 0]} />
+                        </BarChart>
+                      </ChartContainer>
+                    ) : userRole === "admin" ? (
+                      <ChartContainer config={ingredientAlertChartConfig} className="h-[260px] w-full">
+                        <PieChart>
+                          <Pie data={ingredientAlertChartData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={90} paddingAngle={3}>
+                            {ingredientAlertChartData.map((entry) => (
+                              <Cell key={entry.name} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+                          <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                        </PieChart>
+                      </ChartContainer>
+                    ) : (
+                      <ChartContainer config={categoryChartConfig} className="h-[260px] w-full">
+                        <BarChart data={categoryChartData} margin={{ left: 4, right: 4 }}>
+                          <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
+                          <XAxis dataKey="category" tickLine={false} axisLine={false} />
+                          <YAxis tickLine={false} axisLine={false} width={32} />
+                          <ChartTooltip content={<ChartTooltipContent nameKey="category" />} />
+                          <ChartLegend content={<ChartLegendContent />} />
+                          <Bar dataKey="quantity" radius={[10, 10, 0, 0]}>
+                            {categoryChartData.map((entry) => (
+                              <Cell key={entry.category} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ChartContainer>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
@@ -466,7 +875,9 @@ export default function DashboardPage() {
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916]">Operational highlights</h2>
 
               <div className="mt-5 space-y-3">
-                {operationalFeed.length === 0 ? (
+                {showSkeletons ? (
+                  <PanelSkeleton lines={4} />
+                ) : operationalFeed.length === 0 ? (
                   <div className="rounded-[24px] border border-dashed border-[#dccfc4] px-4 py-8 text-center text-sm text-[#84766b]">
                     No recent items to show yet.
                   </div>
@@ -489,42 +900,65 @@ export default function DashboardPage() {
               <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#1f1916]">What needs attention now</h2>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2">
-                <div className="rounded-[24px] border border-[#ebdfd5] bg-white/78 p-4">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">Ingredient Pressure</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#1f1916]">{criticalIngredients.length}</p>
-                  <p className="mt-2 text-sm text-[#706159]">Ingredients currently limiting available menu output.</p>
-                </div>
-                <div className="rounded-[24px] border border-[#ebdfd5] bg-white/78 p-4">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">Expiring Batches</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#1f1916]">{nearExpiryCount}</p>
-                  <p className="mt-2 text-sm text-[#706159]">Items due soon or already expired in the active window.</p>
-                </div>
+                {showSkeletons ? (
+                  <>
+                    <div className="rounded-[24px] border border-[#ebdfd5] bg-white/78 p-4">
+                      <Skeleton className="h-3 w-32 rounded-full bg-[#e8dbd1]" />
+                      <Skeleton className="mt-4 h-9 w-16 rounded-xl bg-[#e5d8cc]" />
+                      <Skeleton className="mt-3 h-4 w-44 rounded-full bg-[#f0e7de]" />
+                    </div>
+                    <div className="rounded-[24px] border border-[#ebdfd5] bg-white/78 p-4">
+                      <Skeleton className="h-3 w-32 rounded-full bg-[#e8dbd1]" />
+                      <Skeleton className="mt-4 h-9 w-16 rounded-xl bg-[#e5d8cc]" />
+                      <Skeleton className="mt-3 h-4 w-44 rounded-full bg-[#f0e7de]" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-[24px] border border-[#ebdfd5] bg-white/78 p-4">
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">Ingredient Pressure</p>
+                      <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#1f1916]">{criticalIngredients.length}</p>
+                      <p className="mt-2 text-sm text-[#706159]">Ingredients currently limiting available menu output.</p>
+                    </div>
+                    <div className="rounded-[24px] border border-[#ebdfd5] bg-white/78 p-4">
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8f7f73]">Expiring Batches</p>
+                      <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#1f1916]">{nearExpiryCount}</p>
+                      <p className="mt-2 text-sm text-[#706159]">Items due soon or already expired in the active window.</p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="mt-4 space-y-3">
-                {[...criticalIngredients.slice(0, 2), ...ingredientAlerts.expiredIngredients.slice(0, 1), ...ingredientAlerts.expiringSoonIngredients.slice(0, 1)]
-                  .slice(0, 4)
-                  .map((ingredient) => (
-                    <div key={ingredient.id} className="flex items-center justify-between rounded-[24px] border border-[#ebdfd5] bg-white/78 px-4 py-4">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#1f1916]">{ingredient.name}</p>
-                        <p className="truncate text-sm text-[#7a6b61]">
-                          Usable stock: {getIngredientExpirationSummary(ingredient).usableStock}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-[#f3ece5] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#68574c]">
-                        Review
-                      </span>
-                    </div>
-                  ))}
+                {showSkeletons ? (
+                  <PanelSkeleton lines={4} />
+                ) : (
+                  <>
+                    {[...criticalIngredients.slice(0, 2), ...ingredientAlerts.expiredIngredients.slice(0, 1), ...ingredientAlerts.expiringSoonIngredients.slice(0, 1)]
+                      .slice(0, 4)
+                      .map((ingredient) => (
+                        <div key={ingredient.id} className="flex items-center justify-between rounded-[24px] border border-[#ebdfd5] bg-white/78 px-4 py-4">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold tracking-[-0.02em] text-[#1f1916]">{ingredient.name}</p>
+                            <p className="truncate text-sm text-[#7a6b61]">
+                              Usable stock: {getIngredientExpirationSummary(ingredient).usableStock}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-[#f3ece5] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#68574c]">
+                            Review
+                          </span>
+                        </div>
+                      ))}
 
-                {criticalIngredients.length === 0 &&
-                  ingredientAlerts.expiredIngredients.length === 0 &&
-                  ingredientAlerts.expiringSoonIngredients.length === 0 && (
-                    <div className="rounded-[24px] border border-dashed border-[#dccfc4] px-4 py-8 text-center text-sm text-[#84766b]">
-                      No urgent alerts right now.
-                    </div>
-                  )}
+                    {criticalIngredients.length === 0 &&
+                      ingredientAlerts.expiredIngredients.length === 0 &&
+                      ingredientAlerts.expiringSoonIngredients.length === 0 && (
+                        <div className="rounded-[24px] border border-dashed border-[#dccfc4] px-4 py-8 text-center text-sm text-[#84766b]">
+                          No urgent alerts right now.
+                        </div>
+                      )}
+                  </>
+                )}
               </div>
             </div>
           </section>
