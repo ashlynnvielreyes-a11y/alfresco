@@ -260,8 +260,14 @@ export async function markOfflineOperationAttempt(id: string, attempts: number) 
 
 export async function refreshOfflineSyncStatus() {
   const pending = await listOfflineOperations()
+  const isOnline = typeof navigator === "undefined" ? true : navigator.onLine
+
   return updateOfflineSyncStatus({
+    isOnline,
+    isSyncing: false,
     pendingCount: pending.length,
+    lastError: isOnline ? null : pending.length > 0 ? "Waiting for connection" : null,
+    ...(isOnline && pending.length === 0 ? { lastSyncedAt: Date.now() } : {}),
   })
 }
 

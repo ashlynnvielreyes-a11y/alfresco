@@ -251,6 +251,9 @@ export default function DashboardPage() {
 
       setSyncStatus(nextStatus)
       setLastLoadedAt(Date.now())
+    } catch {
+      const fallbackStatus = await getOfflineSyncStatus()
+      setSyncStatus(fallbackStatus)
     } finally {
       setLoading(false)
       setRefreshing(false)

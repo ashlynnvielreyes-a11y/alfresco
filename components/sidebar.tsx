@@ -19,6 +19,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  TrendingUp,
   Users,
   UtensilsCrossed,
   X,
@@ -49,7 +50,8 @@ const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
 const allNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Role-tailored overview", section: "Core", permission: "dashboard" },
   { href: "/pos", label: "Checkout", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
-  { href: "/sales-history", label: "Reports", icon: FileText, description: "Track revenue and orders", section: "Core", permission: "sales" },
+  { href: "/sales-history", label: "Sales History", icon: FileText, description: "Search receipts and export records", section: "Core", permission: "sales" },
+  { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, description: "Review KPIs and business insights", section: "Core", permission: "sales" },
   { href: "/inventory", label: "Inventory", icon: Package, description: "Monitor stock levels", section: "Operations", permission: "inventory" },
   { href: "/ingredients", label: "Ingredients", icon: Leaf, description: "Manage raw materials", section: "Operations", permission: "inventory" },
   { href: "/expiration-logs", label: "Expiry Logs", icon: AlertTriangle, description: "Review expiring items", section: "Operations", permission: "inventory" },

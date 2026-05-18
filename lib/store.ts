@@ -160,6 +160,27 @@ function isSupabaseForeignKeyConstraintError(error: unknown, constraintName: str
   return serialized.includes("violates foreign key constraint") && serialized.includes(constraintName.toLowerCase())
 }
 
+function isSupabaseDuplicateConstraintError(error: unknown, constraintName: string) {
+  if (error && typeof error === "object") {
+    const code = "code" in error && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code.toLowerCase()
+      : ""
+    const message = "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message.toLowerCase()
+      : ""
+    const details = "details" in error && typeof (error as { details?: unknown }).details === "string"
+      ? (error as { details: string }).details.toLowerCase()
+      : ""
+
+    if (code === "23505" && (message.includes(constraintName.toLowerCase()) || details.includes(constraintName.toLowerCase()))) {
+      return true
+    }
+  }
+
+  const serialized = getErrorMessage(error).toLowerCase()
+  return serialized.includes("duplicate key value violates unique constraint") && serialized.includes(constraintName.toLowerCase())
+}
+
 async function upsertLegacyAddOnRow(
   supabase: any,
   existingRowId: number | null,
@@ -2248,6 +2269,7 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
 
   const { createClient } = await import("./supabase/client")
   const supabase = createClient()
+  let transactionExistsRemotely = false
 
   const transactionData = {
     transaction_number: transaction.id,
@@ -2273,6 +2295,11 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
 
   let { error } = await supabase.from("transactions").insert([transactionData]).select()
 
+  if (error && isSupabaseDuplicateConstraintError(error, "transactions_transaction_number_key")) {
+    error = null
+    transactionExistsRemotely = true
+  }
+
   if (error) {
     const fallbackData = {
       transaction_number: transaction.id,
@@ -2293,6 +2320,11 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
 
     const fallbackResult = await supabase.from("transactions").insert([fallbackData]).select()
     error = fallbackResult.error
+
+    if (error && isSupabaseDuplicateConstraintError(error, "transactions_transaction_number_key")) {
+      error = null
+      transactionExistsRemotely = true
+    }
   }
 
   if (error) {
@@ -2336,6 +2368,11 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
   })
 
   if (orderItems.length > 0) {
+    const deleteOrderItemsResult = await supabase.from("order_items").delete().eq("transaction_number", transaction.id)
+    if (deleteOrderItemsResult.error && !isSupabaseMissingTableError(deleteOrderItemsResult.error, "order_items")) {
+      throw new Error(deleteOrderItemsResult.error.message)
+    }
+
     const orderItemsResult = await supabase.from("order_items").insert(orderItems)
     if (orderItemsResult.error && !isSupabaseMissingTableError(orderItemsResult.error, "order_items")) {
       if (
@@ -2353,6 +2390,10 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
         throw new Error(legacyResult.error.message)
       }
     }
+  }
+
+  if (transactionExistsRemotely) {
+    console.log("[v0] Transaction already existed remotely, queue item treated as synced:", transaction.id)
   }
 }
 
