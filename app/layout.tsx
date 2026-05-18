@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { SyncErrorListener } from '@/components/sync-error-listener'
 import { SessionEnforcer } from '@/components/session-enforcer'
+import { SourceProtection } from '@/components/source-protection'
 import './globals.css'
 
 const inter = Inter({
@@ -43,6 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`bg-background ${inter.variable}`}>
       <body className="font-sans antialiased bg-background">
+        <SourceProtection />
         <SessionEnforcer />
         {children}
         <SyncErrorListener />
