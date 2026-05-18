@@ -4,7 +4,7 @@ import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { validatePassword, validateEmail } from "@/lib/store"
-import { createClient } from "@/lib/supabase/client"
+import { AuthGuard } from "@/components/auth-guard"
 import { Check, X, Loader2, Mail, Eye, EyeOff } from "lucide-react"
 
 type RegistrationRole = "admin" | "cashier" | "inventory_staff"
@@ -69,7 +69,7 @@ export default function RegisterPage() {
       const controller = new AbortController()
       const timeoutId = window.setTimeout(() => controller.abort(), 45000)
 
-      const response = await fetch("/api/otp/send", {
+      const response = await fetch("/api/register/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -169,39 +169,26 @@ export default function RegisterPage() {
       const data = await response.json()
 
       if (data.success) {
-        const supabase = createClient()
-
-        const { data: existingUser } = await supabase
-          .from("users")
-          .select("id")
-          .or(`username.eq.${username},email.eq.${email}`)
-          .single()
-
-        if (existingUser) {
-          setOtpError("Username or email already exists")
-          setIsLoading(false)
-          return
-        }
-
-        const { data: newUser, error: insertError } = await supabase
-          .from("users")
-          .insert({
-            username: username.toLowerCase(),
-            email: email.toLowerCase(),
-            password_hash: password,
+        const registerResponse = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            email,
+            password,
             role: getDatabaseRole(),
-            is_active: true,
-          })
-          .select("id, username, email, role, is_active")
-          .single()
+          }),
+        })
 
-        if (insertError || !newUser) {
-          setOtpError(insertError?.message || "Registration failed")
+        const registerData = await registerResponse.json()
+
+        if (!registerData.success || !registerData.user) {
+          setOtpError(registerData.error || "Registration failed")
           setIsLoading(false)
           return
         }
 
-        router.push(`/?registered=1&username=${encodeURIComponent(newUser.email)}`)
+        router.push(`/?registered=1&username=${encodeURIComponent(registerData.user.email)}`)
       } else {
         setOtpError(data.error || "Invalid verification code")
       }
@@ -245,7 +232,8 @@ export default function RegisterPage() {
 
   if (step === "otp") {
     return (
-      <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
+      <AuthGuard requiredRole="admin">
+        <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-0 top-0 h-72 w-72 rounded-full bg-[#b2967d]/20 blur-3xl" />
           <div className="absolute right-10 top-16 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
@@ -338,12 +326,14 @@ export default function RegisterPage() {
             </button>
           </div>
         </div>
-      </main>
+        </main>
+      </AuthGuard>
     )
   }
 
   return (
-    <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
+    <AuthGuard requiredRole="admin">
+      <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-0 top-0 h-72 w-72 rounded-full bg-[#b2967d]/20 blur-3xl" />
         <div className="absolute right-10 top-16 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
@@ -656,6 +646,7 @@ export default function RegisterPage() {
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </AuthGuard>
   )
 }

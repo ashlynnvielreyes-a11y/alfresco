@@ -6,7 +6,7 @@ type AuthCookiePayload = {
   isActive: boolean
 }
 
-const publicPaths = ["/", "/register"]
+const publicPaths = ["/"]
 
 function parseAuthCookie(request: NextRequest): AuthCookiePayload | null {
   const raw = request.cookies.get("alfresco_auth_state")?.value
@@ -40,6 +40,10 @@ function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
 
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/settings")) {
     return true
+  }
+
+  if (pathname.startsWith("/user-management") || pathname.startsWith("/register")) {
+    return role === "admin"
   }
 
   return true

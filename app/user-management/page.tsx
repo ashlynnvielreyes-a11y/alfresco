@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
@@ -155,6 +156,12 @@ export default function UserManagementPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[#4a342a] bg-[#4a342a] px-4 py-3 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                >
+                  Create User
+                </Link>
                 <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 backdrop-blur-sm">
                   <p className="text-xs uppercase tracking-[0.18em] text-[#7d5a44]">Active Users</p>
                   <p className="mt-1 text-2xl font-bold text-[#4a342a]">{activeUsers}</p>

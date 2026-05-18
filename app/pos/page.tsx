@@ -113,6 +113,7 @@ export default function POSPage() {
   const [activeOrderId, setActiveOrderId] = useState("")
   const [orderStartedAt, setOrderStartedAt] = useState<string | null>(null)
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([])
+  const [isTakingOverOrder, setIsTakingOverOrder] = useState(false)
 
   // Payment and discount state
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
@@ -631,6 +632,7 @@ export default function POSPage() {
 
   useEffect(() => {
     if (!currentUser || !activeOrderId) return
+    if (isTakingOverOrder) return
 
     const matchingOrder = activeOrders.find((order) => order.id === activeOrderId)
     if (!matchingOrder) return
@@ -647,7 +649,7 @@ export default function POSPage() {
       title: "Order taken over",
       description: `${matchingOrder.cashierName} is now handling this active order.`,
     })
-  }, [activeOrderId, activeOrders, currentUser])
+  }, [activeOrderId, activeOrders, currentUser, isTakingOverOrder])
 
   const confirmSale = async () => {
     // For non-cash payments, we don't need cash received
@@ -715,6 +717,8 @@ export default function POSPage() {
   const handleTakeOverActiveOrder = useCallback(async (order: ActiveOrder) => {
     if (!currentUser || currentUser.role !== "admin") return
 
+    setIsTakingOverOrder(true)
+
     const latestOrder = await getActiveOrderById(order.id)
     if (!latestOrder) {
       toast({
@@ -722,6 +726,7 @@ export default function POSPage() {
         description: "That active order is no longer available.",
       })
       void setActiveOrders(await getActiveOrders())
+      setIsTakingOverOrder(false)
       return
     }
 
@@ -730,12 +735,16 @@ export default function POSPage() {
         title: "Already assigned",
         description: "This order is already on your station.",
       })
+      setIsTakingOverOrder(false)
       return
     }
 
     if (cart.length > 0 && activeOrderId !== latestOrder.id) {
       const shouldReplace = window.confirm("Your current cart will be replaced by the selected live order. Continue?")
-      if (!shouldReplace) return
+      if (!shouldReplace) {
+        setIsTakingOverOrder(false)
+        return
+      }
     }
 
     setCart(latestOrder.items)
@@ -761,6 +770,7 @@ export default function POSPage() {
     })
 
     setActiveOrders(await getActiveOrders())
+    setIsTakingOverOrder(false)
     toast({
       title: "Order transferred",
       description: `You are now processing ${latestOrder.cashierName}'s active order.`,

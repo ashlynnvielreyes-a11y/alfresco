@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
 
-const PUBLIC_PATHS = ["/", "/register"]
+const PUBLIC_PATHS = ["/"]
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/")
@@ -24,6 +24,7 @@ function canAccessPath(pathname: string, role: ReturnType<typeof getUserRole>) {
   }
   if (pathname.startsWith("/sales-history")) return canAccessSales(role)
   if (pathname.startsWith("/user-management")) return role === "admin"
+  if (pathname.startsWith("/register")) return role === "admin"
 
   return true
 }

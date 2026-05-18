@@ -1,7 +1,6 @@
 "use client"
 
 import Image from "next/image"
-import Link from "next/link"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -389,9 +388,7 @@ function LoginPageContent() {
 
           <p className="text-center text-sm text-muted-foreground">
             Need a new account?{" "}
-            <Link href="/register" className="font-medium text-[#4a342a] hover:underline">
-              Register here
-            </Link>
+            Ask an administrator to create your account
           </p>
         </form>
       </div>

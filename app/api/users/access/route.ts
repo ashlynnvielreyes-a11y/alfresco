@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireAdminSession } from "@/lib/server-auth"
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message
@@ -32,6 +33,11 @@ function isSupabaseMissingColumnError(error: unknown, columnName: string, tableN
 }
 
 export async function PATCH(request: NextRequest) {
+  const session = await requireAdminSession(request)
+  if (!session.success) {
+    return session.response
+  }
+
   try {
     const { userId, action } = await request.json()
 
