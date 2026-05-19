@@ -140,11 +140,11 @@ export function getCurrentDailyQueueNumber(transactions: Transaction[], date: st
 }
 
 export function canAccessQueue(role: AppUserRole) {
-  return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff"
+  return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff" || role === "kitchen"
 }
 
 export function canManagePreparing(role: AppUserRole) {
-  return role === "admin" || role === "barista"
+  return role === "admin" || role === "barista" || role === "kitchen"
 }
 
 export function canCompleteQueuedOrders(role: AppUserRole) {
@@ -152,5 +152,5 @@ export function canCompleteQueuedOrders(role: AppUserRole) {
 }
 
 export function canPrioritizeQueue(role: AppUserRole) {
-  return role === "admin" || role === "cashier" || role === "barista"
+  return role === "admin" || role === "cashier" || role === "barista" || role === "kitchen"
 }

@@ -7,7 +7,7 @@ import { validatePassword, validateEmail } from "@/lib/store"
 import { AuthGuard } from "@/components/auth-guard"
 import { Check, X, Loader2, Mail, Eye, EyeOff } from "lucide-react"
 
-type RegistrationRole = "admin" | "cashier" | "inventory_staff"
+type RegistrationRole = "admin" | "cashier" | "inventory_staff" | "kitchen"
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("")
@@ -375,7 +375,7 @@ export default function RegisterPage() {
             <label className="block text-sm font-medium text-[#7d5a44] mb-2">
               Role
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => setRole("admin")}
@@ -408,6 +408,17 @@ export default function RegisterPage() {
                 }`}
               >
                 Inventory Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole("kitchen")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-colors ${
+                  role === "kitchen"
+                    ? "border-[#4a342a] bg-[#f5f1ea] text-[#4a342a]"
+                    : "border-[#f5f1ea]/60 bg-[#f5f1ea]/90 text-[#7d5a44]"
+                }`}
+              >
+                Kitchen
               </button>
             </div>
           </div>

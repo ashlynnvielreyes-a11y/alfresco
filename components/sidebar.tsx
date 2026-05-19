@@ -102,6 +102,8 @@ function formatRoleLabel(role: UserRole) {
       return "Manager"
     case "inventory_staff":
       return "Manager"
+    case "kitchen":
+      return "Kitchen"
     default:
       return role
   }
@@ -123,6 +125,7 @@ function getRoleAccent(role: UserRole) {
         summary: "Operations, stock health, and planning",
       }
     case "barista":
+    case "kitchen":
       return {
         icon: ReceiptText,
         gradient: "from-[#4d3f34] via-[#8d6b55] to-[#d7c4ae]",

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminSession } from "@/lib/server-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-type RegistrationRole = "admin" | "cashier" | "inventory_staff"
+type RegistrationRole = "admin" | "cashier" | "inventory_staff" | "kitchen"
 
 function validatePassword(password: string) {
   const errors: string[] = []
@@ -41,7 +41,7 @@ function validatePassword(password: string) {
 }
 
 function isRegistrationRole(value: string): value is RegistrationRole {
-  return value === "admin" || value === "cashier" || value === "inventory_staff"
+  return value === "admin" || value === "cashier" || value === "inventory_staff" || value === "kitchen"
 }
 
 export async function POST(request: NextRequest) {

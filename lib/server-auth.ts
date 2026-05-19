@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 
 type AuthCookiePayload = {
   id: string
-  role: "admin" | "cashier" | "inventory_staff"
+  role: "admin" | "cashier" | "inventory_staff" | "barista" | "manager" | "kitchen"
   isActive: boolean
 }
 

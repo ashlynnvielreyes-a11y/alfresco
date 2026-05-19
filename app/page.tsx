@@ -142,7 +142,7 @@ function LoginPageContent() {
         localStorage.removeItem(REMEMBERED_USERNAME_KEY)
       }
 
-      const userRole = user.role === "admin" || user.role === "inventory_staff" || user.role === "cashier"
+      const userRole = user.role === "admin" || user.role === "inventory_staff" || user.role === "cashier" || user.role === "kitchen"
         ? user.role
         : "cashier"
 

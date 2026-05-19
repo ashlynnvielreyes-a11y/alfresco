@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessSales, getDefaultRouteForRole, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
+import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessQueue, canAccessSales, getDefaultRouteForRole, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
 
 const PUBLIC_PATHS = ["/"]
 
@@ -13,6 +13,13 @@ function isPublicPath(pathname: string) {
 function canAccessPath(pathname: string, role: ReturnType<typeof getUserRole>) {
   if (pathname.startsWith("/dashboard")) return canAccessDashboard(role)
   if (pathname.startsWith("/pos")) return canAccessPos(role)
+  if (
+    pathname.startsWith("/queue-management") ||
+    pathname.startsWith("/kitchen-dashboard") ||
+    pathname.startsWith("/queue-display")
+  ) {
+    return canAccessQueue(role)
+  }
   if (
     pathname.startsWith("/inventory") ||
     pathname.startsWith("/ingredients") ||

@@ -26,6 +26,8 @@ function formatRole(role: AppUser["role"]) {
       return "Cashier"
     case "inventory_staff":
       return "Inventory Staff"
+    case "kitchen":
+      return "Kitchen"
     default:
       return role
   }

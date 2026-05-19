@@ -2986,7 +2986,7 @@ export type AuthUser = AppUser
 const AUTH_COOKIE_KEY = "alfresco_auth_state"
 
 function normalizeUserRole(role: string | null | undefined): UserRole {
-  if (role === "admin" || role === "cashier" || role === "inventory_staff" || role === "barista" || role === "manager") {
+  if (role === "admin" || role === "cashier" || role === "inventory_staff" || role === "barista" || role === "manager" || role === "kitchen") {
     return role
   }
 
@@ -3040,7 +3040,7 @@ export function canAccessInventory(role: UserRole): boolean {
 }
 
 export function canAccessQueue(role: UserRole): boolean {
-  return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff"
+  return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff" || role === "kitchen"
 }
 
 export function canAccessSales(role: UserRole): boolean {
@@ -3058,6 +3058,7 @@ export function canAccessDashboard(role: UserRole): boolean {
 export function getDefaultRouteForRole(role: UserRole): string {
   if (role === "cashier") return "/pos"
   if (role === "barista") return "/queue-management"
+  if (role === "kitchen") return "/queue-management"
   if (role === "manager") return "/queue-management"
   if (role === "inventory_staff") return "/dashboard"
   return "/dashboard"

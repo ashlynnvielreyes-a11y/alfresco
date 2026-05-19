@@ -1,7 +1,17 @@
 "use client"
 
+import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Clock3, CupSoda, Expand, RefreshCw, Sparkles } from "lucide-react"
+import {
+  Clock3,
+  Expand,
+  Megaphone,
+  PackageCheck,
+  QrCode,
+  RefreshCw,
+  Store,
+  Users,
+} from "lucide-react"
 
 import { AuthGuard } from "@/components/auth-guard"
 import { getQueueOrderTypeLabel, getTransactionQueueMetadata } from "@/lib/queue"
@@ -15,11 +25,9 @@ type QueueDisplayRecord = {
   transaction: Transaction
   stage: DisplayStage
   queueNumber: string
-  customerLabel: string
   orderTypeLabel: string
   placedAtValue: number
   timestampLabel: string
-  itemsLabel: string
 }
 
 function parseTransactionDateTime(transaction: Transaction) {
@@ -71,11 +79,9 @@ function buildDisplayRecord(transaction: Transaction, now: number): QueueDisplay
     transaction,
     stage,
     queueNumber: String(transaction.queueNumber || transaction.id).replace(/^#/, ""),
-    customerLabel: transaction.customerName || "Walk-in customer",
     orderTypeLabel: getQueueOrderTypeLabel(queueMeta.orderType),
     placedAtValue: placedAt.getTime(),
-    timestampLabel: placedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    itemsLabel: transaction.items.map((item) => `${item.product.name} x${item.quantity}`).join(" | "),
+    timestampLabel: placedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
   }
 }
 
@@ -92,55 +98,60 @@ function sortQueueRecords(records: QueueDisplayRecord[]) {
   })
 }
 
-function QueueColumn({
-  title,
-  records,
-  tone,
-  emptyLabel,
+function QueueCard({
+  record,
+  accent,
+  statusLabel,
 }: {
-  title: string
-  records: QueueDisplayRecord[]
-  tone: string
-  emptyLabel: string
+  record: QueueDisplayRecord
+  accent: string
+  statusLabel: string
 }) {
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-black/18 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-xl font-semibold tracking-[-0.05em] text-white md:text-2xl">{title}</h3>
-        <span className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ${tone}`}>
-          {records.length} active
-        </span>
+    <article className="flex min-h-[clamp(9.5rem,19vh,12.5rem)] flex-col justify-between rounded-[clamp(1rem,1.7vw,1.35rem)] border border-black/8 bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f7_100%)] px-[clamp(1rem,1.3vw,1.3rem)] py-[clamp(0.95rem,1.3vw,1.2rem)] shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+      <div className="text-center">
+        <p className="text-[clamp(3rem,5vw,4.8rem)] font-black leading-none tracking-[-0.08em] text-[#0f172a]">
+          {record.queueNumber}
+        </p>
+        <p className="mt-3 text-[clamp(1rem,1.55vw,1.45rem)] font-medium text-[#334155]">{record.timestampLabel}</p>
       </div>
+      <p className={`mt-4 text-center text-[clamp(1.05rem,1.6vw,1.5rem)] font-bold ${accent}`}>{statusLabel}</p>
+    </article>
+  )
+}
 
-      <div className="mt-4 space-y-3">
+function QueueGridSection({
+  title,
+  accent,
+  icon,
+  records,
+  statusLabel,
+}: {
+  title: string
+  accent: string
+  icon: React.ReactNode
+  records: QueueDisplayRecord[]
+  statusLabel: string
+}) {
+  return (
+    <section className="flex min-h-0 flex-col px-[clamp(0.85rem,1.1vw,1.2rem)] py-[clamp(0.5rem,0.8vw,0.9rem)]">
+      <div className="mb-[clamp(0.75rem,1vw,1rem)] flex items-center justify-center gap-4">
+        <div className={accent}>{icon}</div>
+        <h3 className={`text-[clamp(1.8rem,2.4vw,2.7rem)] font-black uppercase tracking-[-0.04em] ${accent}`}>
+          {title}
+        </h3>
+      </div>
+      <div className={`mb-[clamp(0.8rem,1vw,1rem)] h-[3px] rounded-full ${accent.replace("text-", "bg-")}`} />
+
+      <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-[clamp(0.8rem,1vw,1rem)]">
+        {records.map((record) => (
+          <QueueCard key={`${record.transaction.id}-${record.stage}`} record={record} accent={accent} statusLabel={statusLabel} />
+        ))}
         {records.length === 0 ? (
-          <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-white/5 px-4 py-10 text-center text-sm text-[#d9cfc4]">
-            {emptyLabel}
+          <div className="col-span-2 flex min-h-[clamp(14rem,30vh,18rem)] items-center justify-center rounded-[1.25rem] border border-dashed border-black/10 bg-white/60 text-center text-[clamp(1rem,1.3vw,1.2rem)] text-[#64748b]">
+            Waiting for live orders
           </div>
-        ) : (
-          records.map((record) => (
-            <article
-              key={`${record.transaction.id}-${record.stage}`}
-              className="rounded-[1.6rem] border border-white/10 bg-white/7 px-4 py-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-4xl font-semibold tracking-[-0.08em] text-white md:text-5xl">{record.queueNumber}</p>
-                  <p className="mt-2 text-lg font-semibold tracking-[-0.04em] text-[#fff3e7]">{record.customerLabel}</p>
-                </div>
-                <span className="rounded-full border border-white/10 bg-black/18 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7dacd]">
-                  {record.orderTypeLabel}
-                </span>
-              </div>
-
-              <p className="mt-3 text-sm leading-6 text-[#ded3c8]">{record.itemsLabel}</p>
-              <div className="mt-4 flex items-center justify-between text-sm text-[#d6cbbf]">
-                <span>Queued at</span>
-                <span className="font-semibold text-white">{record.timestampLabel}</span>
-              </div>
-            </article>
-          ))
-        )}
+        ) : null}
       </div>
     </section>
   )
@@ -199,20 +210,22 @@ function QueueDisplayContent() {
   const servingRecords = displayRecords.filter((record) => record.stage === "serving")
   const nowServing = readyRecords[0] || servingRecords[0] || preparingRecords[0] || null
 
-  const preparingBoard = preparingRecords.slice(0, 8)
-  const readyBoard = readyRecords.slice(nowServing?.stage === "ready" ? 1 : 0, nowServing?.stage === "ready" ? 9 : 8)
-  const recentServingBoard = servingRecords.slice(nowServing?.stage === "serving" ? 1 : 0, nowServing?.stage === "serving" ? 5 : 4)
+  const preparingBoard = preparingRecords.slice(0, 6)
+  const readyBoard = readyRecords.slice(nowServing?.stage === "ready" ? 1 : 0, nowServing?.stage === "ready" ? 7 : 6)
 
   const displayDate = new Date(now).toLocaleDateString([], {
-    weekday: "long",
+    year: "numeric",
     month: "long",
     day: "numeric",
   })
 
+  const displayWeekday = new Date(now).toLocaleDateString([], {
+    weekday: "long",
+  })
+
   const displayTime = new Date(now).toLocaleTimeString([], {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    second: "2-digit",
   })
 
   const toggleFullscreen = async () => {
@@ -227,165 +240,164 @@ function QueueDisplayContent() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#120f0d] text-[#f7f0e8]">
-      <div className="relative min-h-screen overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(178,150,125,0.24),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.16),transparent_22%),linear-gradient(135deg,#1a1512_0%,#231a16_40%,#0f1720_100%)]" />
-        <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:4rem_4rem]" />
-
-        <div className="relative z-10 flex min-h-screen flex-col p-4 md:p-6 xl:p-8">
-          <header className="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/6 px-5 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl md:flex-row md:items-center md:justify-between md:px-7">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.38em] text-[#d9c4b2]">AI Fresco Queue Display</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.07em] text-[#fff7f0] md:text-5xl">
-                Live Queue Board
-              </h1>
-              <p className="mt-2 text-sm text-[#d8cec3] md:text-base">
-                Real-time queue status for customers across preparation, pickup, and current calls.
-              </p>
+    <main className="h-screen w-screen overflow-hidden bg-[#1f232a] text-white">
+      <div className="flex h-full w-full flex-col bg-[linear-gradient(180deg,#0a1420_0%,#09111d_14%,#f7f4ef_14.2%,#f4f0ea_80%,#09111d_80.2%,#07111d_100%)] p-[clamp(0.35rem,0.65vw,0.75rem)]">
+        <div className="flex h-full w-full flex-col overflow-hidden rounded-[clamp(1rem,1.2vw,1.4rem)] border border-white/8 bg-transparent shadow-[0_0_0_2px_rgba(255,255,255,0.04),0_24px_90px_rgba(0,0,0,0.35)]">
+          <header className="grid min-h-[clamp(7.5rem,12vh,9.5rem)] grid-cols-[1.2fr_1fr_0.9fr] items-center gap-4 bg-[#06111d] px-[clamp(1rem,1.8vw,2rem)] py-[clamp(0.85rem,1vw,1.1rem)]">
+            <div className="flex items-center gap-[clamp(0.75rem,1vw,1rem)] border-r border-white/12 pr-[clamp(1rem,1.5vw,1.8rem)]">
+              <div className="rounded-[1rem] bg-white/[0.02] p-2">
+                <Image src="/alfresco-logo.png" alt="Brew and Co." width={220} height={74} className="h-[clamp(3.1rem,4.5vw,4.4rem)] w-auto object-contain" priority />
+              </div>
+              <div>
+                <p className="text-[clamp(2rem,2.9vw,3rem)] font-black tracking-[-0.04em] text-white">BREW &amp; CO.</p>
+                <p className="text-[clamp(0.95rem,1.2vw,1.3rem)] uppercase tracking-[0.32em] text-[#dfb779]">Coffee House</p>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.26em] text-[#cbb8a8]">{displayDate}</p>
-                <p className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-white md:text-3xl">{displayTime}</p>
+            <div className="text-center">
+              <h1 className="text-[clamp(2.5rem,4vw,4.4rem)] font-black uppercase tracking-[-0.06em] text-white">
+                Queue Status
+              </h1>
+            </div>
+
+            <div className="flex items-center justify-end gap-[clamp(0.8rem,1vw,1rem)] border-l border-white/12 pl-[clamp(1rem,1.5vw,1.8rem)]">
+              <Clock3 className="h-[clamp(2rem,2.7vw,2.8rem)] w-[clamp(2rem,2.7vw,2.8rem)] text-white" />
+              <div>
+                <p className="text-[clamp(2.2rem,3.2vw,3.6rem)] font-black leading-none tracking-[-0.05em] text-white">{displayTime}</p>
               </div>
+              <div className="border-l border-white/12 pl-[clamp(0.8rem,1vw,1.1rem)] text-[clamp(1rem,1.35vw,1.55rem)] font-medium leading-[1.3] text-white">
+                <p>{displayDate}</p>
+                <p>{displayWeekday}</p>
+              </div>
+            </div>
+          </header>
+
+          <section className="grid min-h-0 flex-1 grid-cols-[minmax(21rem,0.95fr)_minmax(0,1.85fr)] gap-[clamp(1rem,1vw,1.2rem)] px-[clamp(0.9rem,1vw,1.1rem)] py-[clamp(0.9rem,1vw,1.1rem)]">
+            <section className="flex min-h-0 flex-col rounded-[clamp(1rem,1.2vw,1.4rem)] bg-[radial-gradient(circle_at_center,#071424_0%,#04101c_100%)] px-[clamp(1rem,1.3vw,1.4rem)] py-[clamp(1rem,1.4vw,1.5rem)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
+              <p className="text-center text-[clamp(1.9rem,2.8vw,3rem)] font-black uppercase tracking-[-0.04em] text-white">
+                Now Serving
+              </p>
+
+              <div className="flex min-h-0 flex-1 flex-col justify-between pt-[clamp(1.2rem,1.5vw,1.8rem)]">
+                {nowServing ? (
+                  <>
+                    <p className="text-center text-[clamp(7rem,14vw,12rem)] font-black leading-[0.9] tracking-[-0.09em] text-white">
+                      {nowServing.queueNumber}
+                    </p>
+
+                    <div className="mt-[clamp(0.9rem,1vw,1.1rem)] flex items-center justify-center">
+                      <div className="h-[4px] w-[88%] rounded-full bg-[radial-gradient(circle_at_center,#50b4ff_0%,#38bdf8_25%,rgba(56,189,248,0.1)_60%,transparent_100%)]" />
+                    </div>
+
+                    <div className="mt-[clamp(1rem,1.5vw,1.5rem)] text-center">
+                      <p className="text-[clamp(2rem,2.8vw,3rem)] font-black uppercase tracking-[-0.04em] text-[#4ea5ff]">
+                        {nowServing.orderTypeLabel === "To Serve" ? "To Serve" : "For Pickup"}
+                      </p>
+                    </div>
+
+                    <div className="mt-[clamp(1rem,1.6vw,1.6rem)] flex items-center justify-center gap-4 text-white">
+                      <Megaphone className="h-[clamp(2.2rem,3vw,3rem)] w-[clamp(2.2rem,3vw,3rem)] text-[#47a6ff]" />
+                      <p className="text-[clamp(1.8rem,2.6vw,2.7rem)] font-medium leading-[1.12]">
+                        Please proceed
+                        <br />
+                        to the counter
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-center text-[clamp(1.3rem,1.8vw,1.7rem)] text-[#d8e1ee]">
+                    Waiting for the next queue number
+                  </div>
+                )}
+
+                <div className="mt-[clamp(1rem,1.3vw,1.4rem)] rounded-[1rem] bg-white/[0.06] px-[clamp(0.8rem,1vw,1rem)] py-[clamp(0.8rem,1vw,0.95rem)]">
+                  <div className="flex items-center justify-center gap-3 text-[clamp(1.2rem,1.7vw,1.55rem)] font-semibold text-white">
+                    <Store className="h-[clamp(1.5rem,1.9vw,1.8rem)] w-[clamp(1.5rem,1.9vw,1.8rem)]" />
+                    <span>Main Branch</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid min-h-0 grid-cols-2 divide-x divide-black/8 rounded-[clamp(1rem,1.2vw,1.4rem)] bg-[linear-gradient(180deg,#f8f6f2_0%,#f5f2ec_100%)] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]">
+              <QueueGridSection
+                title="Preparing"
+                accent="text-[#d86a08]"
+                icon={<RefreshCw className="h-[clamp(2rem,2.3vw,2.5rem)] w-[clamp(2rem,2.3vw,2.5rem)]" />}
+                records={preparingBoard}
+                statusLabel="Preparing"
+              />
+              <QueueGridSection
+                title="Ready for Pickup"
+                accent="text-[#16923c]"
+                icon={<PackageCheck className="h-[clamp(2rem,2.3vw,2.5rem)] w-[clamp(2rem,2.3vw,2.5rem)]" />}
+                records={readyBoard}
+                statusLabel="Ready"
+              />
+            </section>
+          </section>
+
+          <footer className="grid min-h-[clamp(7rem,12vh,9rem)] grid-cols-[1fr_1fr_auto] items-center gap-[clamp(1rem,1.2vw,1.4rem)] bg-[#06111d] px-[clamp(1rem,1.8vw,2rem)] py-[clamp(0.85rem,1vw,1.1rem)]">
+            <div className="flex items-center gap-[clamp(0.9rem,1.1vw,1.2rem)] border-r border-dashed border-white/30 pr-[clamp(1rem,1.6vw,1.8rem)]">
+              <div className="flex h-[clamp(3.2rem,4vw,4.4rem)] w-[clamp(3.2rem,4vw,4.4rem)] items-center justify-center rounded-full border-2 border-white">
+                <Users className="h-[clamp(1.8rem,2.2vw,2.4rem)] w-[clamp(1.8rem,2.2vw,2.4rem)] text-white" />
+              </div>
+              <div>
+                <p className="text-[clamp(1.7rem,2.2vw,2.5rem)] italic text-[#dfb779]">Thank you!</p>
+                <p className="text-[clamp(1.2rem,1.55vw,1.55rem)] text-white">We appreciate your patience.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-[clamp(0.9rem,1.1vw,1.2rem)] border-r border-dashed border-white/30 pr-[clamp(1rem,1.6vw,1.8rem)]">
+              <Image src="/placeholder-logo.png" alt="Coffee cup" width={86} height={110} className="h-[clamp(4.8rem,7vh,6.3rem)] w-auto object-contain" />
+              <div>
+                <p className="text-[clamp(1.5rem,2vw,2rem)] font-black uppercase tracking-[-0.03em] text-[#dfb779]">Enjoy your coffee!</p>
+                <p className="text-[clamp(1.15rem,1.5vw,1.5rem)] leading-[1.2] text-white">
+                  Every cup is brewed
+                  <br />
+                  with passion.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-[clamp(0.8rem,1vw,1rem)] rounded-[1rem] border border-white/14 bg-white/[0.03] px-[clamp(0.9rem,1vw,1rem)] py-[clamp(0.8rem,1vw,0.95rem)]">
+              <div className="rounded-[0.85rem] bg-white p-2 text-[#0f172a]">
+                <QrCode className="h-[clamp(4rem,5vw,5.5rem)] w-[clamp(4rem,5vw,5.5rem)]" />
+              </div>
+              <div>
+                <p className="text-[clamp(1.4rem,1.9vw,1.9rem)] font-black uppercase tracking-[-0.03em] text-white">Scan to Order</p>
+                <p className="text-[clamp(1.05rem,1.35vw,1.35rem)] leading-[1.22] text-white">
+                  Order ahead and
+                  <br />
+                  skip the line!
+                </p>
+              </div>
+            </div>
+          </footer>
+
+          <div className="flex items-center justify-between bg-[#04090f] px-[clamp(0.75rem,1vw,1rem)] py-[clamp(0.35rem,0.45vw,0.45rem)] text-[clamp(0.75rem,0.9vw,0.9rem)] text-white">
+            <div className="opacity-70">{fullscreenActive ? "Fullscreen active" : "Display mode active"}</div>
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => void loadQueueBoard()}
-                className="inline-flex h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/8 px-5 text-sm font-semibold text-[#fff7f0] transition-colors hover:bg-white/12"
+                className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 transition-colors hover:bg-white/[0.08]"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-3.5 w-3.5" />
                 Refresh
               </button>
               <button
                 type="button"
                 onClick={() => void toggleFullscreen()}
-                className="inline-flex h-14 items-center gap-3 rounded-2xl border border-white/10 bg-[#f3e0cf]/12 px-5 text-sm font-semibold text-[#fff7f0] transition-colors hover:bg-[#f3e0cf]/18"
+                className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 transition-colors hover:bg-white/[0.08]"
               >
-                <Expand className="h-4 w-4" />
+                <Expand className="h-3.5 w-3.5" />
                 {fullscreenActive ? "Exit Fullscreen" : "Fullscreen"}
               </button>
+              <p className="text-[clamp(0.9rem,1vw,1rem)]">All orders are updated in real-time</p>
+              <span className="h-3.5 w-3.5 rounded-full bg-[#22c55e]" />
             </div>
-          </header>
-
-          <section className="mt-4 grid flex-1 gap-4 xl:grid-cols-[1.08fr_1fr]">
-            <section className="relative overflow-hidden rounded-[2.2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-6 shadow-[0_28px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-8">
-              <div className="absolute right-[-3rem] top-[-3rem] h-40 w-40 rounded-full bg-[#d8bba4]/14 blur-3xl" />
-              <div className="absolute bottom-[-2rem] left-[-2rem] h-44 w-44 rounded-full bg-[#34d399]/10 blur-3xl" />
-
-              <div className="relative z-10 flex h-full flex-col justify-between">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[#d8c4b3]">Now Serving</p>
-                    <p className="mt-3 max-w-md text-base leading-7 text-[#e6ddd5] md:text-lg">
-                      Please proceed to the counter when your queue number appears here.
-                    </p>
-                  </div>
-                  <div className="hidden rounded-3xl border border-white/10 bg-white/8 p-4 md:flex md:items-center md:gap-3">
-                    <CupSoda className="h-8 w-8 text-[#f3d7bf]" />
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.26em] text-[#ccb8a7]">Active Board</p>
-                      <p className="mt-1 text-lg font-semibold tracking-[-0.04em] text-white">
-                        {readyRecords.length} ready | {preparingRecords.length} preparing
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex flex-1 flex-col justify-center">
-                  {nowServing ? (
-                    <div className="rounded-[2rem] border border-white/12 bg-black/20 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] md:px-8 md:py-10">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-full bg-emerald-400/18 px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-100 ring-1 ring-emerald-300/25">
-                          {nowServing.stage === "preparing"
-                            ? "Preparing"
-                            : nowServing.stage === "ready"
-                              ? "Ready for Pickup"
-                              : "Serving"}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-[#f2e8dc]">
-                          {nowServing.orderTypeLabel}
-                        </span>
-                      </div>
-
-                      <p className="mt-6 text-sm uppercase tracking-[0.28em] text-[#d2c2b4]">Queue Number</p>
-                      <p className="mt-4 text-[5rem] font-semibold leading-none tracking-[-0.12em] text-white md:text-[7rem] xl:text-[9rem]">
-                        {nowServing.queueNumber}
-                      </p>
-                      <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                        <div>
-                          <p className="text-2xl font-semibold tracking-[-0.05em] text-[#fff7f0] md:text-3xl">
-                            {nowServing.customerLabel}
-                          </p>
-                          <p className="mt-2 text-base text-[#dccfc4] md:text-lg">
-                            {nowServing.itemsLabel}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
-                          <p className="text-xs uppercase tracking-[0.24em] text-[#ccb8a7]">Queued at</p>
-                          <p className="mt-1 text-xl font-semibold tracking-[-0.04em] text-white">{nowServing.timestampLabel}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-[2rem] border border-dashed border-white/14 bg-black/16 px-6 py-12 text-center">
-                      <Sparkles className="mx-auto h-10 w-10 text-[#e2c8b1]" />
-                      <p className="mt-5 text-3xl font-semibold tracking-[-0.05em] text-white md:text-4xl">No active queue calls right now</p>
-                      <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-[#d8cdc3] md:text-lg">
-                        New paid POS orders will appear here automatically and stay synchronized across every display.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                  {[
-                    { label: "Preparing", value: preparingRecords.length, tone: "text-sky-100 bg-sky-300/12 border-sky-200/16" },
-                    { label: "Ready", value: readyRecords.length, tone: "text-emerald-100 bg-emerald-300/12 border-emerald-200/16" },
-                    { label: "Serving", value: servingRecords.length, tone: "text-amber-50 bg-amber-300/12 border-amber-200/16" },
-                  ].map((metric) => (
-                    <article key={metric.label} className={`rounded-[1.6rem] border px-4 py-4 ${metric.tone}`}>
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em]">{metric.label}</p>
-                      <p className="mt-3 text-4xl font-semibold tracking-[-0.06em] text-white">{metric.value}</p>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-4">
-              <QueueColumn
-                title="Preparing"
-                records={preparingBoard}
-                tone="bg-sky-300/16 text-sky-100 ring-1 ring-sky-200/20"
-                emptyLabel="No queue numbers are currently being prepared."
-              />
-              <QueueColumn
-                title="Ready for Pickup"
-                records={readyBoard}
-                tone="bg-emerald-400/18 text-emerald-100 ring-1 ring-emerald-300/25"
-                emptyLabel="No queue numbers are waiting for pickup."
-              />
-              <QueueColumn
-                title="Recently Serving"
-                records={recentServingBoard}
-                tone="bg-amber-300/18 text-amber-50 ring-1 ring-amber-200/25"
-                emptyLabel="No recently served orders are being shown."
-              />
-            </section>
-          </section>
-
-          <footer className="mt-4 rounded-[1.8rem] border border-white/10 bg-black/16 px-5 py-4 text-sm text-[#ddd2c7] shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p>
-                Queue numbers are generated at checkout, updated by kitchen staff in the kitchen dashboard, and synchronized here automatically in real time.
-              </p>
-              <div className="flex items-center gap-3 text-[#f2e5d9]">
-                <Clock3 className="h-4 w-4" />
-                <span className="text-xs font-semibold uppercase tracking-[0.24em]">Live synchronization active</span>
-              </div>
-            </div>
-          </footer>
+          </div>
         </div>
       </div>
     </main>

@@ -153,7 +153,7 @@ export interface ActiveOrder {
   lastUpdatedAt: string
 }
 
-export type AppUserRole = "admin" | "cashier" | "inventory_staff" | "barista" | "manager"
+export type AppUserRole = "admin" | "cashier" | "inventory_staff" | "barista" | "manager" | "kitchen"
 
 export interface AppUser {
   id: string
