@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 type AuthCookiePayload = {
   id: string
-  role: "admin" | "cashier" | "inventory_staff"
+  role: "admin" | "cashier" | "inventory_staff" | "barista" | "manager" | "kitchen"
   isActive: boolean
 }
 
@@ -10,7 +10,9 @@ const publicPaths = ["/"]
 
 function getDefaultRouteForRole(role: AuthCookiePayload["role"]) {
   if (role === "cashier") return "/pos"
-  if (role === "inventory_staff") return "/dashboard"
+  if (role === "barista") return "/queue-display"
+  if (role === "kitchen") return "/queue-management"
+  if (role === "admin" || role === "manager" || role === "inventory_staff") return "/dashboard"
   return "/dashboard"
 }
 
@@ -31,7 +33,11 @@ function isPublicPath(pathname: string) {
 
 function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
   if (role === "admin") {
-    return true
+    return !pathname.startsWith("/queue-management") && !pathname.startsWith("/kitchen-dashboard")
+  }
+
+  if (pathname.startsWith("/queue-management") || pathname.startsWith("/kitchen-dashboard")) {
+    return role === "kitchen"
   }
 
   if (
@@ -48,8 +54,16 @@ function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
     return role === "cashier"
   }
 
+  if (pathname.startsWith("/sales-analytics")) {
+    return role === "inventory_staff" || role === "manager"
+  }
+
+  if (pathname.startsWith("/queue-display")) {
+    return role === "cashier" || role === "inventory_staff" || role === "barista" || role === "manager" || role === "kitchen"
+  }
+
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/settings")) {
-    return true
+    return role === "inventory_staff" || role === "manager"
   }
 
   if (pathname.startsWith("/user-management") || pathname.startsWith("/register")) {

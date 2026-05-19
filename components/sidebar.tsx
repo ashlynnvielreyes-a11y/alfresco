@@ -46,7 +46,7 @@ interface NavItem {
   icon: typeof LayoutDashboard
   description: string
   section: "Core" | "Operations" | "Admin"
-  permission?: "dashboard" | "pos" | "queue" | "inventory" | "sales" | "sales_analytics" | "admin"
+  permission?: "dashboard" | "pos" | "queue" | "inventory" | "sales" | "sales_analytics" | "admin" | "kitchen_queue"
 }
 
 const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
@@ -54,7 +54,7 @@ const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
 const allNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Role-tailored overview", section: "Core", permission: "dashboard" },
   { href: "/pos", label: "Checkout", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
-  { href: "/queue-management", label: "Kitchen Dashboard", icon: ReceiptText, description: "Update preparing and ready orders", section: "Core", permission: "queue" },
+  { href: "/queue-management", label: "Kitchen Dashboard", icon: ReceiptText, description: "Update preparing and ready orders", section: "Core", permission: "kitchen_queue" },
   { href: "/queue-display", label: "Queue Display", icon: MonitorPlay, description: "Show the live customer board", section: "Core", permission: "queue" },
   { href: "/sales-history", label: "Sales History", icon: FileText, description: "Search receipts and export records", section: "Core", permission: "sales" },
   { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, description: "Review KPIs and business insights", section: "Core", permission: "sales_analytics" },
@@ -84,6 +84,8 @@ const getNavItemsForRole = (role: UserRole): NavItem[] => {
         return canAccessSalesAnalytics(role)
       case "admin":
         return role === "admin"
+      case "kitchen_queue":
+        return role === "kitchen"
       default:
         return true
     }

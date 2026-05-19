@@ -865,7 +865,7 @@ function KitchenDashboardContent() {
 
 export default function KitchenDashboardPage() {
   return (
-    <AuthGuard requiredPermission="queue">
+    <AuthGuard requiredRole="kitchen">
       <KitchenDashboardContent />
     </AuthGuard>
   )

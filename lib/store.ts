@@ -3063,11 +3063,11 @@ export function canAccessDashboard(role: UserRole): boolean {
 }
 
 export function getDefaultRouteForRole(role: UserRole): string {
-  if (role === "admin") return "/queue-management"
+  if (role === "admin") return "/dashboard"
   if (role === "cashier") return "/pos"
-  if (role === "barista") return "/queue-management"
+  if (role === "barista") return "/queue-display"
   if (role === "kitchen") return "/queue-management"
-  if (role === "manager") return "/queue-management"
+  if (role === "manager") return "/dashboard"
   if (role === "inventory_staff") return "/dashboard"
   return "/dashboard"
 }

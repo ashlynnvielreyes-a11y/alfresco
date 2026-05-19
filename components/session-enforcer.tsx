@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessQueue, canAccessSales, getDefaultRouteForRole, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
+import { canAccessDashboard, canAccessInventory, canAccessPos, canAccessQueue, canAccessSales, canAccessSalesAnalytics, getDefaultRouteForRole, getUserRole, isAuthenticated, validateCurrentSession } from "@/lib/store"
 
 const PUBLIC_PATHS = ["/"]
 
@@ -13,9 +13,10 @@ function isPublicPath(pathname: string) {
 function canAccessPath(pathname: string, role: ReturnType<typeof getUserRole>) {
   if (pathname.startsWith("/dashboard")) return canAccessDashboard(role)
   if (pathname.startsWith("/pos")) return canAccessPos(role)
+  if (pathname.startsWith("/queue-management") || pathname.startsWith("/kitchen-dashboard")) {
+    return role === "kitchen"
+  }
   if (
-    pathname.startsWith("/queue-management") ||
-    pathname.startsWith("/kitchen-dashboard") ||
     pathname.startsWith("/queue-display")
   ) {
     return canAccessQueue(role)
@@ -29,7 +30,8 @@ function canAccessPath(pathname: string, role: ReturnType<typeof getUserRole>) {
   ) {
     return canAccessInventory(role)
   }
-  if (pathname.startsWith("/sales-history") || pathname.startsWith("/sales-analytics")) return canAccessSales(role)
+  if (pathname.startsWith("/sales-history")) return canAccessSales(role)
+  if (pathname.startsWith("/sales-analytics")) return canAccessSalesAnalytics(role)
   if (pathname.startsWith("/user-management")) return role === "admin"
   if (pathname.startsWith("/register")) return role === "admin"
 

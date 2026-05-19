@@ -48,8 +48,7 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
       const defaultRoute = getDefaultRouteForRole(userRole)
 
       // If a specific role is required, check it
-      if (requiredRole && requiredRole === "admin" && userRole !== "admin") {
-        // Redirect cashiers trying to access admin pages
+      if (requiredRole && userRole !== requiredRole) {
         setIsAuthorized(false)
         setIsLoading(false)
         router.replace(defaultRoute)
