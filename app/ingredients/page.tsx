@@ -361,7 +361,7 @@ function IngredientsPageContent() {
           </div>
           <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.76)] p-6 shadow-[0_24px_56px_rgba(74,52,42,0.08)] backdrop-blur-xl lg:p-8">
             <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a] text-center mb-6 lg:mb-8">
-              Restore Stock for {restockingIngredient?.name}
+              Add Stocks for {restockingIngredient?.name}
             </h1>
 
             <form onSubmit={handleRestockSubmit} className="space-y-6">
@@ -415,7 +415,7 @@ function IngredientsPageContent() {
               </div>
 
               <button type="submit" className="w-full py-4 bg-[#7d5a44] hover:bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg transition-colors">
-                RESTORE STOCK (FIFO)
+                ADD STOCKS (FIFO)
               </button>
 
               <button type="button" onClick={resetForm} className="w-full text-center text-muted-foreground hover:text-foreground transition-colors">
@@ -607,7 +607,7 @@ function IngredientsPageContent() {
                   </div>
 
                   <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-                    Editing this date updates the ingredient fallback expiry and fills missing batch expirations. Use Restock to add a new FIFO batch with its own expiration date.
+                    Editing this date updates the ingredient fallback expiry and fills missing batch expirations. Use Add Stocks to create a new FIFO batch with its own expiration date.
                   </p>
                 </>
               )}
@@ -763,7 +763,7 @@ function IngredientsPageContent() {
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">{ingredient.stockBatches?.length || 0} batch(es)</span>
                   <div className="flex gap-1">
-                    <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Restore stock">
+                    <button onClick={() => handleRestock(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Add stocks">
                       <RotateCcw className="h-4 w-4 text-[#7d5a44]" />
                     </button>
                     {hasExpiredBatches ? (
@@ -873,7 +873,7 @@ function IngredientsPageContent() {
                               className="rounded-lg text-[#4f8a63] transition-colors focus:bg-[#dcefdc] focus:text-[#2f7d32]"
                             >
                               <RotateCcw className="h-4 w-4" />
-                              <span>Restore Stock</span>
+                              <span>Add Stocks</span>
                             </DropdownMenuItem>
                             {hasExpiredBatches ? (
                               <DropdownMenuItem
