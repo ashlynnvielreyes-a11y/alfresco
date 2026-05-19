@@ -122,8 +122,14 @@ export function getTransactionQueueMetadata(transaction: Transaction) {
 }
 
 export function normalizeQueueNumber(value: string | number | null | undefined) {
-  const digitsOnly = String(value ?? "").replace(/\D/g, "")
-  return digitsOnly.length > 0 ? digitsOnly : null
+  const rawValue = String(value ?? "").trim()
+  if (!rawValue) return null
+
+  const withoutPrefix = rawValue.replace(/^#\s*/, "")
+  if (!/^\d+$/.test(withoutPrefix)) return null
+
+  const normalized = withoutPrefix.replace(/^0+(?=\d)/, "")
+  return normalized.length > 0 ? normalized : null
 }
 
 export function isQueueDailyResetEnabled() {
@@ -145,8 +151,11 @@ function getHighestDailyQueueNumber(transactions: Transaction[], date: string) {
   return transactions.reduce((highest, transaction) => {
     if (isQueueDailyResetEnabled() && transaction.date !== date) return highest
 
-    const parsed = Number.parseInt(normalizeQueueNumber(transaction.queueNumber) || "", 10)
-    if (!Number.isFinite(parsed)) return highest
+    const normalizedQueueNumber = normalizeQueueNumber(transaction.queueNumber)
+    if (!normalizedQueueNumber || normalizedQueueNumber.length > 6) return highest
+
+    const parsed = Number.parseInt(normalizedQueueNumber, 10)
+    if (!Number.isSafeInteger(parsed)) return highest
 
     return Math.max(highest, parsed)
   }, getQueueStartNumber() - 1)
