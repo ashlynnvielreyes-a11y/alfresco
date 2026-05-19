@@ -865,7 +865,7 @@ function KitchenDashboardContent() {
 
 export default function KitchenDashboardPage() {
   return (
-    <AuthGuard requiredRole="kitchen">
+    <AuthGuard requiredRoles={["admin", "kitchen"]}>
       <KitchenDashboardContent />
     </AuthGuard>
   )

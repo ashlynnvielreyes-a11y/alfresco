@@ -14,7 +14,7 @@ function canAccessPath(pathname: string, role: ReturnType<typeof getUserRole>) {
   if (pathname.startsWith("/dashboard")) return canAccessDashboard(role)
   if (pathname.startsWith("/pos")) return canAccessPos(role)
   if (pathname.startsWith("/queue-management") || pathname.startsWith("/kitchen-dashboard")) {
-    return role === "kitchen"
+    return role === "admin" || role === "kitchen"
   }
   if (
     pathname.startsWith("/queue-display")

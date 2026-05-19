@@ -8,10 +8,11 @@ import { Loader2 } from "lucide-react"
 interface AuthGuardProps {
   children: React.ReactNode
   requiredRole?: UserRole
+  requiredRoles?: UserRole[]
   requiredPermission?: "pos" | "inventory" | "queue" | "sales" | "sales_analytics"
 }
 
-export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGuardProps) {
+export function AuthGuard({ children, requiredRole, requiredRoles, requiredPermission }: AuthGuardProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
@@ -49,6 +50,13 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
 
       // If a specific role is required, check it
       if (requiredRole && userRole !== requiredRole) {
+        setIsAuthorized(false)
+        setIsLoading(false)
+        router.replace(defaultRoute)
+        return
+      }
+
+      if (requiredRoles && !requiredRoles.includes(userRole)) {
         setIsAuthorized(false)
         setIsLoading(false)
         router.replace(defaultRoute)
@@ -109,7 +117,7 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
       window.clearInterval(intervalId)
       window.removeEventListener("focus", handleFocus)
     }
-  }, [mounted, router, requiredRole, requiredPermission])
+  }, [mounted, router, requiredRole, requiredRoles, requiredPermission])
 
   if (isLoading) {
     return (

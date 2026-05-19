@@ -2,8 +2,7 @@
 
 import Link from "next/link"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Sidebar } from "@/components/sidebar"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, Package } from "lucide-react"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, Package, ReceiptText, Settings, Users, TrendingUp, FileText, LayoutGrid, Leaf, ShoppingCart } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
 import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
@@ -14,6 +13,18 @@ import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, Coff
 const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Soda", "Silog", "Combos"] as const
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 const comboProductIdOffset = 100000
+
+const posWorkspaceLinks = [
+  { href: "/pos", label: "POS", description: "New Order", icon: ShoppingCart },
+  { href: "/queue-management", label: "Orders", description: "Queue Management", icon: ChefHat },
+  { href: "/queue-display", label: "Queue Display", description: "Live Queue", icon: MonitorPlay },
+  { href: "/inventory", label: "Inventory", description: "Stock Management", icon: Package },
+  { href: "/ingredients", label: "Ingredients", description: "Ingredient List", icon: Leaf },
+  { href: "/sales-history", label: "Reports", description: "Sales Records", icon: FileText },
+  { href: "/sales-analytics", label: "Analytics", description: "Business Insights", icon: TrendingUp },
+  { href: "/user-management", label: "Users", description: "Access Control", icon: Users },
+  { href: "/settings", label: "Settings", description: "System Controls", icon: Settings },
+] as const
 
 function getAddOnKey(addOns?: AddOn[]) {
   return (addOns || [])
@@ -958,179 +969,129 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-transparent">
-      <Sidebar />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-5">
+      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_28px_80px_rgba(74,52,42,0.14)] lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="border-r border-[#7d5a44]/25 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] p-4 text-[#f5f1ea]">
+          <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+            <p className="text-sm font-semibold tracking-[0.18em] text-[#d6bfaa]">AL FRESCO</p>
+            <p className="text-[0.68rem] uppercase tracking-[0.2em] text-[#f8f1e8]/70">POS Terminal</p>
+          </div>
 
-      <main className="relative flex-1 overflow-y-auto p-4 pt-20 lg:p-8 lg:pt-8">
+          <div className="space-y-2">
+            {posWorkspaceLinks.map((item) => {
+              const Icon = item.icon
+              const isActive = item.href === "/pos"
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${
+                    isActive
+                      ? "bg-[#f5f1ea] text-[#4a342a] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+                      : "text-[#f7ede4]/78 hover:bg-white/8 hover:text-white"
+                  }`}
+                >
+                  <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? "bg-[#d7c9b8]" : "bg-white/8"}`}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{item.label}</span>
+                    <span className={`block text-[11px] ${isActive ? "text-[#7d5a44]" : "text-[#f5f1ea]/65"}`}>{item.description}</span>
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[#d8c8ba]">POS Status</p>
+            <div className="mt-3 space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[#d8c8ba]">Current Queue</span>
+                <span className="font-bold">{currentQueueNumber}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#d8c8ba]">Preparing</span>
+                <span className="font-bold">{queueSnapshot.preparing.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#d8c8ba]">Ready Pickup</span>
+                <span className="font-bold">{queueSnapshot.ready.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#d8c8ba]">Low Stock</span>
+                <span className="font-bold">{lowStockIngredientsCount}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+      <main className="relative flex-1 overflow-y-auto bg-[#f5f1ea] p-4 lg:p-5">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute left-0 top-10 h-72 w-72 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
           <div className="absolute right-8 top-24 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
         </div>
-        <div className="relative z-10">
-        <div className="mb-6 rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/38 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-xl lg:mb-8 lg:p-7">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="mb-2 text-xs uppercase tracking-[0.32em] text-[#7d5a44]">SERVICE STATION</p>
-              <h1 className="mb-2 text-2xl font-bold text-[#4a342a] lg:text-4xl">Point Of Sale</h1>
-              <p className="max-w-3xl text-sm text-muted-foreground lg:text-base">
-                Take orders quickly, process payments, monitor queue flow, and keep the kitchen and customer display synchronized in real time.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[#7d5a44]">Cashier</p>
-                <p className="mt-1 text-base font-bold text-[#4a342a]">{currentUser?.username || "Unknown"}</p>
-              </div>
-              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[#7d5a44]">Items In Cart</p>
-                <p className="mt-1 text-base font-bold text-[#4a342a]">{cartItemCount}</p>
-              </div>
-              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-sm">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[#7d5a44]">Running Total</p>
-                <p className="mt-1 text-base font-bold text-[#4a342a]">P{total.toFixed(2)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-6 grid grid-cols-1 gap-4 lg:mb-8 lg:grid-cols-[1.1fr_0.9fr_0.9fr]">
-          <section className="rounded-[26px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/42 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Cashier Queue Control</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">Live Queue Snapshot</h2>
-                <p className="mt-2 text-sm leading-6 text-[#7d5a44]">
-                  Every paid order enters the kitchen queue automatically and updates the display board without refresh.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/72 px-4 py-3 text-right">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Next Queue</p>
-                <p className="mt-1 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{nextQueueNumberPreview}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-4">
-              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Current Queue</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{currentQueueNumber}</p>
-              </article>
-              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Preparing</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{queueSnapshot.preparing.length}</p>
-              </article>
-              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Ready Pickup</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{queueSnapshot.ready.length}</p>
-              </article>
-              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Active Queue</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{queueSnapshot.totalActive}</p>
-              </article>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/kitchen-dashboard"
-                className="inline-flex items-center gap-2 rounded-full bg-[#4a342a] px-4 py-2.5 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
-              >
-                <ChefHat className="h-4 w-4" />
-                Open Kitchen Dashboard
-              </Link>
-              <Link
-                href="/queue-display"
-                className="inline-flex items-center gap-2 rounded-full border border-[#d7c9b8] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-white"
-              >
-                <MonitorPlay className="h-4 w-4" />
-                Open Queue Display
-              </Link>
-            </div>
-          </section>
-
-          <section className="rounded-[26px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/42 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Kitchen Sync</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">Order Handoff</h2>
-              </div>
-              <ChefHat className="h-5 w-5 text-[#4a342a]" />
-            </div>
-            <div className="mt-4 space-y-3">
-              {queueSnapshot.preparing.slice(0, 3).map((transaction) => (
-                <div key={transaction.id} className="rounded-2xl border border-[#d7c9b8] bg-white/75 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#4a342a]">Queue {transaction.queueNumber || transaction.id}</p>
-                      <p className="text-xs text-[#7d5a44]">{transaction.items[0]?.product.name || "No items"}{transaction.items.length > 1 ? ` +${transaction.items.length - 1} more` : ""}</p>
-                    </div>
-                    <span className="rounded-full bg-sky-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
-                      Preparing
-                    </span>
-                  </div>
+        <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-4">
+          <section className="rounded-[24px] border border-[#7d5a44]/35 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] px-4 py-4 text-[#f5f1ea] shadow-[0_24px_48px_rgba(74,52,42,0.22)] lg:px-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f5f1ea]/15 bg-[#f5f1ea]/10">
+                  <ReceiptText className="h-5 w-5" />
                 </div>
-              ))}
-              {queueSnapshot.preparing.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-[#d7c9b8] bg-white/60 px-4 py-8 text-center text-sm text-[#7d5a44]">
-                  No kitchen tickets are waiting right now.
+                <div>
+                  <p className="text-sm font-semibold tracking-[0.16em] text-[#d7c9b8]">POS TERMINAL</p>
+                  <h1 className="text-xl font-semibold text-white">Al Fresco Coffee Shop</h1>
                 </div>
-              ) : null}
+              </div>
+
+              <div className="grid flex-1 gap-3 xl:mx-6 xl:max-w-3xl xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d7c9b8]" />
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full rounded-2xl border border-[#f5f1ea]/15 bg-[#f5f1ea]/10 py-3 pl-11 pr-4 text-sm text-white outline-none transition focus:border-[#d7c9b8] focus:bg-[#f5f1ea]/14"
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#d7c9b8]">Cashier</p>
+                  <p className="mt-1 text-sm font-semibold text-white">{currentUser?.username || "Unknown"}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#d7c9b8]">Queue No.</p>
+                  <p className="mt-1 text-sm font-semibold text-white">{nextQueueNumberPreview}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#d7c9b8]">Total</p>
+                  <p className="mt-1 text-sm font-semibold text-white">P{total.toFixed(2)}</p>
+                </div>
+              </div>
             </div>
           </section>
 
-          <section className="rounded-[26px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/42 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Inventory Tracking</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">Stock Impact</h2>
-              </div>
-              <Package className="h-5 w-5 text-[#4a342a]" />
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Low Stock</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{lowStockIngredientsCount}</p>
-                <p className="mt-1 text-xs text-[#7d5a44]">Ingredients at or below 10 units.</p>
-              </article>
-              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Expired</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{expiredIngredientsCount}</p>
-                <p className="mt-1 text-xs text-[#7d5a44]">Batches that should not be used in checkout.</p>
-              </article>
-            </div>
-          </section>
-        </div>
-
-        <div className="flex flex-col gap-6 xl:flex-row lg:gap-8">
-          {/* Menu Section */}
-          <div className="flex-1">
-            <div className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl lg:p-6">
-              <div className="mb-4">
-                <h2 className="text-lg font-bold text-foreground lg:text-xl">Al Fresco Menu</h2>
-                <p className="text-xs text-muted-foreground lg:text-sm">Browse categories, search products, and send selections to the live order panel.</p>
+          <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_350px]">
+            <section className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)]">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#d7c9b8] text-[#4a342a]">
+                  <LayoutGrid className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#866754]">Select Category</p>
+                  <p className="text-sm font-semibold text-[#3d2a1f]">Browse Menu Groups</p>
+                </div>
               </div>
 
-              {/* Search */}
-              <div className="relative mb-4">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search deliciousness..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 py-3 pl-12 pr-4 text-foreground outline-none shadow-[inset_0_1px_0_rgba(245,241,234,0.75)] backdrop-blur-sm transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
-                />
-              </div>
-
-              {/* Category Filters */}
-              <div className="flex gap-2 mb-4 lg:mb-6 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-wrap scrollbar-hide">
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:flex-col">
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 lg:px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-sm lg:text-base flex-shrink-0 ${
+                    className={`min-w-fit rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
                       selectedCategory === cat
-                        ? "bg-[#4a342a] text-[#f5f1ea]"
-                        : "bg-[#f5f1ea] border border-border text-foreground hover:bg-muted"
+                        ? "bg-[#4a342a] text-[#f7ede4] shadow-[0_12px_24px_rgba(74,52,42,0.18)]"
+                        : "border border-[#d7c9b8] bg-[#f5f1ea] text-[#7d5a44] hover:bg-[#ede3d8]"
                     }`}
                   >
                     {cat}
@@ -1138,8 +1099,72 @@ export default function POSPage() {
                 ))}
               </div>
 
-              {/* Products Grid */}
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 lg:gap-4">
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Preparing</p>
+                  <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{queueSnapshot.preparing.length}</p>
+                </article>
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Ready</p>
+                  <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{queueSnapshot.ready.length}</p>
+                </article>
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Low Stock</p>
+                  <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{lowStockIngredientsCount}</p>
+                </article>
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Expired</p>
+                  <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{expiredIngredientsCount}</p>
+                </article>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <Link
+                  href="/kitchen-dashboard"
+                  className="flex items-center justify-between rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm font-medium text-[#4a342a] transition hover:bg-[#ede3d8]"
+                >
+                  <span className="flex items-center gap-2">
+                    <ChefHat className="h-4 w-4" />
+                    Kitchen Dashboard
+                  </span>
+                  <span className="text-xs text-[#866754]">Monitor</span>
+                </Link>
+                <Link
+                  href="/queue-display"
+                  className="flex items-center justify-between rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm font-medium text-[#4a342a] transition hover:bg-[#ede3d8]"
+                >
+                  <span className="flex items-center gap-2">
+                    <MonitorPlay className="h-4 w-4" />
+                    Queue Display
+                  </span>
+                  <span className="text-xs text-[#866754]">Live</span>
+                </Link>
+              </div>
+            </section>
+
+            <section className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/94 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-[#8c6c58]">All Products</p>
+                  <h2 className="mt-1 text-xl font-semibold text-[#352419]">New Order Workspace</h2>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#8a6a57]">Cart</p>
+                    <p className="mt-1 text-sm font-semibold text-[#3d2a1f]">{cartItemCount}</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#8a6a57]">Active</p>
+                    <p className="mt-1 text-sm font-semibold text-[#3d2a1f]">{queueSnapshot.totalActive}</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#8a6a57]">Next</p>
+                    <p className="mt-1 text-sm font-semibold text-[#3d2a1f]">{nextQueueNumberPreview}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
               {/* Show combo meals when Combos category is selected */}
               {(selectedCategory === "Combos" || selectedCategory === "All Items") && comboMeals
                 .filter(combo => combo.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1152,26 +1177,33 @@ export default function POSPage() {
                       key={`combo-${combo.id}`}
                       onClick={() => handleComboClick(combo)}
                       disabled={unavailable}
-                      className={`relative rounded-2xl border p-3 text-left transition-all lg:p-4 ${
+                      className={`group relative overflow-hidden rounded-[22px] border p-3 text-left transition-all lg:p-4 ${
                         unavailable
-                          ? "cursor-not-allowed border-[#b2967d]/60 bg-[rgba(245,241,234,0.68)]"
-                          : "border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.78)] shadow-[0_16px_30px_rgba(123,111,25,0.07),inset_0_1px_0_rgba(245,241,234,0.7)] hover:-translate-y-0.5 hover:border-[#7d5a44]/60"
+                          ? "cursor-not-allowed border-[#d7c9b8] bg-[#ede3d8]"
+                          : "border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_12px_28px_rgba(74,52,42,0.08)] hover:-translate-y-0.5 hover:border-[#7d5a44]/60"
                       }`}
                     >
-                      <div className="absolute top-2 right-2">
+                      <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f1ea_0%,#d7c9b8_52%,#7d5a44_100%)] text-lg font-semibold text-[#4a342a] shadow-[inset_0_4px_10px_rgba(255,255,255,0.28)]">
+                        {combo.name
+                          .split(" ")
+                          .slice(0, 2)
+                          .map((word) => word[0])
+                          .join("")}
+                      </div>
+                      <div className="absolute right-3 top-3">
                         <span className="text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold bg-[#7d5a44] text-[#f5f1ea]">
                           COMBO
                         </span>
                       </div>
                       <div className="flex justify-between items-start">
-                        <h3 className={`font-semibold pr-12 lg:pr-16 text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-foreground"}`}>
+                        <h3 className={`font-semibold pr-12 text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-[#2d2019]"}`}>
                           {combo.name}
                         </h3>
                       </div>
-                      <p className="text-[10px] lg:text-xs text-muted-foreground mt-1 line-clamp-2">
+                      <p className="mt-1 line-clamp-2 text-[10px] text-[#7e6656] lg:text-xs">
                         {combo.description}
                       </p>
-                      <div className="flex justify-between items-center mt-2">
+                      <div className="mt-3 flex items-center justify-between">
                         <p className={`font-bold text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
                           P{combo.price.toFixed(2)}
                         </p>
@@ -1204,21 +1236,28 @@ export default function POSPage() {
                     key={product.id}
                     onClick={() => handleProductClick(product)}
                     disabled={isUnavailable}
-                    className={`relative rounded-2xl border p-3 text-left transition-all lg:p-4 ${
+                    className={`group relative overflow-hidden rounded-[22px] border p-3 text-left transition-all lg:p-4 ${
                       isUnavailable
-                        ? "cursor-not-allowed border-[#b2967d]/60 bg-[rgba(245,241,234,0.68)]"
+                        ? "cursor-not-allowed border-[#d7c9b8] bg-[#ede3d8]"
                         : inCart
-                        ? "border-[#4a342a] bg-[rgba(245,241,234,0.82)] shadow-[0_16px_30px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)]"
-                        : "border-[#f5f1ea]/55 bg-[rgba(245,241,234,0.78)] shadow-[0_16px_30px_rgba(123,111,25,0.07),inset_0_1px_0_rgba(245,241,234,0.7)] hover:-translate-y-0.5 hover:border-[#7d5a44]/55"
+                        ? "border-[#4a342a] bg-[#efe3d8] shadow-[0_16px_30px_rgba(74,52,42,0.08)]"
+                        : "border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_12px_28px_rgba(74,52,42,0.08)] hover:-translate-y-0.5 hover:border-[#7d5a44]/55"
                     }`}
                   >
                     {hasIngredientIssue && (
-                      <div className="absolute top-2 right-2" title={unavailableProducts.get(product.id)?.join(", ")}>
+                      <div className="absolute right-3 top-3" title={unavailableProducts.get(product.id)?.join(", ")}>
                         <AlertTriangle className="h-4 w-4 text-[#b2967d]" />
                       </div>
                     )}
+                    <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f1ea_0%,#d7c9b8_52%,#7d5a44_100%)] text-lg font-semibold text-[#4a342a] shadow-[inset_0_4px_10px_rgba(255,255,255,0.28)]">
+                      {product.name
+                        .split(" ")
+                        .slice(0, 2)
+                        .map((word) => word[0])
+                        .join("")}
+                    </div>
                     <div className="flex justify-between items-start gap-2">
-                      <h3 className={`font-semibold text-sm lg:text-base ${isUnavailable ? "text-[#7d5a44]" : "text-foreground"}`}>{product.name}</h3>
+                      <h3 className={`font-semibold text-sm lg:text-base ${isUnavailable ? "text-[#7d5a44]" : "text-[#2d2019]"}`}>{product.name}</h3>
                       <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold flex-shrink-0 ${
                         isUnavailable
                           ? "bg-[#d7c9b8] text-[#4a342a]"
@@ -1247,25 +1286,23 @@ export default function POSPage() {
                 </div>
               )}
               </div>
-            </div>
-          </div>
+            </section>
 
-          {/* Order Panel */}
-          <div className="w-full xl:w-[360px] rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl lg:p-6 flex-shrink-0">
+            <aside className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-foreground lg:text-xl">Current Order</h2>
-                <p className="text-xs text-muted-foreground lg:text-sm">Live ticket summary with payment and discount controls.</p>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8c6c58]">Order Summary</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#352419] lg:text-xl">Queue #{nextQueueNumberPreview}</h2>
               </div>
-              <button onClick={clearCart} className="p-2 hover:bg-muted rounded-lg">
-                <Trash2 className="h-5 w-5 text-muted-foreground" />
+              <button onClick={clearCart} className="rounded-xl border border-[#d7c9b8] p-2 text-[#7d5a44] transition hover:bg-[#ede3d8]">
+                <Trash2 className="h-5 w-5" />
               </button>
             </div>
 
             {/* Cart Items */}
-            <div className="cafe-scrollbar mb-4 max-h-40 space-y-3 overflow-y-auto rounded-2xl border border-[#f5f1ea]/45 bg-[rgba(245,241,234,0.3)] p-3 lg:max-h-60">
+            <div className="cafe-scrollbar mb-4 max-h-40 space-y-3 overflow-y-auto rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea] p-3 lg:max-h-64">
               {cart.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
+                <p className="py-8 text-center text-sm text-[#8b7568]">
                   Your cart is empty
                 </p>
               ) : (
@@ -1275,12 +1312,12 @@ export default function POSPage() {
                   const temperatureLabel = formatCoffeeTemperature(item.temperature)
                   
                   return (
-                    <div key={`${itemKey}-${index}`} className="mb-3 rounded-2xl border border-[#f5f1ea]/45 bg-[rgba(245,241,234,0.55)] p-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.7)]">
+                    <div key={`${itemKey}-${index}`} className="mb-3 rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] p-3">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
-                          <p className="font-medium text-sm">{item.product.name}</p>
+                          <p className="text-sm font-medium text-[#2d2019]">{item.product.name}</p>
                           {item.comboMeal && (
-                            <div className="text-xs text-muted-foreground mt-1">
+                            <div className="mt-1 text-xs text-[#7e6656]">
                               {item.comboMeal.items.map((comboItem, comboIndex) => {
                                 const ingredient = ingredients.find((entry) => entry.id === comboItem.ingredientId)
                                 const label = ingredient ? ingredient.name : `Ingredient ${comboItem.ingredientId ?? comboItem.productId}`
@@ -1293,10 +1330,10 @@ export default function POSPage() {
                             </div>
                           )}
                           {temperatureLabel && (
-                            <p className="text-xs text-muted-foreground mt-1">Served: {temperatureLabel}</p>
+                            <p className="mt-1 text-xs text-[#7e6656]">Served: {temperatureLabel}</p>
                           )}
                           {item.addOns && item.addOns.length > 0 && (
-                            <div className="text-xs text-muted-foreground mt-1">
+                            <div className="mt-1 text-xs text-[#7e6656]">
                               {item.addOns.map((addon) => (
                                 <span key={addon.id} className="block">+ {addon.name} x{addon.selectedQuantity || 1} (P{(addon.price * (addon.selectedQuantity || 1)).toFixed(2)})</span>
                               ))}
@@ -1309,7 +1346,7 @@ export default function POSPage() {
                         {!item.comboMeal && (
                           <button
                             onClick={() => handleEditAddOns(index)}
-                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground ml-2"
+                            className="ml-2 rounded p-1 text-[#7d5a44] transition hover:bg-[#ede3d8] hover:text-[#4a342a]"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -1319,14 +1356,14 @@ export default function POSPage() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => updateQuantity(itemKey, -1)}
-                            className="w-5 h-5 flex items-center justify-center bg-muted rounded text-xs"
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-[#d7c9b8] text-xs text-[#4a342a]"
                           >
                             <Minus className="h-3 w-3" />
                           </button>
                           <span className="w-5 text-center text-xs">{item.quantity}</span>
                           <button
                             onClick={() => updateQuantity(itemKey, 1)}
-                            className="w-5 h-5 flex items-center justify-center bg-muted rounded text-xs"
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4a342a] text-xs text-[#f7ede4]"
                           >
                             <Plus className="h-3 w-3" />
                           </button>
@@ -1338,22 +1375,22 @@ export default function POSPage() {
               )}
             </div>
 
-            <div className="space-y-4 border-t border-[#f5f1ea]/45 pt-4">
+            <div className="space-y-4 border-t border-[#efe2d8] pt-4">
               {currentUser?.role === "admin" && (
-                <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/58 p-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.72)]">
+                <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] p-3">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
                       <p className="text-xs uppercase tracking-[0.18em] text-[#7d5a44]">Live POS Monitor</p>
                       <p className="text-sm font-semibold text-foreground">Cashier Active Orders</p>
                     </div>
-                    <div className="flex items-center gap-2 rounded-xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/75 px-2.5 py-2">
+                    <div className="flex items-center gap-2 rounded-xl border border-[#d7c9b8] bg-[#ede3d8] px-2.5 py-2">
                       <Activity className="h-4 w-4 text-[#4a342a]" />
                       <span className="text-sm font-semibold text-[#4a342a]">{activeOrders.length}</span>
                     </div>
                   </div>
 
                   {activeOrders.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-3 py-4 text-center text-xs text-muted-foreground">
+                    <p className="rounded-xl border border-dashed border-[#d7c9b8] bg-[#fdf7f1] px-3 py-4 text-center text-xs text-muted-foreground">
                       No active cashier orders right now.
                     </p>
                   ) : (
@@ -1364,7 +1401,7 @@ export default function POSPage() {
                           type="button"
                           onClick={() => void handleTakeOverActiveOrder(order)}
                           disabled={currentUser?.role !== "admin"}
-                          className="w-full rounded-xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/75 p-3 text-left transition-colors hover:bg-[#ede3d8] disabled:cursor-default disabled:hover:bg-[#f5f1ea]/75"
+                          className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] p-3 text-left transition-colors hover:bg-[#ede3d8] disabled:cursor-default disabled:hover:bg-[#f5f1ea]"
                         >
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <div className="min-w-0">
@@ -1415,7 +1452,7 @@ export default function POSPage() {
 
               {/* Payment Method */}
               <div>
-                <label className="text-xs lg:text-sm text-muted-foreground block mb-2">Mode of Payment</label>
+                <label className="mb-2 block text-xs text-[#8b7568] lg:text-sm">Mode of Payment</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => {
@@ -1425,7 +1462,7 @@ export default function POSPage() {
                       setCashReceived("")
                     }
                   }}
-                  className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/70 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                  className="w-full rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
                 >
                   <option value="cash">Cash</option>
                   <option value="gcash">GCash</option>
@@ -1434,11 +1471,11 @@ export default function POSPage() {
 
               {/* Discount */}
               <div>
-                <label className="text-xs lg:text-sm text-muted-foreground block mb-2">Discount</label>
+                <label className="mb-2 block text-xs text-[#8b7568] lg:text-sm">Discount</label>
                 <select
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-full rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/70 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
+                  className="w-full rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
                 >
                   <option value="none">No Discount</option>
                   <option value="senior">Senior Citizen (20%)</option>
@@ -1461,7 +1498,7 @@ export default function POSPage() {
               </div>
 
               {/* Total Amount */}
-              <div className="flex justify-between items-center pt-3 border-t border-border">
+              <div className="flex items-center justify-between border-t border-[#efe2d8] pt-3">
                 <span className="text-sm font-semibold text-foreground">Total Amount</span>
                 <span className="text-2xl font-bold text-[#4a342a]">
                   P{total.toFixed(2)}
@@ -1470,7 +1507,7 @@ export default function POSPage() {
 
               {/* Cash Received */}
               <div className="pt-2">
-                <label className="text-xs text-muted-foreground block mb-1">
+                <label className="mb-1 block text-xs text-muted-foreground">
                   {isCashPayment ? "Cash Received" : "Amount Received"}
                 </label>
                 <input
@@ -1479,7 +1516,7 @@ export default function POSPage() {
                   onChange={(e) => setCashReceived(e.target.value)}
                   placeholder="0.00"
                   disabled={!isCashPayment}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-right text-sm focus:ring-2 focus:ring-[#4a342a] outline-none disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
+                  className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-right text-sm outline-none focus:ring-2 focus:ring-[#4a342a] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                 />
                 {!isCashPayment && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -1488,29 +1525,36 @@ export default function POSPage() {
                 )}
               </div>
 
-              <div className="flex justify-between items-center rounded-2xl bg-[#f5f1ea]/75 px-3 py-3 shadow-[inset_0_1px_0_rgba(245,241,234,0.72)]">
+              <div className="flex items-center justify-between rounded-2xl bg-[#ede3d8] px-3 py-3">
                 <span className="text-sm font-semibold text-foreground">Change</span>
                 <span className="text-xl font-bold text-[#4a342a]">P{change.toFixed(2)}</span>
               </div>
 
-              <button
-                onClick={confirmSale}
-                disabled={cart.length === 0 || (isCashPayment && cash < total)}
-                className="w-full py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                CONFIRM SALE
-              </button>
-
-              <button
-                onClick={openVoidModal}
-                className="w-full py-3 bg-[#7d5a44] hover:bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
-              >
-                <Ban className="h-4 w-4" />
-                VOID TRANSACTION
-              </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  onClick={confirmSale}
+                  disabled={cart.length === 0 || (isCashPayment && cash < total)}
+                  className="rounded-xl bg-[#4a342a] py-3 text-sm font-semibold text-[#f5f1ea] transition hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
+                >
+                  Pay Now
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-[#b2967d] bg-[#d7c9b8] py-3 text-sm font-semibold text-[#4a342a] transition hover:bg-[#b2967d]"
+                >
+                  Hold Order
+                </button>
+                <button
+                  onClick={openVoidModal}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#7d5a44] py-3 text-sm font-semibold text-[#f5f1ea] transition hover:bg-[#4a342a]"
+                >
+                  <Ban className="h-4 w-4" />
+                  Cancel Order
+                </button>
+              </div>
             </div>
+            </aside>
           </div>
-        </div>
         </div>
       </main>
 
@@ -1909,8 +1953,9 @@ export default function POSPage() {
           </div>
         </div>
       )}
-  </div>
+      </div>
+    </div>
   )
-  }
+}
 
 

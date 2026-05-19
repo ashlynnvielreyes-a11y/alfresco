@@ -85,7 +85,7 @@ const getNavItemsForRole = (role: UserRole): NavItem[] => {
       case "admin":
         return role === "admin"
       case "kitchen_queue":
-        return role === "kitchen"
+        return role === "admin" || role === "kitchen"
       default:
         return true
     }

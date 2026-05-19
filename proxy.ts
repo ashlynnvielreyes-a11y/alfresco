@@ -33,7 +33,7 @@ function isPublicPath(pathname: string) {
 
 function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
   if (role === "admin") {
-    return !pathname.startsWith("/queue-management") && !pathname.startsWith("/kitchen-dashboard")
+    return true
   }
 
   if (pathname.startsWith("/queue-management") || pathname.startsWith("/kitchen-dashboard")) {
