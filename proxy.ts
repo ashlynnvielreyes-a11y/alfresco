@@ -30,6 +30,10 @@ function isPublicPath(pathname: string) {
 }
 
 function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
+  if (role === "admin") {
+    return true
+  }
+
   if (
     pathname.startsWith("/inventory") ||
     pathname.startsWith("/ingredients") ||
@@ -37,11 +41,11 @@ function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
     pathname.startsWith("/combos") ||
     pathname.startsWith("/addons")
   ) {
-    return role === "admin" || role === "inventory_staff"
+    return role === "inventory_staff"
   }
 
   if (pathname.startsWith("/pos") || pathname.startsWith("/sales-history")) {
-    return role === "admin" || role === "cashier"
+    return role === "cashier"
   }
 
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/settings")) {
@@ -49,7 +53,7 @@ function isAllowed(role: AuthCookiePayload["role"], pathname: string) {
   }
 
   if (pathname.startsWith("/user-management") || pathname.startsWith("/register")) {
-    return role === "admin"
+    return false
   }
 
   return true

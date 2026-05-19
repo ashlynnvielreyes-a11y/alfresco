@@ -3033,27 +3033,33 @@ function setAuthCookie(user: AuthUser | null, rememberMe: boolean) {
 }
 
 export function canAccessPos(role: UserRole): boolean {
-  return role === "admin" || role === "cashier"
+  if (role === "admin") return true
+  return role === "cashier"
 }
 
 export function canAccessInventory(role: UserRole): boolean {
-  return role === "admin" || role === "inventory_staff" || role === "manager"
+  if (role === "admin") return true
+  return role === "inventory_staff" || role === "manager"
 }
 
 export function canAccessQueue(role: UserRole): boolean {
-  return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff" || role === "kitchen"
+  if (role === "admin") return true
+  return role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff" || role === "kitchen"
 }
 
 export function canAccessSales(role: UserRole): boolean {
-  return role === "admin" || role === "cashier" || role === "inventory_staff" || role === "manager"
+  if (role === "admin") return true
+  return role === "cashier" || role === "inventory_staff" || role === "manager"
 }
 
 export function canAccessSalesAnalytics(role: UserRole): boolean {
-  return role === "admin" || role === "inventory_staff" || role === "manager"
+  if (role === "admin") return true
+  return role === "inventory_staff" || role === "manager"
 }
 
 export function canAccessDashboard(role: UserRole): boolean {
-  return role === "admin" || role === "inventory_staff" || role === "manager"
+  if (role === "admin") return true
+  return role === "inventory_staff" || role === "manager"
 }
 
 export function getDefaultRouteForRole(role: UserRole): string {

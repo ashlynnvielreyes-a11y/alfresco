@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
@@ -14,9 +13,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Ban, CheckCircle2, Search, ShieldCheck, UserCog, Users } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Ban, CheckCircle2, KeyRound, Pencil, Plus, Search, ShieldCheck, UserCog, Users } from "lucide-react"
 import { getCurrentUser, getDefaultRouteForRole, getUserRole, getUsers, logout } from "@/lib/store"
-import type { AppUser } from "@/lib/types"
+import type { AppUser, AppUserRole } from "@/lib/types"
+
+const ROLE_OPTIONS: Array<{ value: AppUserRole; label: string }> = [
+  { value: "admin", label: "Admin" },
+  { value: "cashier", label: "Cashier" },
+  { value: "inventory_staff", label: "Inventory Staff" },
+  { value: "manager", label: "Manager" },
+  { value: "barista", label: "Barista" },
+  { value: "kitchen", label: "Kitchen" },
+]
+
+type UserDialogMode = "create" | "edit" | "password" | null
+
+type UserFormState = {
+  username: string
+  email: string
+  role: AppUserRole
+}
+
+type PasswordFormState = {
+  password: string
+  confirmPassword: string
+}
 
 function formatRole(role: AppUser["role"]) {
   switch (role) {
@@ -48,6 +77,10 @@ export default function UserManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null)
+  const [dialogMode, setDialogMode] = useState<UserDialogMode>(null)
+  const [dialogUser, setDialogUser] = useState<AppUser | null>(null)
+  const [userForm, setUserForm] = useState<UserFormState>({ username: "", email: "", role: "cashier" })
+  const [passwordForm, setPasswordForm] = useState<PasswordFormState>({ password: "", confirmPassword: "" })
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -66,6 +99,13 @@ export default function UserManagementPage() {
     setIsLoading(false)
   }, [router])
 
+  const resetDialogState = useCallback(() => {
+    setDialogMode(null)
+    setDialogUser(null)
+    setUserForm({ username: "", email: "", role: "cashier" })
+    setPasswordForm({ password: "", confirmPassword: "" })
+  }, [])
+
   useEffect(() => {
     void loadUsers()
   }, [loadUsers])
@@ -83,6 +123,147 @@ export default function UserManagementPage() {
 
   const activeUsers = users.filter((user) => user.isActive).length
   const revokedUsers = users.length - activeUsers
+
+  const openCreateDialog = () => {
+    setError("")
+    setDialogUser(null)
+    setUserForm({ username: "", email: "", role: "cashier" })
+    setPasswordForm({ password: "", confirmPassword: "" })
+    setDialogMode("create")
+  }
+
+  const openEditDialog = (user: AppUser) => {
+    setError("")
+    setDialogUser(user)
+    setUserForm({ username: user.username, email: user.email, role: user.role })
+    setDialogMode("edit")
+  }
+
+  const openPasswordDialog = (user: AppUser) => {
+    setError("")
+    setDialogUser(user)
+    setPasswordForm({ password: "", confirmPassword: "" })
+    setDialogMode("password")
+  }
+
+  const handleUserCreate = async () => {
+    if (!passwordForm.password || !passwordForm.confirmPassword) {
+      setError("Password and confirmation are required.")
+      return
+    }
+
+    if (passwordForm.password !== passwordForm.confirmPassword) {
+      setError("Password confirmation does not match.")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError("")
+
+    try {
+      const response = await fetch("/api/users/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          username: userForm.username,
+          email: userForm.email,
+          role: userForm.role,
+          password: passwordForm.password,
+        }),
+      })
+
+      const data = await response.json()
+      if (!data.success) {
+        setError(data.error || "Failed to create user.")
+        setIsSubmitting(false)
+        return
+      }
+
+      await loadUsers()
+      resetDialogState()
+    } catch {
+      setError("Failed to contact the server.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleUserUpdate = async () => {
+    if (!dialogUser) return
+
+    setIsSubmitting(true)
+    setError("")
+
+    try {
+      const response = await fetch("/api/users/manage", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: dialogUser.id,
+          username: userForm.username,
+          email: userForm.email,
+          role: userForm.role,
+        }),
+      })
+
+      const data = await response.json()
+      if (!data.success) {
+        setError(data.error || "Failed to update user.")
+        setIsSubmitting(false)
+        return
+      }
+
+      await loadUsers()
+      resetDialogState()
+    } catch {
+      setError("Failed to contact the server.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handlePasswordReset = async () => {
+    if (!dialogUser) return
+
+    if (!passwordForm.password || !passwordForm.confirmPassword) {
+      setError("Password and confirmation are required.")
+      return
+    }
+
+    if (passwordForm.password !== passwordForm.confirmPassword) {
+      setError("Password confirmation does not match.")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError("")
+
+    try {
+      const response = await fetch("/api/users/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reset_password",
+          userId: dialogUser.id,
+          password: passwordForm.password,
+        }),
+      })
+
+      const data = await response.json()
+      if (!data.success) {
+        setError(data.error || "Failed to reset password.")
+        setIsSubmitting(false)
+        return
+      }
+
+      resetDialogState()
+    } catch {
+      setError("Failed to contact the server.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const handleAccessChange = async () => {
     if (!selectedUser) return
@@ -153,17 +334,19 @@ export default function UserManagementPage() {
                 <p className="mb-2 text-xs uppercase tracking-[0.32em] text-[#7d5a44]">ADMIN CONTROLS</p>
                 <h1 className="text-2xl font-bold text-[#4a342a] lg:text-4xl">User Management</h1>
                 <p className="mt-2 max-w-3xl text-sm text-muted-foreground lg:text-base">
-                  Review registered accounts and revoke access when needed without changing the registration flow.
+                  Review every account, create new users, update roles, reset passwords, and restore or revoke access from one place.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Link
-                  href="/register"
+                <button
+                  type="button"
+                  onClick={openCreateDialog}
                   className="inline-flex items-center justify-center rounded-2xl border border-[#4a342a] bg-[#4a342a] px-4 py-3 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
                 >
+                  <Plus className="mr-2 h-4 w-4" />
                   Create User
-                </Link>
+                </button>
                 <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-4 py-3 backdrop-blur-sm">
                   <p className="text-xs uppercase tracking-[0.18em] text-[#7d5a44]">Active Users</p>
                   <p className="mt-1 text-2xl font-bold text-[#4a342a]">{activeUsers}</p>
@@ -215,8 +398,6 @@ export default function UserManagementPage() {
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 {filteredUsers.map((user) => {
                   const isCurrentUser = currentUser?.id === user.id
-                  const canDeactivate = user.isActive && !isCurrentUser
-                  const canActivate = !user.isActive
 
                   return (
                     <article
@@ -269,22 +450,39 @@ export default function UserManagementPage() {
                       <div className="mt-5 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Users className="h-4 w-4" />
-                          {isCurrentUser ? "Your current admin account" : "Account created through registration"}
+                          {isCurrentUser ? "Your current admin account" : "Managed user account"}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setSelectedUser(user)}
-                          disabled={user.isActive ? !canDeactivate : !canActivate}
-                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-[#d7c9b8] disabled:text-[#7d5a44] ${
-                            user.isActive
-                              ? "bg-[#4a342a] text-[#f5f1ea] hover:bg-[#7d5a44]"
-                              : "bg-emerald-600 text-white hover:bg-emerald-700"
-                          }`}
-                        >
-                          {user.isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                          {user.isActive ? "Revoke Access" : "Activate Access"}
-                        </button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditDialog(user)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPasswordDialog(user)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                            Reset Password
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUser(user)}
+                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-[#d7c9b8] disabled:text-[#7d5a44] ${
+                              user.isActive
+                                ? "bg-[#4a342a] text-[#f5f1ea] hover:bg-[#7d5a44]"
+                                : "bg-emerald-600 text-white hover:bg-emerald-700"
+                            }`}
+                          >
+                            {user.isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                            {user.isActive ? "Revoke Access" : "Restore Access"}
+                          </button>
+                        </div>
                       </div>
                     </article>
                   )
@@ -314,6 +512,150 @@ export default function UserManagementPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={dialogMode !== null} onOpenChange={(open) => !open && resetDialogState()}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {dialogMode === "create" ? "Create User" : dialogMode === "edit" ? "Edit User" : "Reset Password"}
+              </DialogTitle>
+              <DialogDescription>
+                {dialogMode === "create"
+                  ? "Add a new user account with full admin-defined role assignment."
+                  : dialogMode === "edit"
+                    ? "Update account details and role permissions."
+                    : `Set a new password for ${dialogUser?.username || "this user"}.`}
+              </DialogDescription>
+            </DialogHeader>
+
+            {error ? (
+              <div className="rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea]/80 px-4 py-3 text-sm text-[#7d5a44]">
+                {error}
+              </div>
+            ) : null}
+
+            {dialogMode === "create" || dialogMode === "edit" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">Username</label>
+                  <input
+                    type="text"
+                    value={userForm.username}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, username: e.target.value }))}
+                    className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                    placeholder="Enter username"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">Email</label>
+                  <input
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                    className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                    placeholder="Enter email"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">Role</label>
+                  <select
+                    value={userForm.role}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, role: e.target.value as AppUserRole }))}
+                    className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {dialogMode === "create" ? (
+                  <>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-foreground">Password</label>
+                      <input
+                        type="password"
+                        value={passwordForm.password}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
+                        className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                        placeholder="Enter password"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-foreground">Confirm Password</label>
+                      <input
+                        type="password"
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                        className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                        placeholder="Confirm password"
+                      />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.password}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
+                    className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                    placeholder="Enter new password"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-foreground">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm outline-none transition-colors focus:border-[#4a342a]"
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={resetDialogState}
+                className="rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-2 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={
+                  dialogMode === "create"
+                    ? handleUserCreate
+                    : dialogMode === "edit"
+                      ? handleUserUpdate
+                      : handlePasswordReset
+                }
+                className="rounded-xl bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44] disabled:opacity-70"
+                disabled={isSubmitting}
+              >
+                {isSubmitting
+                  ? dialogMode === "create"
+                    ? "Creating..."
+                    : dialogMode === "edit"
+                      ? "Saving..."
+                      : "Resetting..."
+                  : dialogMode === "create"
+                    ? "Create User"
+                    : dialogMode === "edit"
+                      ? "Save Changes"
+                      : "Reset Password"}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   )

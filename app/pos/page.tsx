@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, Package } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
-import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getNextDailyQueueNumber, isQueueDailyResetEnabled, normalizeQueueNumber } from "@/lib/queue"
+import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -1060,7 +1060,7 @@ export default function POSPage() {
                 <div key={transaction.id} className="rounded-2xl border border-[#d7c9b8] bg-white/75 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[#4a342a]">Queue {normalizeQueueNumber(transaction.queueNumber) || "----"}</p>
+                      <p className="text-sm font-semibold text-[#4a342a]">Queue {transaction.queueNumber || transaction.id}</p>
                       <p className="text-xs text-[#7d5a44]">{transaction.items[0]?.product.name || "No items"}{transaction.items.length > 1 ? ` +${transaction.items.length - 1} more` : ""}</p>
                     </div>
                     <span className="rounded-full bg-sky-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
