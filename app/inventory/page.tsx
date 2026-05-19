@@ -2,13 +2,24 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, X, Search, RotateCcw } from "lucide-react"
+import { Plus, Pencil, X, Search, RotateCcw, Archive } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   initializeSupabaseStore,
   getAllProducts,
   getArchivedProducts,
   addProduct,
   updateProduct,
+  archiveProduct,
   restoreProduct,
   getIngredients,
   getProductAvailableStock,
@@ -47,6 +58,7 @@ function InventoryPageContent() {
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [mode, setMode] = useState<FormMode>("list")
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [productToArchive, setProductToArchive] = useState<Product | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [formData, setFormData] = useState({
     name: "",
@@ -91,6 +103,12 @@ function InventoryPageContent() {
     setMode("edit")
   }
 
+  const handleArchive = (id: number) => {
+    const product = products.find((entry) => entry.id === id)
+    if (!product) return
+    setProductToArchive(product)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const productData = {
@@ -115,6 +133,14 @@ function InventoryPageContent() {
     restoreProduct(id)
     setProducts(getAllProducts())
     setArchivedProducts(getArchivedProducts())
+  }
+
+  const confirmArchive = () => {
+    if (!productToArchive) return
+    archiveProduct(productToArchive.id)
+    setProducts(getAllProducts())
+    setArchivedProducts(getArchivedProducts())
+    setProductToArchive(null)
   }
 
   const addIngredientToProduct = () => {
@@ -460,6 +486,9 @@ function InventoryPageContent() {
                   <button onClick={() => handleEdit(product)} className="p-2 hover:bg-muted rounded-lg transition-colors">
                     <Pencil className="h-4 w-4 text-muted-foreground" />
                   </button>
+                  <button onClick={() => handleArchive(product.id)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Archive product">
+                    <Archive className="h-4 w-4 text-[#4a342a]" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -530,12 +559,19 @@ function InventoryPageContent() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex justify-center">
+                    <div className="flex justify-center gap-2">
                       <button
                         onClick={() => handleEdit(product)}
                         className="p-2 hover:bg-muted rounded-lg transition-colors"
                       >
                         <Pencil className="h-5 w-5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => handleArchive(product.id)}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        title="Archive product"
+                      >
+                        <Archive className="h-5 w-5 text-[#4a342a]" />
                       </button>
                     </div>
                   </td>
@@ -545,6 +581,22 @@ function InventoryPageContent() {
           </table>
         </div>
         </div>
+        <AlertDialog open={Boolean(productToArchive)} onOpenChange={(open) => !open && setProductToArchive(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive Product</AlertDialogTitle>
+              <AlertDialogDescription>
+                {productToArchive
+                  ? `Archive ${productToArchive.name}? You can restore it later from the Restore Meals list.`
+                  : "Archive this product? You can restore it later from the Restore Meals list."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )
