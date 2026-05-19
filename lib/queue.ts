@@ -17,6 +17,7 @@ export interface QueueMetadata {
 }
 
 const QUEUE_META_PREFIX = "__QUEUE_META__:"
+const DAILY_QUEUE_START = 1001
 
 const defaultQueueMetadata: QueueMetadata = {
   priority: "normal",
@@ -127,9 +128,15 @@ export function getNextDailyQueueNumber(transactions: Transaction[], date: strin
     if (!Number.isFinite(parsed)) return highest
 
     return Math.max(highest, parsed)
-  }, 0)
+  }, DAILY_QUEUE_START - 1)
 
   return String(highestQueueNumber + 1)
+}
+
+export function getCurrentDailyQueueNumber(transactions: Transaction[], date: string) {
+  const nextQueueNumber = Number.parseInt(getNextDailyQueueNumber(transactions, date), 10)
+  if (!Number.isFinite(nextQueueNumber)) return String(DAILY_QUEUE_START)
+  return String(Math.max(DAILY_QUEUE_START, nextQueueNumber - 1))
 }
 
 export function canAccessQueue(role: AppUserRole) {

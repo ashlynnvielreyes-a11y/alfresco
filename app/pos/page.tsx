@@ -1,10 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity } from "lucide-react"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, Package } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
-import { buildQueueMetadataNote, getNextDailyQueueNumber } from "@/lib/queue"
+import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getNextDailyQueueNumber } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -101,6 +102,7 @@ export default function POSPage() {
   const [isVoiding, setIsVoiding] = useState(false)
   const [isCancellingReceiptSale, setIsCancellingReceiptSale] = useState(false)
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
   const [selectedTransactionToVoid, setSelectedTransactionToVoid] = useState<Transaction | null>(null)
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string; role: string } | null>(null)
 
@@ -125,6 +127,7 @@ export default function POSPage() {
 
   const loadRecentTransactions = async () => {
     const allTransactions = await getTransactions()
+    setAllTransactions(allTransactions)
     // Get last 10 non-voided transactions
     const recent = allTransactions
       .filter((t) => !t.voided)
@@ -569,6 +572,37 @@ export default function POSPage() {
   const cash = parseFloat(cashReceived) || 0
   const change = isCashPayment && cash > total ? cash - total : 0
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const lowStockIngredientsCount = ingredients.filter((ingredient) => ingredient.stock <= 10).length
+  const expiredIngredientsCount = ingredients.filter((ingredient) => {
+    if (!ingredient.expirationDate) return false
+    return new Date(ingredient.expirationDate).getTime() < Date.now()
+  }).length
+  const todayKey = new Date().toISOString().split("T")[0]
+  const currentQueueNumber = getCurrentDailyQueueNumber(allTransactions, todayKey)
+  const nextQueueNumberPreview = getNextDailyQueueNumber(allTransactions, todayKey)
+
+  const queueSnapshot = useMemo(() => {
+    const queueTransactions = allTransactions.filter(
+      (transaction) =>
+        !transaction.voided &&
+        transaction.orderStatus !== "voided" &&
+        transaction.orderStatus !== "cancelled" &&
+        transaction.date === todayKey
+    )
+
+    const preparing = queueTransactions.filter(
+      (transaction) => transaction.orderStatus === "preparing" || transaction.orderStatus === "pending"
+    )
+    const ready = queueTransactions.filter((transaction) => transaction.orderStatus === "ready")
+    const serving = queueTransactions.filter((transaction) => transaction.orderStatus === "completed").slice(-3).reverse()
+
+    return {
+      totalActive: preparing.length + ready.length,
+      preparing,
+      ready,
+      serving,
+    }
+  }, [allTransactions, todayKey])
 
   useEffect(() => {
     if (isCashPayment) return
@@ -938,7 +972,7 @@ export default function POSPage() {
               <p className="mb-2 text-xs uppercase tracking-[0.32em] text-[#7d5a44]">SERVICE STATION</p>
               <h1 className="mb-2 text-2xl font-bold text-[#4a342a] lg:text-4xl">Point Of Sale</h1>
               <p className="max-w-3xl text-sm text-muted-foreground lg:text-base">
-                Take orders quickly, manage add-ons, and complete checkout in one polished workflow.
+                Take orders quickly, process payments, monitor queue flow, and keep the kitchen and customer display synchronized in real time.
               </p>
             </div>
 
@@ -957,6 +991,112 @@ export default function POSPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="mb-6 grid grid-cols-1 gap-4 lg:mb-8 lg:grid-cols-[1.1fr_0.9fr_0.9fr]">
+          <section className="rounded-[26px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/42 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Cashier Queue Control</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">Live Queue Snapshot</h2>
+                <p className="mt-2 text-sm leading-6 text-[#7d5a44]">
+                  Every paid order enters the kitchen queue automatically and updates the display board without refresh.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/72 px-4 py-3 text-right">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Next Queue</p>
+                <p className="mt-1 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{nextQueueNumberPreview}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Current Queue</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{currentQueueNumber}</p>
+              </article>
+              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Preparing</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{queueSnapshot.preparing.length}</p>
+              </article>
+              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Ready Pickup</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{queueSnapshot.ready.length}</p>
+              </article>
+              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Active Queue</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{queueSnapshot.totalActive}</p>
+              </article>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/kitchen-dashboard"
+                className="inline-flex items-center gap-2 rounded-full bg-[#4a342a] px-4 py-2.5 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+              >
+                <ChefHat className="h-4 w-4" />
+                Open Kitchen Dashboard
+              </Link>
+              <Link
+                href="/queue-display"
+                className="inline-flex items-center gap-2 rounded-full border border-[#d7c9b8] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-white"
+              >
+                <MonitorPlay className="h-4 w-4" />
+                Open Queue Display
+              </Link>
+            </div>
+          </section>
+
+          <section className="rounded-[26px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/42 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Kitchen Sync</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">Order Handoff</h2>
+              </div>
+              <ChefHat className="h-5 w-5 text-[#4a342a]" />
+            </div>
+            <div className="mt-4 space-y-3">
+              {queueSnapshot.preparing.slice(0, 3).map((transaction) => (
+                <div key={transaction.id} className="rounded-2xl border border-[#d7c9b8] bg-white/75 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#4a342a]">Queue {transaction.queueNumber || transaction.id}</p>
+                      <p className="text-xs text-[#7d5a44]">{transaction.items[0]?.product.name || "No items"}{transaction.items.length > 1 ? ` +${transaction.items.length - 1} more` : ""}</p>
+                    </div>
+                    <span className="rounded-full bg-sky-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                      Preparing
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {queueSnapshot.preparing.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#d7c9b8] bg-white/60 px-4 py-8 text-center text-sm text-[#7d5a44]">
+                  No kitchen tickets are waiting right now.
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="rounded-[26px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/42 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Inventory Tracking</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">Stock Impact</h2>
+              </div>
+              <Package className="h-5 w-5 text-[#4a342a]" />
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Low Stock</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{lowStockIngredientsCount}</p>
+                <p className="mt-1 text-xs text-[#7d5a44]">Ingredients at or below 10 units.</p>
+              </article>
+              <article className="rounded-2xl border border-[#d7c9b8] bg-white/70 px-4 py-3">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Expired</p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">{expiredIngredientsCount}</p>
+                <p className="mt-1 text-xs text-[#7d5a44]">Batches that should not be used in checkout.</p>
+              </article>
+            </div>
+          </section>
         </div>
 
         <div className="flex flex-col gap-6 xl:flex-row lg:gap-8">
