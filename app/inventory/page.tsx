@@ -2,17 +2,26 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { Plus, Pencil, X, Search } from "lucide-react"
+import { Plus, Pencil, X, Search, RotateCcw } from "lucide-react"
 import {
   initializeSupabaseStore,
   getAllProducts,
+  getArchivedProducts,
   addProduct,
   updateProduct,
+  restoreProduct,
   getIngredients,
   getProductAvailableStock,
 } from "@/lib/store"
 import { DEFAULT_PRODUCT_CATEGORY, normalizeProductCategory, PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-categories"
 import type { Product, Ingredient, ProductIngredient, ProductCategory } from "@/lib/types"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type FormMode = "list" | "add" | "edit"
 
@@ -33,7 +42,9 @@ function CategoryBadge({ category }: { category: ProductCategory }) {
 
 function InventoryPageContent() {
   const [products, setProducts] = useState<Product[]>([])
+  const [archivedProducts, setArchivedProducts] = useState<Product[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [mode, setMode] = useState<FormMode>("list")
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -49,6 +60,7 @@ function InventoryPageContent() {
     const nextIngredients = getIngredients()
     setIngredients(nextIngredients)
     setProducts(getAllProducts())
+    setArchivedProducts(getArchivedProducts())
   }, [])
 
   useEffect(() => {
@@ -95,7 +107,14 @@ function InventoryPageContent() {
     }
 
     setProducts(getAllProducts())
+    setArchivedProducts(getArchivedProducts())
     resetForm()
+  }
+
+  const handleRestore = (id: number) => {
+    restoreProduct(id)
+    setProducts(getAllProducts())
+    setArchivedProducts(getArchivedProducts())
   }
 
   const addIngredientToProduct = () => {
@@ -335,13 +354,64 @@ function InventoryPageContent() {
               Manage your coffee, meals, and stock levels
             </p>
           </div>
-          <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
-          >
-            <Plus className="h-5 w-5" />
-            Add New Product
-          </button>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+              <button
+                type="button"
+                onClick={() => setRestoreDialogOpen(true)}
+                className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 border border-[#b2967d] bg-[#f5f1ea]/80 hover:bg-[#ede3d8] text-[#4a342a] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center disabled:opacity-60"
+                disabled={archivedProducts.length === 0}
+              >
+                <RotateCcw className="h-5 w-5" />
+                Restore Meals
+              </button>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Restore Archived Products</DialogTitle>
+                  <DialogDescription>
+                    Bring archived meals back into the active inventory list.
+                  </DialogDescription>
+                </DialogHeader>
+                {archivedProducts.length === 0 ? (
+                  <p className="rounded-2xl border border-[#d7c9b8]/50 bg-[#f5f1ea]/70 px-4 py-5 text-sm text-[#7d5a44]">
+                    No archived meals are available to restore.
+                  </p>
+                ) : (
+                  <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                    {archivedProducts.map((product) => (
+                      <div
+                        key={product.id}
+                        className="flex flex-col gap-3 rounded-2xl border border-[#d7c9b8]/55 bg-[#f5f1ea]/75 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold text-[#4a342a]">{product.name}</p>
+                          <div className="mt-2 flex items-center gap-3 text-sm text-[#7d5a44]">
+                            <CategoryBadge category={product.category} />
+                            <span>P{product.price.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(product.id)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#4a342a] px-4 py-2 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            <button
+              onClick={handleAdd}
+              className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            >
+              <Plus className="h-5 w-5" />
+              Add New Product
+            </button>
+          </div>
         </div>
 
         <div className="relative mb-4 lg:mb-6">
