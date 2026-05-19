@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Plus, Pencil, Archive, X, Search, RotateCcw } from "lucide-react"
 import {
@@ -51,6 +51,23 @@ function CategoryBadge({ category }: { category: ProductCategory }) {
   )
 }
 
+function productHasExpiredIngredients(product: Product, ingredients: Ingredient[]) {
+  return product.ingredients.some((productIngredient) => {
+    const ingredient = ingredients.find((entry) => entry.id === productIngredient.ingredientId)
+    if (!ingredient) return false
+    const expiredCount = ingredient.stockBatches?.filter((batch) => {
+      const expirationDate = batch.expirationDate ? new Date(batch.expirationDate) : null
+      if (!expirationDate || Number.isNaN(expirationDate.getTime())) return false
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      expirationDate.setHours(0, 0, 0, 0)
+      return expirationDate < now
+    }).length || 0
+
+    return expiredCount > 0 && getProductAvailableStock(product, ingredients) <= 0
+  })
+}
+
 function InventoryPageContent() {
   const [products, setProducts] = useState<Product[]>([])
   const [archivedProducts, setArchivedProducts] = useState<Product[]>([])
@@ -67,16 +84,24 @@ function InventoryPageContent() {
   })
   const [productIngredients, setProductIngredients] = useState<ProductIngredient[]>([])
 
-  useEffect(() => {
-    const loadData = async () => {
-      await initializeSupabaseStore()
-      setProducts(getProducts())
-      setArchivedProducts(getArchivedProducts())
-      setIngredients(getIngredients())
+  const refreshCatalog = useCallback(async () => {
+    await initializeSupabaseStore()
+    const nextIngredients = getIngredients()
+    const activeProducts = getProducts()
+    const productsToExpire = activeProducts.filter((product) => productHasExpiredIngredients(product, nextIngredients))
+
+    if (productsToExpire.length > 0) {
+      productsToExpire.forEach((product) => archiveProduct(product.id))
     }
 
-    void loadData()
+    setIngredients(nextIngredients)
+    setProducts(getProducts())
+    setArchivedProducts(getArchivedProducts())
   }, [])
+
+  useEffect(() => {
+    void refreshCatalog()
+  }, [refreshCatalog])
 
   const resetForm = () => {
     setFormData({ name: "", category: DEFAULT_PRODUCT_CATEGORY, price: "" })
@@ -193,6 +218,16 @@ function InventoryPageContent() {
       ingredientNames.includes(query)
     )
   })
+
+  const archivedExpiredProducts = useMemo(
+    () => archivedProducts.filter((product) => productHasExpiredIngredients(product, ingredients)),
+    [archivedProducts, ingredients]
+  )
+
+  const restoreableArchivedProducts = useMemo(
+    () => archivedProducts.filter((product) => !productHasExpiredIngredients(product, ingredients)),
+    [archivedProducts, ingredients]
+  )
 
   if (mode !== "list") {
     const availableIngredientsForAdd = ingredients.filter(
@@ -385,25 +420,25 @@ function InventoryPageContent() {
                 type="button"
                 onClick={() => setRestoreDialogOpen(true)}
                 className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 border border-[#b2967d] bg-[#f5f1ea]/80 hover:bg-[#ede3d8] text-[#4a342a] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center disabled:opacity-60"
-                disabled={archivedProducts.length === 0}
+                disabled={restoreableArchivedProducts.length === 0}
               >
                 <RotateCcw className="h-5 w-5" />
-                Restore Meals
+                Restore Archived Meals
               </button>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Restore Archived Products</DialogTitle>
                   <DialogDescription>
-                    Reactivate archived inventory items so they appear again in the active product list.
+                    Reactivate manually archived inventory items so they appear again in the active product list.
                   </DialogDescription>
                 </DialogHeader>
-                {archivedProducts.length === 0 ? (
+                {restoreableArchivedProducts.length === 0 ? (
                   <p className="rounded-2xl border border-[#d7c9b8]/50 bg-[#f5f1ea]/70 px-4 py-5 text-sm text-[#7d5a44]">
-                    No archived products are available to restore.
+                    No manually archived products are available to restore right now.
                   </p>
                 ) : (
                   <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
-                    {archivedProducts.map((product) => (
+                    {restoreableArchivedProducts.map((product) => (
                       <div
                         key={product.id}
                         className="flex flex-col gap-3 rounded-2xl border border-[#d7c9b8]/55 bg-[#f5f1ea]/75 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -578,6 +613,98 @@ function InventoryPageContent() {
             </tbody>
           </table>
         </div>
+
+        <section className="mt-6 space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold text-[#4a342a]">Archived Expired Products</h2>
+            <p className="text-sm text-muted-foreground">
+              Products with expired, unusable ingredient stock are moved here automatically to keep the active inventory list clean.
+            </p>
+          </div>
+
+          <div className="lg:hidden space-y-3">
+            {archivedExpiredProducts.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[#d7c9b8] bg-[rgba(245,241,234,0.68)] p-5 text-sm text-[#7d5a44]">
+                No expired archived products are waiting for review.
+              </div>
+            ) : (
+              archivedExpiredProducts.map((product) => (
+                <div key={`expired-${product.id}`} className="rounded-lg border border-[#d7c9b8]/70 bg-[rgba(245,241,234,0.78)] p-4 backdrop-blur-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-foreground truncate">{product.name}</h3>
+                      <div className="mt-1 flex items-center">
+                        <CategoryBadge category={product.category} />
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                      Expired
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-[#4a342a]">P{product.price.toFixed(2)}</p>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(product.id)}
+                      className="inline-flex items-center gap-2 rounded-lg bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Restore
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden lg:block rounded-lg border border-[#d7c9b8]/70 bg-[rgba(245,241,234,0.78)] overflow-x-auto backdrop-blur-md">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#d7c9b8]/70">
+                  <th className="text-left px-6 py-4 font-semibold text-foreground">Product Name</th>
+                  <th className="text-left px-6 py-4 font-semibold text-foreground">Category</th>
+                  <th className="text-right px-6 py-4 font-semibold text-foreground">Price</th>
+                  <th className="text-left px-6 py-4 font-semibold text-foreground">Archive Status</th>
+                  <th className="text-center px-6 py-4 font-semibold text-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {archivedExpiredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-sm text-[#7d5a44]">
+                      No expired archived products are waiting for review.
+                    </td>
+                  </tr>
+                ) : (
+                  archivedExpiredProducts.map((product) => (
+                    <tr key={`expired-row-${product.id}`} className="border-b border-[#d7c9b8]/60 last:border-0">
+                      <td className="px-6 py-4 font-medium text-[#4a342a]">{product.name}</td>
+                      <td className="px-6 py-4"><CategoryBadge category={product.category} /></td>
+                      <td className="px-6 py-4 text-right text-[#4a342a] font-medium">P{product.price.toFixed(2)}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                          Auto-archived from expired stock
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(product.id)}
+                            className="inline-flex items-center gap-2 rounded-lg bg-[#4a342a] px-4 py-2 text-sm font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Restore
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
         </div>
 
         <AlertDialog open={Boolean(productToDelete)} onOpenChange={(open) => !open && setProductToDelete(null)}>

@@ -634,6 +634,7 @@ function normalizeIngredient(ingredient: Ingredient): Ingredient {
   return {
     ...ingredient,
     productId: ingredient.productId || buildIngredientProductId(ingredient.id),
+    isArchived: ingredient.isArchived === true,
     expirationDate: nextKnownExpirationDate,
     assignedProducts: [...new Set(ingredient.assignedProducts || [])].sort((a, b) => a - b),
     stockBatches: normalizedBatches,
@@ -899,17 +900,29 @@ async function syncProductsToSupabase(products: Product[]) {
 async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
   const supabase = await getSupabaseBrowserClient()
   const normalizedIngredients = ingredients.map(normalizeIngredient)
-  const baseIngredientRows = normalizedIngredients.map((ingredient) => ({
+  const fullBaseIngredientRows = normalizedIngredients.map((ingredient) => ({
     id: ingredient.id,
     name: ingredient.name,
     unit: ingredient.unit,
     stock: ingredient.stock,
+    is_available: !ingredient.isArchived,
     updated_at: new Date().toISOString(),
   }))
-  const ingredientRows = normalizedIngredients.map((ingredient) => ({
-    ...baseIngredientRows.find((row) => row.id === ingredient.id),
-    product_code: ingredient.productId,
+  const baseIngredientRows = fullBaseIngredientRows.map(({ is_available, ...row }) => row)
+  let includeAvailability = true
+  let includeProductCode = true
+
+  const buildIngredientRows = () => normalizedIngredients.map((ingredient) => ({
+    ...(includeAvailability
+      ? fullBaseIngredientRows.find((row) => row.id === ingredient.id)
+      : baseIngredientRows.find((row) => row.id === ingredient.id)),
+    ...(includeProductCode ? { product_code: ingredient.productId } : {}),
   }))
+
+  let ingredientRows = buildIngredientRows()
+
+  const upsertRows = async (rows: Array<Record<string, unknown>>) =>
+    supabase.from("ingredients").upsert(rows, { onConflict: "id" })
 
   const { data: existingIngredients, error: existingError } = await supabase.from("ingredients").select("id")
   if (existingError) throw existingError
@@ -919,26 +932,37 @@ async function syncIngredientsToSupabase(ingredients: Ingredient[]) {
   const removedIds = [...existingIds].filter((id) => !localIds.has(id))
 
   if (ingredientRows.length > 0) {
-    const { error } = await supabase.from("ingredients").upsert(ingredientRows, { onConflict: "id" })
-    if (error) {
-      if (isSupabaseIdentityColumnError(error, "id")) {
+    let result = await upsertRows(ingredientRows)
+
+    if (result.error && isSupabaseMissingColumnError(result.error, "is_available", "ingredients")) {
+      includeAvailability = false
+      ingredientRows = buildIngredientRows()
+      result = await upsertRows(ingredientRows)
+    }
+
+    if (result.error) {
+      if (isSupabaseIdentityColumnError(result.error, "id")) {
         return
       }
 
-      if (
-        !isSupabaseMissingColumnError(error, "product_code", "ingredients")
-      ) {
-        throw error
+      if (isSupabaseMissingColumnError(result.error, "product_code", "ingredients")) {
+        includeProductCode = false
+        ingredientRows = buildIngredientRows()
+        result = await upsertRows(ingredientRows)
       }
 
-      const fallbackRows = [...baseIngredientRows]
-      const fallbackResult = await supabase.from("ingredients").upsert(fallbackRows, { onConflict: "id" })
-      if (fallbackResult.error) {
-        if (isSupabaseIdentityColumnError(fallbackResult.error, "id")) {
+      if (result.error && isSupabaseMissingColumnError(result.error, "is_available", "ingredients")) {
+        includeAvailability = false
+        ingredientRows = buildIngredientRows()
+        result = await upsertRows(ingredientRows)
+      }
+
+      if (result.error) {
+        if (isSupabaseIdentityColumnError(result.error, "id")) {
           return
         }
 
-        throw fallbackResult.error
+        throw result.error
       }
     }
   }
@@ -1404,6 +1428,7 @@ export async function initializeSupabaseStore(): Promise<void> {
             name: ingredient.name,
             unit: ingredient.unit,
             stock: Number(ingredient.stock) || 0,
+            isArchived: ingredient.is_available === false,
             expirationDate: ingredient.expiration_date || localIngredient?.expirationDate || null,
             assignedProducts: (ingredientAssignmentsResponse.data || [])
               .filter((assignment: any) => assignment.ingredient_id === ingredient.id)
@@ -1551,7 +1576,7 @@ export async function initializeSupabaseStore(): Promise<void> {
 }
 
 // Ingredients functions
-export function getIngredients(): Ingredient[] {
+export function getAllIngredients(): Ingredient[] {
   if (typeof window === "undefined") return defaultIngredients.map(normalizeIngredient)
   const stored = localStorage.getItem(INGREDIENTS_KEY)
   if (!stored) {
@@ -1564,6 +1589,14 @@ export function getIngredients(): Ingredient[] {
   const normalized = syncIngredientAssignmentsWithProducts(ingredients.map(normalizeIngredient), getProducts())
   saveIngredientsLocally(normalized)
   return JSON.parse(localStorage.getItem(INGREDIENTS_KEY) || "[]") as Ingredient[]
+}
+
+export function getIngredients(): Ingredient[] {
+  return getAllIngredients().filter((ingredient) => !ingredient.isArchived)
+}
+
+export function getArchivedIngredients(): Ingredient[] {
+  return getAllIngredients().filter((ingredient) => ingredient.isArchived)
 }
 
 export function getExpirationLogs(): ExpirationLog[] {
@@ -1586,7 +1619,7 @@ export function saveIngredients(ingredients: Ingredient[]): void {
 export function archiveIngredientExpiredBatches(id: number): Ingredient | null {
   if (typeof window === "undefined") return null
 
-  const ingredients = getIngredients()
+  const ingredients = getAllIngredients()
   const index = ingredients.findIndex((ingredient) => ingredient.id === id)
   if (index === -1) return null
 
@@ -1616,13 +1649,14 @@ export function archiveIngredientExpiredBatches(id: number): Ingredient | null {
 }
 
 export function addIngredient(ingredient: Omit<Ingredient, "id">): Ingredient {
-  const ingredients = getIngredients()
+  const ingredients = getAllIngredients()
   const newId = Math.max(...ingredients.map((i) => i.id), 0) + 1
   const newIngredient = normalizeIngredient({
     ...ingredient,
     id: newId,
     productId: ingredient.productId || buildIngredientProductId(newId),
     assignedProducts: ingredient.assignedProducts || [],
+    isArchived: false,
   })
   ingredients.push(newIngredient)
   saveIngredients(ingredients)
@@ -1631,7 +1665,7 @@ export function addIngredient(ingredient: Omit<Ingredient, "id">): Ingredient {
 }
 
 export function updateIngredient(id: number, updates: Partial<Ingredient>): Ingredient | null {
-  const ingredients = getIngredients()
+  const ingredients = getAllIngredients()
   const index = ingredients.findIndex((i) => i.id === id)
   if (index === -1) return null
 
@@ -1646,7 +1680,7 @@ export function updateIngredient(id: number, updates: Partial<Ingredient>): Ingr
 }
 
 export function addIngredientStock(id: number, quantity: number, expirationDate?: string | null): Ingredient | null {
-  const ingredients = getIngredients()
+  const ingredients = getAllIngredients()
   const index = ingredients.findIndex((i) => i.id === id)
   if (index === -1) return null
 
@@ -1667,7 +1701,7 @@ export function addIngredientStock(id: number, quantity: number, expirationDate?
 }
 
 export function deductIngredientStockFIFO(id: number, quantity: number): { success: boolean; deducted: number } {
-  const ingredients = getIngredients()
+  const ingredients = getAllIngredients()
   const index = ingredients.findIndex((i) => i.id === id)
   if (index === -1) return { success: false, deducted: 0 }
 
@@ -1749,13 +1783,36 @@ export function deductCartIngredients(cartItems: CartItem[], ingredientsList: In
   return updatedIngredients.map(normalizeIngredient)
 }
 
-export function deleteIngredient(id: number): boolean {
-  const ingredients = getIngredients()
-  const filtered = ingredients.filter((i) => i.id !== id)
-  if (filtered.length === ingredients.length) return false
-  saveIngredients(filtered)
-  void logAuditEvent("ingredient_deleted", "ingredient", String(id), `Ingredient ${id} deleted`)
+export function archiveIngredient(id: number): boolean {
+  const ingredients = getAllIngredients()
+  const index = ingredients.findIndex((ingredient) => ingredient.id === id)
+  if (index === -1 || ingredients[index].isArchived) return false
+
+  ingredients[index] = normalizeIngredient({
+    ...ingredients[index],
+    isArchived: true,
+  })
+  saveIngredients(ingredients)
+  void logAuditEvent("ingredient_archived", "ingredient", String(id), `${ingredients[index].name} archived`)
   return true
+}
+
+export function restoreIngredient(id: number): boolean {
+  const ingredients = getAllIngredients()
+  const index = ingredients.findIndex((ingredient) => ingredient.id === id)
+  if (index === -1 || !ingredients[index].isArchived) return false
+
+  ingredients[index] = normalizeIngredient({
+    ...ingredients[index],
+    isArchived: false,
+  })
+  saveIngredients(ingredients)
+  void logAuditEvent("ingredient_restored", "ingredient", String(id), `${ingredients[index].name} restored`)
+  return true
+}
+
+export function deleteIngredient(id: number): boolean {
+  return archiveIngredient(id)
 }
 
 export function deductIngredients(products: Product[], ingredientsList: Ingredient[]): Ingredient[] {

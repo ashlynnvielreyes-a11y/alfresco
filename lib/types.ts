@@ -53,6 +53,7 @@ export interface Ingredient {
   name: string
   unit: string
   stock: number
+  isArchived?: boolean
   expirationDate?: string | null
   stockBatches?: StockBatch[] // FIFO batches for stock tracking
   assignedProducts: number[] // Product IDs this ingredient is assigned to

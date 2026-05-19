@@ -15,11 +15,21 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   initializeSupabaseStore,
+  getAllIngredients,
   getIngredients,
+  getArchivedIngredients,
   addIngredient,
   updateIngredient,
-  deleteIngredient,
+  archiveIngredient,
+  restoreIngredient,
   getProducts,
   addIngredientStock,
   restoreIngredientStock,
@@ -100,7 +110,9 @@ function buildNextIngredientProductId(ingredients: Ingredient[]) {
 
 function IngredientsPageContent() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [archivedIngredients, setArchivedIngredients] = useState<Ingredient[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [mode, setMode] = useState<FormMode>("list")
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null)
   const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null)
@@ -125,6 +137,7 @@ function IngredientsPageContent() {
   const refreshData = useCallback(async () => {
     await initializeSupabaseStore()
     setIngredients(getIngredients())
+    setArchivedIngredients(getArchivedIngredients())
     setProducts(getProducts())
   }, [])
 
@@ -166,7 +179,7 @@ function IngredientsPageContent() {
 
   const handleAdd = () => {
     setMode("add")
-    setFormData({ productId: buildNextIngredientProductId(getIngredients()), name: "", unit: "pcs", stock: "10", expirationDate: "" })
+    setFormData({ productId: buildNextIngredientProductId(getAllIngredients()), name: "", unit: "pcs", stock: "10", expirationDate: "" })
     setDraftBatchId(`BATCH-${crypto.randomUUID().slice(0, 8).toUpperCase()}`)
     setDraftDateAdded(new Date().toISOString())
   }
@@ -234,8 +247,9 @@ function IngredientsPageContent() {
 
   const confirmDelete = () => {
     if (!ingredientToDelete) return
-    deleteIngredient(ingredientToDelete.id)
+    archiveIngredient(ingredientToDelete.id)
     setIngredients(getIngredients())
+    setArchivedIngredients(getArchivedIngredients())
     setIngredientToDelete(null)
   }
 
@@ -250,6 +264,12 @@ function IngredientsPageContent() {
     archiveIngredientExpiredBatches(ingredientToArchive.id)
     setIngredients(getIngredients())
     setIngredientToArchive(null)
+  }
+
+  const handleRestoreIngredient = (id: number) => {
+    restoreIngredient(id)
+    setIngredients(getIngredients())
+    setArchivedIngredients(getArchivedIngredients())
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -309,6 +329,19 @@ function IngredientsPageContent() {
       ingredient.productId.toLowerCase().includes(query) ||
       ingredient.unit.toLowerCase().includes(query) ||
       getStockStatus(ingredient.stock).text.toLowerCase().includes(query) ||
+      formatDate(nextExpiration).toLowerCase().includes(query)
+    )
+  })
+
+  const filteredArchivedIngredients = archivedIngredients.filter((ingredient) => {
+    const query = searchQuery.trim().toLowerCase()
+    const nextExpiration = getNextExpirationDate(ingredient)
+    if (!query) return true
+
+    return (
+      ingredient.name.toLowerCase().includes(query) ||
+      ingredient.productId.toLowerCase().includes(query) ||
+      ingredient.unit.toLowerCase().includes(query) ||
       formatDate(nextExpiration).toLowerCase().includes(query)
     )
   })
@@ -592,7 +625,7 @@ function IngredientsPageContent() {
                   onClick={() => handleDelete(editingIngredient.id)}
                   className="w-full rounded-lg border border-red-200 bg-red-50 py-4 font-semibold text-red-700 transition-colors hover:bg-red-100"
                 >
-                  Delete Ingredient
+                  Archive Ingredient
                 </button>
               ) : null}
 
@@ -621,13 +654,68 @@ function IngredientsPageContent() {
             <h1 className="text-2xl lg:text-3xl font-bold text-[#4a342a]">Ingredients</h1>
             <p className="text-muted-foreground text-sm lg:text-base">Manage raw ingredients, product IDs, and FIFO stock batches.</p>
           </div>
-          <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
-          >
-            <Plus className="h-5 w-5" />
-            Add New Ingredient
-          </button>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+              <button
+                type="button"
+                onClick={() => setRestoreDialogOpen(true)}
+                className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 border border-[#b2967d] bg-[#f5f1ea]/80 hover:bg-[#ede3d8] text-[#4a342a] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center disabled:opacity-60"
+                disabled={archivedIngredients.length === 0}
+              >
+                <RotateCcw className="h-5 w-5" />
+                Restore Ingredients
+              </button>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Restore Archived Ingredients</DialogTitle>
+                  <DialogDescription>
+                    Recover archived ingredients and return them to the active inventory list.
+                  </DialogDescription>
+                </DialogHeader>
+                {filteredArchivedIngredients.length === 0 ? (
+                  <p className="rounded-2xl border border-[#d7c9b8]/50 bg-[#f5f1ea]/70 px-4 py-5 text-sm text-[#7d5a44]">
+                    No archived ingredients match the current view.
+                  </p>
+                ) : (
+                  <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                    {filteredArchivedIngredients.map((ingredient) => {
+                      const summary = getIngredientExpirationSummary(ingredient)
+                      return (
+                        <div
+                          key={ingredient.id}
+                          className="flex flex-col gap-3 rounded-2xl border border-[#d7c9b8]/55 bg-[#f5f1ea]/75 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-semibold text-[#4a342a]">{ingredient.name}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[#7d5a44]">
+                              <span>{ingredient.productId}</span>
+                              <span>{ingredient.unit}</span>
+                              <span>{summary.usableStock} usable</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreIngredient(ingredient.id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#4a342a] px-4 py-2 font-semibold text-[#f5f1ea] transition-colors hover:bg-[#7d5a44]"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Restore
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            <button
+              onClick={handleAdd}
+              className="flex items-center gap-2 px-4 lg:px-5 py-2 lg:py-3 bg-[#4a342a] hover:bg-[#7d5a44] text-[#f5f1ea] font-semibold rounded-lg transition-colors text-sm lg:text-base w-full sm:w-auto justify-center"
+            >
+              <Plus className="h-5 w-5" />
+              Add New Ingredient
+            </button>
+          </div>
         </div>
 
         <div className="relative mb-4 lg:mb-6">
@@ -689,7 +777,7 @@ function IngredientsPageContent() {
                     <button onClick={() => handleEdit(ingredient)} className="p-2 hover:bg-muted rounded-lg transition-colors">
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </button>
-                    <button onClick={() => handleDelete(ingredient.id)} className="p-2 hover:bg-muted rounded-lg transition-colors">
+                    <button onClick={() => handleDelete(ingredient.id)} className="p-2 hover:bg-muted rounded-lg transition-colors" title="Archive ingredient">
                       <Trash2 className="h-4 w-4 text-[#4a342a]" />
                     </button>
                   </div>
@@ -802,7 +890,7 @@ function IngredientsPageContent() {
                               className="rounded-lg transition-colors focus:bg-red-50 focus:text-red-700"
                             >
                               <Trash2 className="h-4 w-4" />
-                              <span>Delete</span>
+                              <span>Archive</span>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -819,16 +907,16 @@ function IngredientsPageContent() {
         <AlertDialog open={Boolean(ingredientToDelete)} onOpenChange={(open) => !open && setIngredientToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Ingredient</AlertDialogTitle>
+              <AlertDialogTitle>Archive Ingredient</AlertDialogTitle>
               <AlertDialogDescription>
                 {ingredientToDelete
-                  ? `Remove ${ingredientToDelete.name}? This action cannot be undone.`
-                  : "Remove this ingredient? This action cannot be undone."}
+                  ? `Archive ${ingredientToDelete.name}? You can restore it later from the Restore Ingredients list.`
+                  : "Archive this ingredient? You can restore it later from the Restore Ingredients list."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={confirmDelete}>Archive</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
