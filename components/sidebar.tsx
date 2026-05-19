@@ -68,6 +68,10 @@ const allNavItems: NavItem[] = [
 ]
 
 const getNavItemsForRole = (role: UserRole): NavItem[] => {
+  if (role === "cashier") {
+    return allNavItems.filter((item) => item.href === "/pos" || item.href === "/sales-history")
+  }
+
   return allNavItems.filter((item) => {
     switch (item.permission) {
       case "dashboard":
