@@ -134,8 +134,15 @@ export function getQueueStartNumber() {
   return DEFAULT_QUEUE_START
 }
 
-export function getNextDailyQueueNumber(transactions: Transaction[], date: string) {
-  const highestQueueNumber = transactions.reduce((highest, transaction) => {
+export function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function getHighestDailyQueueNumber(transactions: Transaction[], date: string) {
+  return transactions.reduce((highest, transaction) => {
     if (isQueueDailyResetEnabled() && transaction.date !== date) return highest
 
     const parsed = Number.parseInt(normalizeQueueNumber(transaction.queueNumber) || "", 10)
@@ -143,14 +150,18 @@ export function getNextDailyQueueNumber(transactions: Transaction[], date: strin
 
     return Math.max(highest, parsed)
   }, getQueueStartNumber() - 1)
+}
+
+export function getNextDailyQueueNumber(transactions: Transaction[], date: string) {
+  const highestQueueNumber = getHighestDailyQueueNumber(transactions, date)
 
   return String(highestQueueNumber + 1)
 }
 
 export function getCurrentDailyQueueNumber(transactions: Transaction[], date: string) {
-  const nextQueueNumber = Number.parseInt(getNextDailyQueueNumber(transactions, date), 10)
-  if (!Number.isFinite(nextQueueNumber)) return String(getQueueStartNumber())
-  return String(Math.max(getQueueStartNumber(), nextQueueNumber - 1))
+  const highestQueueNumber = getHighestDailyQueueNumber(transactions, date)
+  if (highestQueueNumber < getQueueStartNumber()) return "----"
+  return String(highestQueueNumber)
 }
 
 export function canAccessQueue(role: AppUserRole) {

@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, Package, ReceiptText, Settings, Users, TrendingUp, FileText, LayoutGrid, Leaf, ShoppingCart } from "lucide-react"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, Settings, FileText, LayoutGrid, ShoppingCart, ChevronLeft } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
-import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
+import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getLocalDateKey, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -13,16 +14,12 @@ import type { Product, CartItem, Transaction, Ingredient, AddOn, ComboMeal, Coff
 const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Soda", "Silog", "Combos"] as const
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 const comboProductIdOffset = 100000
+const POS_SIDEBAR_COLLAPSE_KEY = "alfresco_pos_sidebar_collapsed"
 
 const posWorkspaceLinks = [
   { href: "/pos", label: "POS", description: "New Order", icon: ShoppingCart },
-  { href: "/queue-management", label: "Orders", description: "Queue Management", icon: ChefHat },
   { href: "/queue-display", label: "Queue Display", description: "Live Queue", icon: MonitorPlay },
-  { href: "/inventory", label: "Inventory", description: "Stock Management", icon: Package },
-  { href: "/ingredients", label: "Ingredients", description: "Ingredient List", icon: Leaf },
   { href: "/sales-history", label: "Reports", description: "Sales Records", icon: FileText },
-  { href: "/sales-analytics", label: "Analytics", description: "Business Insights", icon: TrendingUp },
-  { href: "/user-management", label: "Users", description: "Access Control", icon: Users },
   { href: "/settings", label: "Settings", description: "System Controls", icon: Settings },
 ] as const
 
@@ -93,6 +90,7 @@ function buildComboProduct(combo: ComboMeal, products: Product[]): Product | nul
 }
 
 export default function POSPage() {
+  const pathname = usePathname()
   const [products, setProducts] = useState<Product[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [comboMeals, setComboMeals] = useState<ComboMeal[]>([])
@@ -128,6 +126,7 @@ export default function POSPage() {
   const [orderStartedAt, setOrderStartedAt] = useState<string | null>(null)
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([])
   const [isTakingOverOrder, setIsTakingOverOrder] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // Payment and discount state
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
@@ -163,6 +162,16 @@ export default function POSPage() {
   useEffect(() => {
     void refreshData()
   }, [refreshData])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    setIsSidebarCollapsed(window.localStorage.getItem(POS_SIDEBAR_COLLAPSE_KEY) === "true")
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem(POS_SIDEBAR_COLLAPSE_KEY, String(isSidebarCollapsed))
+  }, [isSidebarCollapsed])
 
   useEffect(() => {
     const supabase = createClient()
@@ -588,7 +597,7 @@ export default function POSPage() {
     if (!ingredient.expirationDate) return false
     return new Date(ingredient.expirationDate).getTime() < Date.now()
   }).length
-  const todayKey = new Date().toISOString().split("T")[0]
+  const todayKey = getLocalDateKey()
   const queueScopeKey = isQueueDailyResetEnabled() ? todayKey : "global"
   const currentQueueNumber = getCurrentDailyQueueNumber(allTransactions, queueScopeKey)
   const nextQueueNumberPreview = getNextDailyQueueNumber(allTransactions, queueScopeKey)
@@ -722,7 +731,7 @@ export default function POSPage() {
 
     const now = new Date()
     const transactions = await getTransactions()
-    const transactionDate = now.toISOString().split("T")[0]
+    const transactionDate = getLocalDateKey(now)
     const transactionId = String(transactions.length + 1).padStart(5, "0")
     const queueNumber = getNextDailyQueueNumber(transactions, transactionDate)
 
@@ -970,31 +979,44 @@ export default function POSPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-5">
-      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_28px_80px_rgba(74,52,42,0.14)] lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className={`mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_28px_80px_rgba(74,52,42,0.14)] transition-[grid-template-columns] duration-300 ${
+        isSidebarCollapsed ? "lg:grid-cols-[92px_minmax(0,1fr)]" : "lg:grid-cols-[220px_minmax(0,1fr)]"
+      }`}>
         <aside className="border-r border-[#7d5a44]/25 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] p-4 text-[#f5f1ea]">
-          <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-            <p className="text-sm font-semibold tracking-[0.18em] text-[#d6bfaa]">AL FRESCO</p>
-            <p className="text-[0.68rem] uppercase tracking-[0.2em] text-[#f8f1e8]/70">POS Terminal</p>
+          <div className={`mb-5 flex ${isSidebarCollapsed ? "flex-col items-center gap-3" : "items-start justify-between gap-3"}`}>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <p className={`font-semibold tracking-[0.18em] text-[#d6bfaa] ${isSidebarCollapsed ? "text-center text-xs" : "text-sm"}`}>AL FRESCO</p>
+              {!isSidebarCollapsed && <p className="text-[0.68rem] uppercase tracking-[0.2em] text-[#f8f1e8]/70">POS Terminal</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((current) => !current)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-[#f5f1ea] transition hover:bg-white/16"
+              aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <ChevronLeft className={`h-4 w-4 transition-transform ${isSidebarCollapsed ? "rotate-180" : ""}`} />
+            </button>
           </div>
 
           <div className="space-y-2">
             {posWorkspaceLinks.map((item) => {
               const Icon = item.icon
-              const isActive = item.href === "/pos"
+              const isActive = pathname === item.href
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${
+                  title={isSidebarCollapsed ? item.label : undefined}
+                  className={`flex items-center rounded-2xl transition-colors ${
                     isActive
                       ? "bg-[#f5f1ea] text-[#4a342a] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
                       : "text-[#f7ede4]/78 hover:bg-white/8 hover:text-white"
-                  }`}
+                  } ${isSidebarCollapsed ? "justify-center px-0 py-3" : "gap-3 px-3 py-3"}`}
                 >
                   <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? "bg-[#d7c9b8]" : "bg-white/8"}`}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="min-w-0">
+                  <span className={`min-w-0 ${isSidebarCollapsed ? "hidden" : "block"}`}>
                     <span className="block text-sm font-semibold">{item.label}</span>
                     <span className={`block text-[11px] ${isActive ? "text-[#7d5a44]" : "text-[#f5f1ea]/65"}`}>{item.description}</span>
                   </span>
@@ -1003,22 +1025,22 @@ export default function POSPage() {
             })}
           </div>
 
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[#d8c8ba]">POS Status</p>
-            <div className="mt-3 space-y-3 text-sm">
-              <div className="flex items-center justify-between">
+          <div className={`mt-6 rounded-2xl border border-white/10 bg-white/5 ${isSidebarCollapsed ? "p-3" : "p-4"}`}>
+            <p className={`uppercase tracking-[0.22em] text-[#d8c8ba] ${isSidebarCollapsed ? "text-center text-[10px]" : "text-[11px]"}`}>POS Status</p>
+            <div className={`mt-3 space-y-3 text-sm ${isSidebarCollapsed ? "text-center" : ""}`}>
+              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
                 <span className="text-[#d8c8ba]">Current Queue</span>
                 <span className="font-bold">{currentQueueNumber}</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
                 <span className="text-[#d8c8ba]">Preparing</span>
                 <span className="font-bold">{queueSnapshot.preparing.length}</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
                 <span className="text-[#d8c8ba]">Ready Pickup</span>
                 <span className="font-bold">{queueSnapshot.ready.length}</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
                 <span className="text-[#d8c8ba]">Low Stock</span>
                 <span className="font-bold">{lowStockIngredientsCount}</span>
               </div>
