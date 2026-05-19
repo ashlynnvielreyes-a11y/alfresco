@@ -4,16 +4,17 @@ import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Bell,
-  CheckCheck,
-  ChevronRight,
+  Check,
   ChefHat,
+  ClipboardList,
   Clock3,
   Dot,
-  GripVertical,
-  Hand,
   LayoutGrid,
-  MonitorSmartphone,
+  ListOrdered,
+  Megaphone,
+  PauseCircle,
   PackageCheck,
+  RefreshCw,
   Sparkles,
   UtensilsCrossed,
   Wifi,
@@ -56,39 +57,54 @@ const STAGE_STYLES: Record<
     glowClass: string
     accentClass: string
     emptyLabel: string
+    iconClass: string
+    viewAllClass: string
+    cardRingClass: string
   }
 > = {
   new: {
     label: "New Orders",
-    columnClass: "border-[#2d66ff]/28 bg-[#0f1728]/88",
+    columnClass: "border-[#1b4fc7]/35 bg-[#0d1523]",
     badgeClass: "border-[#2d66ff]/45 bg-[#2d66ff]/16 text-[#8eb8ff]",
     glowClass: "shadow-[0_0_0_1px_rgba(45,102,255,0.2),0_18px_50px_rgba(15,84,255,0.2)]",
     accentClass: "bg-[#2d66ff]",
     emptyLabel: "No new orders waiting to be accepted.",
+    iconClass: "bg-[#2d66ff] text-white",
+    viewAllClass: "text-[#4d94ff]",
+    cardRingClass: "border-[#2d66ff] shadow-[0_0_0_1px_rgba(45,102,255,0.18),0_18px_34px_rgba(0,0,0,0.18)]",
   },
   preparing: {
     label: "Preparing",
-    columnClass: "border-[#ff9f43]/28 bg-[#101724]/88",
+    columnClass: "border-[#b76417]/35 bg-[#0d1523]",
     badgeClass: "border-[#ff9f43]/45 bg-[#ff9f43]/16 text-[#ffc27a]",
     glowClass: "shadow-[0_0_0_1px_rgba(255,159,67,0.18),0_18px_50px_rgba(255,159,67,0.18)]",
     accentClass: "bg-[#ff9f43]",
     emptyLabel: "No orders are currently in preparation.",
+    iconClass: "bg-[#ff8c1a] text-white",
+    viewAllClass: "text-[#ffad4d]",
+    cardRingClass: "border-[#ff9f43] shadow-[0_0_0_1px_rgba(255,159,67,0.18),0_18px_34px_rgba(0,0,0,0.18)]",
   },
   ready: {
     label: "Ready for Pickup",
-    columnClass: "border-[#22c55e]/28 bg-[#0f1728]/88",
+    columnClass: "border-[#1e8f45]/35 bg-[#0d1523]",
     badgeClass: "border-[#22c55e]/45 bg-[#22c55e]/16 text-[#90f0b0]",
     glowClass: "shadow-[0_0_0_1px_rgba(34,197,94,0.18),0_18px_50px_rgba(34,197,94,0.18)]",
     accentClass: "bg-[#22c55e]",
     emptyLabel: "No completed prep waiting for pickup.",
+    iconClass: "bg-[#1faa43] text-white",
+    viewAllClass: "text-[#51d174]",
+    cardRingClass: "border-[#22c55e] shadow-[0_0_0_1px_rgba(34,197,94,0.18),0_18px_34px_rgba(0,0,0,0.18)]",
   },
   completed: {
     label: "Completed",
-    columnClass: "border-white/10 bg-[#101726]/88",
+    columnClass: "border-white/12 bg-[#0d1523]",
     badgeClass: "border-white/12 bg-white/8 text-[#cfd7e9]",
     glowClass: "shadow-[0_0_0_1px_rgba(148,163,184,0.16),0_18px_50px_rgba(15,23,42,0.18)]",
     accentClass: "bg-[#94a3b8]",
     emptyLabel: "No completed orders to review right now.",
+    iconClass: "bg-[#4b5563] text-white",
+    viewAllClass: "text-[#b8c2d8]",
+    cardRingClass: "border-[#485468] shadow-[0_0_0_1px_rgba(148,163,184,0.15),0_18px_34px_rgba(0,0,0,0.18)]",
   },
 }
 
@@ -202,6 +218,32 @@ function buildKitchenRecord(transaction: Transaction, now: Date): KitchenRecord 
   }
 }
 
+function getStageIcon(stage: KitchenStage) {
+  switch (stage) {
+    case "new":
+      return ClipboardList
+    case "preparing":
+      return ChefHat
+    case "ready":
+      return PackageCheck
+    case "completed":
+      return Check
+  }
+}
+
+function getCardStatusLabel(stage: KitchenStage) {
+  switch (stage) {
+    case "new":
+      return "Accept"
+    case "preparing":
+      return "Preparing"
+    case "ready":
+      return "Ready"
+    case "completed":
+      return "Completed"
+  }
+}
+
 function StageColumn({
   stage,
   records,
@@ -216,94 +258,89 @@ function StageColumn({
   onSelect: (transactionId: string) => void
 }) {
   const style = STAGE_STYLES[stage]
+  const StageIcon = getStageIcon(stage)
 
   return (
-    <section
-      className={`flex min-h-[24rem] flex-col rounded-[28px] border p-4 backdrop-blur-xl ${style.columnClass}`}
-    >
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className={`flex min-h-[24rem] flex-col rounded-[22px] border shadow-[0_24px_60px_rgba(2,8,23,0.28)] ${style.columnClass}`}>
+      <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-4">
         <div className="flex items-center gap-3">
-          <span className={`h-3 w-3 rounded-full ${style.accentClass} shadow-[0_0_18px_currentColor]`} />
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${style.iconClass}`}>
+            <StageIcon className="h-4 w-4" />
+          </span>
           <div>
-            <h2 className="text-lg font-semibold tracking-[-0.03em] text-white">{style.label}</h2>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#8ea0c4]">{records.length} orders</p>
+            <h2 className="text-[1.05rem] font-extrabold uppercase tracking-[-0.02em] text-white">{style.label}</h2>
           </div>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${style.badgeClass}`}>
-          Live
+        <span className={`min-w-9 rounded-xl px-3 py-1.5 text-center text-sm font-bold ${style.iconClass}`}>
+          {records.length}
         </span>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {records.length === 0 ? (
-          <div className="flex min-h-[16rem] items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-white/[0.03] px-6 text-center text-sm text-[#94a3b8]">
+          <div className="flex min-h-[16rem] items-center justify-center rounded-[18px] border border-dashed border-white/12 bg-white/[0.03] px-6 text-center text-sm text-[#94a3b8]">
             {style.emptyLabel}
           </div>
         ) : (
           records.map((record) => {
             const isSelected = selectedTransactionId === record.transaction.id
             const isHeld = heldOrders.has(record.transaction.id)
+            const cardStatusLabel = isHeld ? "Hold" : getCardStatusLabel(stage)
 
             return (
               <button
                 key={record.transaction.id}
                 type="button"
                 onClick={() => onSelect(record.transaction.id)}
-                className={`w-full rounded-[24px] border bg-[linear-gradient(180deg,#ffffff_0%,#f7fbff_100%)] p-5 text-left text-[#0f172a] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_56px_rgba(15,23,42,0.18)] ${
+                className={`w-full rounded-[16px] border-2 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4 text-left text-[#0f172a] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_56px_rgba(15,23,42,0.18)] ${
                   isSelected
-                    ? `${style.glowClass} border-white`
-                    : "border-white/70 shadow-[0_18px_38px_rgba(15,23,42,0.12)]"
+                    ? `${style.glowClass} ${style.cardRingClass}`
+                    : `${style.cardRingClass} opacity-95`
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[2.35rem] font-black leading-none tracking-[-0.08em] text-[#091224]">
+                    <p className="text-[2.1rem] font-black leading-none tracking-[-0.08em] text-[#091224]">
                       {record.transaction.queueNumber || record.transaction.id.slice(-4)}
                     </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em]">
-                      <span className={`rounded-full border px-2.5 py-1 ${style.badgeClass}`}>{style.label}</span>
-                      <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-slate-700">
-                        {record.orderTypeLabel}
-                      </span>
-                      {isHeld ? (
-                        <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-700">On Hold</span>
-                      ) : null}
-                    </div>
+                    <p className="mt-2 text-[1rem] text-slate-600">{record.orderTypeLabel}</p>
                   </div>
 
                   <div className="text-right">
                     <p className="text-sm font-semibold text-[#0f172a]">{formatShortTime(record.placedAt)}</p>
-                    <p className="mt-2 text-xs font-medium text-slate-500">{formatWaitLabel(record.waitMinutes)}</p>
                   </div>
                 </div>
 
-                <ul className="mt-4 space-y-2 text-sm text-slate-700">
-                  {record.transaction.items.map((item, index) => (
+                <ul className="mt-4 space-y-2 text-[0.98rem] text-slate-700">
+                  {record.transaction.items.slice(0, 3).map((item, index) => (
                     <li key={`${record.transaction.id}-${index}`} className="flex gap-3">
-                      <span className="min-w-6 text-sm font-semibold text-slate-400">{item.quantity}</span>
+                      <span className="min-w-5 text-sm font-medium text-slate-500">{item.quantity}</span>
                       <div className="min-w-0">
-                        <p className="font-semibold text-slate-800">{item.product.name}</p>
-                        {getItemDescriptor(item) ? (
-                          <p className="mt-0.5 text-xs leading-5 text-slate-500">{getItemDescriptor(item)}</p>
-                        ) : null}
+                        <p className="font-medium text-slate-800">{item.product.name}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
 
-                <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-200 pt-4">
-                  <div className="min-w-0">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-400">Customer Notes</p>
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">
-                      {record.userNote || "No special instructions."}
-                    </p>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    <span>{formatWaitLabel(record.waitMinutes)}</span>
                   </div>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                  <span className={`rounded-lg border px-2.5 py-1 text-xs font-bold uppercase tracking-[0.04em] ${isHeld ? "border-rose-200 bg-rose-50 text-rose-700" : style.badgeClass}`}>
+                    {cardStatusLabel}
+                  </span>
                 </div>
               </button>
             )
           })
         )}
+      </div>
+
+      <div className="border-t border-white/8 px-4 py-4 text-center">
+        <button type="button" className={`text-base font-semibold ${style.viewAllClass}`}>
+          View all ({records.length})
+        </button>
       </div>
     </section>
   )
@@ -538,88 +575,78 @@ function KitchenDashboardContent() {
     setControlMessage("All kitchen stages are visible. Scroll horizontally or vertically to review every live order.")
   }, [])
 
+  const selectedStatusLabel = selectedRecord ? getCardStatusLabel(selectedRecord.stage) : "No Status"
+
   return (
-    <div className="min-h-screen bg-[#08101d] text-white">
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(45,102,255,0.18),transparent_24%),radial-gradient(circle_at_top_right,rgba(34,197,94,0.14),transparent_20%),linear-gradient(180deg,#08101d_0%,#0b1525_42%,#0d1828_100%)]">
-        <div className="mx-auto flex min-h-screen max-w-[1920px] flex-col px-4 py-4 sm:px-5 lg:px-6">
-          <header className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(12,20,35,0.94),rgba(10,17,30,0.9))] px-5 py-5 shadow-[0_22px_65px_rgba(2,8,23,0.45)] backdrop-blur-xl">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-                <div className="flex items-center gap-4 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">
-                    <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={144} height={48} className="h-10 w-auto object-contain" priority />
-                  </div>
-                  <div>
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#8da3c9]">Coffee Shop KDS</p>
-                    <h1 className="mt-1 text-2xl font-black tracking-[-0.05em] text-white sm:text-[2rem]">
-                      Kitchen Dashboard
-                    </h1>
-                    <p className="mt-1 text-sm text-[#a6b4cf]">
-                      Fullscreen production board for cashier-to-kitchen queue synchronization.
-                    </p>
+    <div className="min-h-screen bg-[#060d18] text-white">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(36,75,186,0.18),transparent_24%),radial-gradient(circle_at_top_right,rgba(31,170,67,0.12),transparent_22%),linear-gradient(180deg,#060d18_0%,#0a1321_45%,#0b1422_100%)]">
+        <div className="mx-auto flex min-h-screen max-w-[1800px] flex-col px-4 py-4">
+          <header className="rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(13,21,35,0.98),rgba(11,18,30,0.94))] px-4 py-3 shadow-[0_18px_48px_rgba(2,8,23,0.4)]">
+            <div className="grid gap-3 xl:grid-cols-[auto_1fr_auto] xl:items-center">
+              <div className="flex items-center gap-4 border-white/10 xl:border-r xl:pr-6">
+                <div className="rounded-[16px] border border-white/10 bg-white/[0.03] p-3">
+                  <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={140} height={44} className="h-10 w-auto object-contain" priority />
+                </div>
+                <div>
+                  <h1 className="text-[2rem] font-black leading-none tracking-[-0.05em] text-white">KITCHEN QUEUE</h1>
+                  <p className="mt-1 text-lg text-[#b3c0d8]">Work with speed. Serve with pride.</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-[16px] border border-white/8 bg-white/[0.04] px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <LayoutGrid className="h-8 w-8 rounded-xl bg-white/5 p-1.5 text-[#d6e4ff]" />
+                    <div>
+                      <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[#8da3c9]">Total Orders</p>
+                      <p className="mt-1 text-[2rem] font-black leading-none text-white">{totalOrders}</p>
+                    </div>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <LayoutGrid className="h-5 w-5 text-[#8eb8ff]" />
-                      <div>
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Total Orders</p>
-                        <p className="mt-1 text-3xl font-black tracking-[-0.06em] text-white">{totalOrders}</p>
-                      </div>
+                <div className="rounded-[16px] border border-white/8 bg-white/[0.04] px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <ChefHat className="h-8 w-8 rounded-xl bg-[#ff9f43]/15 p-1.5 text-[#ff9f43]" />
+                    <div>
+                      <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[#8da3c9]">Preparing</p>
+                      <p className="mt-1 text-[2rem] font-black leading-none text-white">{recordsByStage.preparing.length}</p>
                     </div>
                   </div>
-                  <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <ChefHat className="h-5 w-5 text-[#ffc27a]" />
-                      <div>
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Preparing</p>
-                        <p className="mt-1 text-3xl font-black tracking-[-0.06em] text-white">{recordsByStage.preparing.length}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <PackageCheck className="h-5 w-5 text-[#90f0b0]" />
-                      <div>
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Ready</p>
-                        <p className="mt-1 text-3xl font-black tracking-[-0.06em] text-white">{recordsByStage.ready.length}</p>
-                      </div>
+                </div>
+                <div className="rounded-[16px] border border-white/8 bg-white/[0.04] px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <PackageCheck className="h-8 w-8 rounded-xl bg-[#22c55e]/15 p-1.5 text-[#22c55e]" />
+                    <div>
+                      <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[#8da3c9]">Ready</p>
+                      <p className="mt-1 text-[2rem] font-black leading-none text-white">{recordsByStage.ready.length}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
-                <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <Clock3 className="h-5 w-5 text-white" />
-                    <div>
-                      <p className="text-2xl font-black tracking-[-0.04em] text-white">{formatClock(clockNow)}</p>
-                      <p className="text-sm text-[#a6b4cf]">{formatCalendar(clockNow)}</p>
-                    </div>
+              <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
+                <div className="flex items-center gap-3 rounded-[16px] border border-white/8 bg-white/[0.04] px-4 py-3">
+                  <Clock3 className="h-7 w-7 text-white" />
+                  <div>
+                    <p className="text-[1.9rem] font-black leading-none tracking-[-0.04em] text-white">{formatClock(clockNow)}</p>
+                    <p className="mt-1 text-sm text-[#b3c0d8]">{formatCalendar(clockNow)}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3">
+                <div className="flex h-[4.5rem] items-center justify-center rounded-[16px] border border-white/8 bg-white/[0.04] px-4">
                   <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06]">
                     <Bell className="h-5 w-5 text-white" />
-                    <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white">
+                    <span className="absolute right-0 top-0 flex h-5 min-w-5 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full bg-[#e11d48] px-1 text-[10px] font-bold text-white">
                       {notificationCount}
                     </span>
-                  </div>
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Alerts</p>
-                    <p className="mt-1 text-sm text-white">New and ready queue changes are highlighted live.</p>
                   </div>
                 </div>
               </div>
             </div>
           </header>
 
-          <main className="mt-4 grid flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
-            <section className="min-h-0 rounded-[30px] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_60px_rgba(2,8,23,0.34)] backdrop-blur-xl">
-              <div className="grid min-h-[calc(100vh-13rem)] gap-3 xl:grid-cols-4">
+          <main className="mt-4 grid flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-4">
+              <section className="min-h-0 rounded-[22px] border border-white/8 bg-white/[0.02] p-3 shadow-[0_20px_60px_rgba(2,8,23,0.34)]">
+                <div className="grid min-h-[calc(100vh-16.5rem)] gap-3 xl:grid-cols-4">
                 <StageColumn
                   stage="new"
                   records={recordsByStage.new}
@@ -648,198 +675,180 @@ function KitchenDashboardContent() {
                   selectedTransactionId={selectedTransactionId}
                   onSelect={setSelectedTransactionId}
                 />
-              </div>
-            </section>
+                </div>
+              </section>
+
+              <section className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-[18px] border border-white/8 bg-[#0d1523] px-4 py-4 text-[#dce6f7] shadow-[0_16px_40px_rgba(2,8,23,0.26)]">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="h-5 w-5 text-[#facc15]" />
+                    <p className="text-lg"><span className="font-extrabold uppercase">Tip:</span> Focus on preparing one order at a time for better quality.</p>
+                  </div>
+                </div>
+                <div className="rounded-[18px] border border-white/8 bg-[#0d1523] px-4 py-4 text-[#dce6f7] shadow-[0_16px_40px_rgba(2,8,23,0.26)]">
+                  <div className="flex items-center gap-3">
+                    <Bell className="h-5 w-5 text-[#f59e0b]" />
+                    <p className="text-lg"><span className="font-extrabold uppercase">Today's Promo:</span> Buy 1 Get 1 on all iced beverages.</p>
+                  </div>
+                </div>
+              </section>
+            </div>
 
             <aside className="space-y-4">
-              <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,18,30,0.96),rgba(9,15,26,0.94))] p-5 shadow-[0_22px_60px_rgba(2,8,23,0.4)] backdrop-blur-xl">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#8da3c9]">Order Details</p>
-                    <h2 className="mt-2 text-2xl font-black tracking-[-0.05em] text-white">
-                      {selectedRecord ? selectedRecord.transaction.queueNumber || selectedRecord.transaction.id : "No Order"}
-                    </h2>
-                  </div>
-                  {selectedRecord ? (
-                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${STAGE_STYLES[selectedRecord.stage].badgeClass}`}>
-                      {STAGE_STYLES[selectedRecord.stage].label}
-                    </span>
-                  ) : null}
+              <section className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(13,21,35,0.98),rgba(11,18,30,0.96))] p-4 shadow-[0_20px_55px_rgba(2,8,23,0.4)]">
+                <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                  <p className="text-[1.05rem] font-extrabold uppercase tracking-[-0.02em] text-white">Order Details</p>
+                  <button type="button" className="text-[#9fb0cf]">
+                    <XCircle className="h-5 w-5" />
+                  </button>
                 </div>
 
                 {selectedRecord ? (
                   <>
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-[20px] border border-white/8 bg-white/[0.04] p-3">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Order Type</p>
-                        <p className="mt-2 text-base font-semibold text-white">{selectedRecord.orderTypeLabel}</p>
-                      </div>
-                      <div className="rounded-[20px] border border-white/8 bg-white/[0.04] p-3">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Placed</p>
-                        <p className="mt-2 text-base font-semibold text-white">{formatShortTime(selectedRecord.placedAt)}</p>
-                      </div>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <p className="text-[2.35rem] font-black tracking-[-0.08em] text-[#ff9f43]">
+                        {selectedRecord.transaction.queueNumber || selectedRecord.transaction.id}
+                      </p>
+                      <span className={`rounded-lg border px-3 py-1.5 text-xs font-bold uppercase ${selectedRecord.stage === "preparing" ? "border-[#ff9f43]/40 bg-[#ff9f43]/18 text-[#ffc27a]" : STAGE_STYLES[selectedRecord.stage].badgeClass}`}>
+                        {selectedStatusLabel}
+                      </span>
                     </div>
 
-                    <div className="mt-4 rounded-[24px] border border-white/8 bg-white/[0.04] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Items</p>
-                        <p className="text-sm text-[#d7e0f2]">{selectedRecord.transaction.items.length} lines</p>
-                      </div>
-                      <ul className="mt-4 space-y-3">
+                    <div className="mt-4 flex items-center justify-between text-[1rem] text-[#d7e0f2]">
+                      <span>{selectedRecord.orderTypeLabel}</span>
+                      <span>{formatShortTime(selectedRecord.placedAt)} ({formatWaitLabel(selectedRecord.waitMinutes)})</span>
+                    </div>
+
+                    <div className="mt-4 border-t border-white/8 pt-4">
+                      <ul className="space-y-4">
                         {selectedRecord.transaction.items.map((item, index) => (
-                          <li key={`${selectedRecord.transaction.id}-detail-${index}`} className="rounded-[18px] border border-white/8 bg-[#0c1524] px-3 py-3">
-                            <div className="flex items-start gap-3">
-                              <span className="rounded-xl bg-white/6 px-2 py-1 text-sm font-bold text-white">{item.quantity}</span>
-                              <div className="min-w-0">
-                                <p className="font-semibold text-white">{item.product.name}</p>
-                                {getItemDescriptor(item) ? (
-                                  <p className="mt-1 text-sm leading-6 text-[#9fb0cf]">{getItemDescriptor(item)}</p>
-                                ) : null}
-                              </div>
+                          <li key={`${selectedRecord.transaction.id}-detail-${index}`} className="flex gap-3 text-[#dbe6f8]">
+                            <span className="min-w-6 text-lg font-medium">{item.quantity}</span>
+                            <div className="min-w-0">
+                              <p className="text-[1.05rem] font-semibold text-white">{item.product.name}</p>
+                              {getItemDescriptor(item) ? (
+                                <p className="mt-1 text-sm leading-6 text-[#a5b5d0]">{getItemDescriptor(item)}</p>
+                              ) : null}
                             </div>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    <div className="mt-4 rounded-[24px] border border-white/8 bg-white/[0.04] p-4">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8da3c9]">Customer Notes</p>
-                      <p className="mt-3 text-sm leading-6 text-[#d7e0f2]">
-                        {selectedRecord.userNote || "No special preparation instructions were added for this order."}
-                      </p>
+                    <div className="mt-4 border-t border-white/8 pt-4">
+                      <p className="text-sm text-[#dbe6f8]">Note: {selectedRecord.userNote || "No special instructions."}</p>
                     </div>
 
-                    <div className="mt-5 grid gap-3">
+                    <div className="mt-5 grid grid-cols-2 gap-3">
                       <Button
-                        onClick={handleAcceptOrder}
-                        disabled={selectedRecord.stage !== "new"}
-                        className="h-12 rounded-2xl bg-[#2d66ff] text-base font-semibold text-white shadow-[0_16px_30px_rgba(45,102,255,0.28)] hover:bg-[#2057ec]"
+                        onClick={selectedRecord.stage === "preparing" ? handleMarkReady : handleAcceptOrder}
+                        disabled={selectedRecord.stage !== "new" && selectedRecord.stage !== "preparing"}
+                        className={`h-12 rounded-xl text-base font-bold text-white ${selectedRecord.stage === "preparing" ? "bg-[#16a34a] hover:bg-[#15803d]" : "bg-[#2563eb] hover:bg-[#1d4ed8]"}`}
                       >
-                        <Hand className="h-4 w-4" />
-                        Accept Order
-                      </Button>
-                      <Button
-                        onClick={handleMarkPreparing}
-                        disabled={selectedRecord.stage !== "new"}
-                        className="h-12 rounded-2xl bg-[#ff9f43] text-base font-semibold text-[#111827] shadow-[0_16px_30px_rgba(255,159,67,0.24)] hover:bg-[#ffb35f]"
-                      >
-                        <ChefHat className="h-4 w-4" />
-                        Mark Preparing
-                      </Button>
-                      <Button
-                        onClick={handleMarkReady}
-                        disabled={selectedRecord.stage !== "preparing"}
-                        className="h-12 rounded-2xl bg-[#22c55e] text-base font-semibold text-white shadow-[0_16px_30px_rgba(34,197,94,0.25)] hover:bg-[#1dac52]"
-                      >
-                        <PackageCheck className="h-4 w-4" />
-                        Mark Ready
-                      </Button>
-                      <Button
-                        onClick={handleCompleteOrder}
-                        disabled={selectedRecord.stage !== "ready"}
-                        className="h-12 rounded-2xl bg-[#94a3b8] text-base font-semibold text-[#0f172a] shadow-[0_16px_30px_rgba(148,163,184,0.2)] hover:bg-[#aab7c9]"
-                      >
-                        <CheckCheck className="h-4 w-4" />
-                        Complete Order
+                        {selectedRecord.stage === "preparing" ? "Mark Ready" : "Accept Order"}
                       </Button>
                       <Button
                         onClick={handleCancelOrder}
                         disabled={selectedRecord.stage === "completed"}
-                        className="h-12 rounded-2xl bg-[#dc2626] text-base font-semibold text-white shadow-[0_16px_30px_rgba(220,38,38,0.22)] hover:bg-[#c11f1f]"
+                        className="h-12 rounded-xl bg-[#dc2626] text-base font-bold text-white hover:bg-[#b91c1c]"
                       >
-                        <XCircle className="h-4 w-4" />
                         Cancel Order
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 grid gap-3">
+                      <Button
+                        onClick={handleMarkPreparing}
+                        disabled={selectedRecord.stage !== "new"}
+                        className="h-11 rounded-xl bg-[#ff9f43] text-base font-bold text-[#0f172a] hover:bg-[#ffb35f]"
+                      >
+                        Mark Preparing
+                      </Button>
+                      <Button
+                        onClick={handleCompleteOrder}
+                        disabled={selectedRecord.stage !== "ready"}
+                        className="h-11 rounded-xl bg-[#64748b] text-base font-bold text-white hover:bg-[#475569]"
+                      >
+                        Complete Order
                       </Button>
                     </div>
                   </>
                 ) : (
-                  <div className="mt-6 rounded-[24px] border border-dashed border-white/12 bg-white/[0.03] p-6 text-center text-sm text-[#9fb0cf]">
+                  <div className="mt-6 rounded-[18px] border border-dashed border-white/12 bg-white/[0.03] p-6 text-center text-sm text-[#9fb0cf]">
                     Waiting for the first kitchen order to arrive from POS.
                   </div>
                 )}
               </section>
 
-              <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,18,30,0.96),rgba(9,15,26,0.94))] p-5 shadow-[0_22px_60px_rgba(2,8,23,0.4)] backdrop-blur-xl">
+              <section className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(13,21,35,0.98),rgba(11,18,30,0.96))] p-4 shadow-[0_20px_55px_rgba(2,8,23,0.4)]">
                 <div className="flex items-center gap-3">
-                  <UtensilsCrossed className="h-5 w-5 text-[#8eb8ff]" />
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#8da3c9]">Kitchen Controls</p>
-                    <h3 className="mt-1 text-xl font-black tracking-[-0.04em] text-white">Service Actions</h3>
-                  </div>
+                  <UtensilsCrossed className="h-5 w-5 text-white" />
+                  <h3 className="text-[1.05rem] font-extrabold uppercase tracking-[-0.02em] text-white">Kitchen Controls</h3>
                 </div>
 
                 <div className="mt-4 grid gap-3">
                   <button
                     type="button"
                     onClick={handleCallNextQueue}
-                    className="flex min-h-16 items-center gap-4 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
+                    className="flex min-h-16 items-center gap-4 rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
                   >
-                    <Bell className="h-5 w-5 text-white" />
+                    <Megaphone className="h-5 w-5 text-white" />
                     <div>
                       <p className="font-semibold text-white">Call Next Queue</p>
-                      <p className="text-sm text-[#9fb0cf]">Highlight the next order for pickup or prep.</p>
+                      <p className="text-sm text-[#9fb0cf]">Call the next order number.</p>
                     </div>
                   </button>
                   <button
                     type="button"
                     onClick={handleBumpOrder}
-                    className="flex min-h-16 items-center gap-4 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
+                    className="flex min-h-16 items-center gap-4 rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
                   >
-                    <GripVertical className="h-5 w-5 text-white" />
+                    <RefreshCw className="h-5 w-5 text-white" />
                     <div>
                       <p className="font-semibold text-white">Bump Order</p>
-                      <p className="text-sm text-[#9fb0cf]">Move the selected order to the top of the board.</p>
+                      <p className="text-sm text-[#9fb0cf]">Move order to top.</p>
                     </div>
                   </button>
                   <button
                     type="button"
                     onClick={handleHoldOrder}
-                    className="flex min-h-16 items-center gap-4 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
+                    className="flex min-h-16 items-center gap-4 rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
                   >
-                    <Clock3 className="h-5 w-5 text-white" />
+                    <PauseCircle className="h-5 w-5 text-white" />
                     <div>
                       <p className="font-semibold text-white">Hold Order</p>
-                      <p className="text-sm text-[#9fb0cf]">Temporarily flag the selected order for follow-up.</p>
+                      <p className="text-sm text-[#9fb0cf]">Temporarily hold order.</p>
                     </div>
                   </button>
                   <button
                     type="button"
                     onClick={handleViewAllOrders}
-                    className="flex min-h-16 items-center gap-4 rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
+                    className="flex min-h-16 items-center gap-4 rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]"
                   >
-                    <MonitorSmartphone className="h-5 w-5 text-white" />
+                    <ListOrdered className="h-5 w-5 text-white" />
                     <div>
                       <p className="font-semibold text-white">View All Orders</p>
-                      <p className="text-sm text-[#9fb0cf]">Review every queue stage on the live kitchen board.</p>
+                      <p className="text-sm text-[#9fb0cf]">See all orders list.</p>
                     </div>
                   </button>
                 </div>
               </section>
 
-              <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,18,30,0.96),rgba(9,15,26,0.94))] p-5 shadow-[0_22px_60px_rgba(2,8,23,0.4)] backdrop-blur-xl">
+              <section className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(13,21,35,0.98),rgba(11,18,30,0.96))] p-4 shadow-[0_20px_55px_rgba(2,8,23,0.4)]">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[#8da3c9]">Kitchen Status</p>
-                    <h3 className="mt-1 text-xl font-black tracking-[-0.04em] text-white">Realtime Sync</h3>
-                  </div>
-                  <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold ${isOnline ? "border-[#22c55e]/35 bg-[#22c55e]/12 text-[#90f0b0]" : "border-rose-500/35 bg-rose-500/12 text-rose-300"}`}>
-                    {isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+                  <h3 className="text-[1.05rem] font-extrabold uppercase tracking-[-0.02em] text-white">Kitchen Status</h3>
+                  <div className={`inline-flex items-center gap-2 text-sm font-semibold ${isOnline ? "text-[#22c55e]" : "text-rose-300"}`}>
+                    <Dot className="h-5 w-5" />
                     {isOnline ? "Online" : "Offline"}
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-3 rounded-[24px] border border-white/8 bg-white/[0.04] p-4">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="mt-0.5 h-4 w-4 text-[#8eb8ff]" />
-                    <p className="text-sm leading-6 text-[#d7e0f2]">{controlMessage}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[#9fb0cf]">
-                    <Dot className="h-5 w-5 text-[#22c55e]" />
-                    Last sync: {formatClock(lastSyncAt)}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[#9fb0cf]">
-                    <CheckCheck className="h-4 w-4 text-[#90f0b0]" />
-                    Queue statuses propagate to the customer queue display through the shared transaction stream.
+                <div className="mt-4 border-t border-white/8 pt-4">
+                  <div className="mb-3 h-1.5 w-24 rounded-full bg-[#16a34a]" />
+                  <p className="text-[1rem] text-[#d7e0f2]">Last sync: {formatClock(lastSyncAt)}</p>
+                  <div className="mt-4 flex items-start gap-3 text-sm text-[#9fb0cf]">
+                    {isOnline ? <Wifi className="mt-0.5 h-4 w-4 text-[#22c55e]" /> : <WifiOff className="mt-0.5 h-4 w-4 text-rose-300" />}
+                    <p>{controlMessage}</p>
                   </div>
                 </div>
               </section>
