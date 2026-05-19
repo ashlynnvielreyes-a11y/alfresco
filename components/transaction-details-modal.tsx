@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, ReceiptText, ShieldAlert } from "lucide-react"
+import { Clock3, Loader2, Printer, ReceiptText, ShieldAlert } from "lucide-react"
 
 import {
   Dialog,
@@ -39,6 +39,80 @@ function formatStatus(value: TransactionDetails["orderStatus"]) {
 
 function formatDisplayValue(value: string | null | undefined) {
   return value && value.trim().length > 0 ? value : "—"
+}
+
+function formatTimestamp(value: string | null | undefined, fallbackDate?: string, fallbackTime?: string) {
+  if (value) {
+    return new Date(value).toLocaleString()
+  }
+
+  if (fallbackDate && fallbackTime) {
+    return `${fallbackDate} ${fallbackTime}`
+  }
+
+  return "Not available"
+}
+
+function printTransactionReceipt(details: TransactionDetails) {
+  const receiptHtml = details.items
+    .map(
+      (item) => `
+        <div style="padding: 10px 0; border-bottom: 1px dashed #d7c9b8;">
+          <div style="display:flex; justify-content:space-between; gap:12px;">
+            <div>
+              <div style="font-weight:700; color:#2f241d;">${item.itemName}</div>
+              <div style="color:#6f6157; font-size:12px;">${item.quantity} x ${currency(item.itemPrice)}</div>
+              ${item.comboName ? `<div style="color:#6f6157; font-size:12px;">Combo: ${item.comboName}</div>` : ""}
+              ${item.modifierSummary ? `<div style="color:#6f6157; font-size:12px;">${item.modifierSummary}</div>` : ""}
+              ${item.notes ? `<div style="color:#6f6157; font-size:12px;">Note: ${item.notes}</div>` : ""}
+            </div>
+            <div style="font-weight:700; color:#2f241d;">${currency(item.totalPrice)}</div>
+          </div>
+        </div>
+      `
+    )
+    .join("")
+
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=480,height=760")
+  if (!printWindow) return
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Receipt ${details.transactionId}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 24px; color: #2f241d; }
+          h1 { margin: 0; font-size: 24px; }
+          p { margin: 4px 0; color: #6f6157; }
+          .panel { border: 1px solid #d7c9b8; border-radius: 16px; padding: 16px; margin-top: 16px; background: #fbf8f3; }
+          .row { display:flex; justify-content:space-between; gap:12px; margin: 8px 0; }
+          .total { font-size: 18px; font-weight: 700; color: #2f241d; }
+        </style>
+      </head>
+      <body>
+        <h1>AI Fresco POS Receipt</h1>
+        <p>Transaction ${details.transactionId}</p>
+        <p>${details.date} ${details.time}</p>
+        <div class="panel">
+          <div class="row"><span>Cashier</span><strong>${details.cashierName}</strong></div>
+          <div class="row"><span>Payment</span><strong>${paymentMethodLabel(details.paymentMethod)}</strong></div>
+          <div class="row"><span>Status</span><strong>${formatStatus(details.orderStatus)}</strong></div>
+        </div>
+        <div class="panel">
+          ${receiptHtml}
+          <div class="row"><span>Subtotal</span><strong>${currency(details.subtotal)}</strong></div>
+          <div class="row"><span>Discounts</span><strong>-${currency(details.discountAmount)}</strong></div>
+          <div class="row"><span>Taxes</span><strong>${currency(details.taxAmount)}</strong></div>
+          <div class="row"><span>Cash received</span><strong>${currency(details.cashReceived)}</strong></div>
+          <div class="row"><span>Change</span><strong>${currency(details.changeAmount)}</strong></div>
+          <div class="row total"><span>Total amount</span><span>${currency(details.totalAmount)}</span></div>
+        </div>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+  printWindow.focus()
+  printWindow.print()
 }
 
 interface TransactionDetailsModalProps {
@@ -93,11 +167,25 @@ function TransactionDetailsContent({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Transaction ID</p>
-          <p className="mt-2 text-sm font-semibold text-[#4a342a]">{details.transactionId}</p>
+      <div className="flex flex-col gap-4 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/78 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Detailed order view</p>
+          <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[#4a342a]">{details.transactionId}</h3>
+          <p className="mt-2 text-sm text-[#7d5a44]">
+            {details.date} at {details.time} • {details.cashierName}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => printTransactionReceipt(details)}
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-[#d7c9b8] bg-white/85 px-4 py-2.5 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-white"
+        >
+          <Printer className="h-4 w-4" />
+          Reprint receipt
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Queue number</p>
           <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatDisplayValue(details.queueNumber)}</p>
@@ -110,88 +198,106 @@ function TransactionDetailsContent({
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Order status</p>
           <p className="mt-2 text-sm font-semibold text-[#4a342a]">{formatStatus(details.orderStatus)}</p>
         </div>
+        <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Payment method</p>
+          <p className="mt-2 text-sm font-semibold text-[#4a342a]">{paymentMethodLabel(details.paymentMethod)}</p>
+        </div>
       </div>
 
-      <div className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/78">
-        <div className="flex items-center justify-between gap-3 border-b border-[#d7c9b8] px-4 py-4">
-          <div>
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Receipt view</p>
-            <p className="mt-1 text-sm text-[#7d5a44]">
-              {details.date} at {details.time} • {details.cashierName}
-            </p>
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/78">
+          <div className="flex items-center justify-between gap-3 border-b border-[#d7c9b8] px-4 py-4">
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Itemized purchases</p>
+              <p className="mt-1 text-sm text-[#7d5a44]">Quantities, modifiers, and line totals for this order.</p>
+            </div>
+            <span className="rounded-full bg-[#4a342a] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#f5f1ea]">
+              {details.items.length} line{details.items.length === 1 ? "" : "s"}
+            </span>
           </div>
-          <span className="rounded-full bg-[#4a342a] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#f5f1ea]">
-            {paymentMethodLabel(details.paymentMethod)}
-          </span>
-        </div>
 
-        <div className="max-h-[46vh] space-y-3 overflow-y-auto px-4 py-4">
-          {details.items.map((item) => (
-            <div key={item.id} className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#4a342a]">{item.itemName}</p>
-                  <p className="mt-1 text-sm text-[#7d5a44]">
-                    {item.quantity} × {currency(item.itemPrice)}
-                  </p>
-                  {item.comboName ? <p className="mt-1 text-xs text-[#7d5a44]">Combo: {item.comboName}</p> : null}
-                  {item.modifierSummary ? <p className="mt-1 text-xs text-[#7d5a44]">Modifiers: {item.modifierSummary}</p> : null}
-                  {item.addOns.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {item.addOns.map((addOn) => (
-                        <span key={addOn.id} className="rounded-full border border-[#d7c9b8] bg-[#f5f1ea]/80 px-2.5 py-1 text-[11px] font-medium text-[#7d5a44]">
-                          + {addOn.name} × {addOn.quantity}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {item.notes ? <p className="mt-2 text-xs italic text-[#7d5a44]">Note: {item.notes}</p> : null}
+          <div className="max-h-[46vh] space-y-3 overflow-y-auto px-4 py-4">
+            {details.items.map((item) => (
+              <div key={item.id} className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#4a342a]">{item.itemName}</p>
+                    <p className="mt-1 text-sm text-[#7d5a44]">
+                      Qty {item.quantity} • {currency(item.itemPrice)} each
+                    </p>
+                    {item.comboName ? <p className="mt-1 text-xs text-[#7d5a44]">Combo: {item.comboName}</p> : null}
+                    {item.modifierSummary ? <p className="mt-1 text-xs text-[#7d5a44]">Modifiers: {item.modifierSummary}</p> : null}
+                    {item.addOns.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.addOns.map((addOn) => (
+                          <span key={addOn.id} className="rounded-full border border-[#d7c9b8] bg-[#f5f1ea]/80 px-2.5 py-1 text-[11px] font-medium text-[#7d5a44]">
+                            + {addOn.name} × {addOn.quantity}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {item.notes ? <p className="mt-2 text-xs italic text-[#7d5a44]">Note: {item.notes}</p> : null}
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold text-[#4a342a]">{currency(item.totalPrice)}</p>
                 </div>
-                <p className="shrink-0 text-sm font-semibold text-[#4a342a]">{currency(item.totalPrice)}</p>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Notes and processing</p>
-          <div className="mt-3 space-y-2 text-sm text-[#7d5a44]">
-            <p><span className="font-semibold text-[#4a342a]">Cashier:</span> {details.cashierName}</p>
-            <p><span className="font-semibold text-[#4a342a]">Payment:</span> {paymentMethodLabel(details.paymentMethod)}</p>
-            <p><span className="font-semibold text-[#4a342a]">Instructions:</span> {formatDisplayValue(details.notes)}</p>
-            <p><span className="font-semibold text-[#4a342a]">Data source:</span> {details.source}</p>
+            ))}
           </div>
         </div>
 
-        <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
-          <div className="space-y-2 text-sm text-[#7d5a44]">
-            <div className="flex items-center justify-between">
-              <span>Subtotal</span>
-              <span className="font-semibold text-[#4a342a]">{currency(details.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Discounts</span>
-              <span className="font-semibold text-[#4a342a]">-{currency(details.discountAmount)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Taxes</span>
-              <span className="font-semibold text-[#4a342a]">{currency(details.taxAmount)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Cash received</span>
-              <span className="font-semibold text-[#4a342a]">{currency(details.cashReceived)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Change</span>
-              <span className="font-semibold text-[#4a342a]">{currency(details.changeAmount)}</span>
-            </div>
-            <div className="border-t border-dashed border-[#d7c9b8] pt-3">
+        <div className="space-y-4">
+          <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Payment details</p>
+            <div className="mt-3 space-y-2 text-sm text-[#7d5a44]">
               <div className="flex items-center justify-between">
-                <span className="text-base font-semibold text-[#4a342a]">Total amount</span>
-                <span className="text-base font-bold text-[#4a342a]">{currency(details.totalAmount)}</span>
+                <span>Subtotal</span>
+                <span className="font-semibold text-[#4a342a]">{currency(details.subtotal)}</span>
               </div>
+              <div className="flex items-center justify-between">
+                <span>Discounts</span>
+                <span className="font-semibold text-[#4a342a]">-{currency(details.discountAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Taxes</span>
+                <span className="font-semibold text-[#4a342a]">{currency(details.taxAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Cash received</span>
+                <span className="font-semibold text-[#4a342a]">{currency(details.cashReceived)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Change</span>
+                <span className="font-semibold text-[#4a342a]">{currency(details.changeAmount)}</span>
+              </div>
+              <div className="border-t border-dashed border-[#d7c9b8] pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-semibold text-[#4a342a]">Total amount</span>
+                  <span className="text-base font-bold text-[#4a342a]">{currency(details.totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-[#7d5a44]" />
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Timestamps and tracking</p>
+            </div>
+            <div className="mt-3 space-y-2 text-sm text-[#7d5a44]">
+              <p><span className="font-semibold text-[#4a342a]">Created:</span> {formatTimestamp(details.createdAt, details.date, details.time)}</p>
+              <p><span className="font-semibold text-[#4a342a]">Last updated:</span> {formatTimestamp(details.updatedAt)}</p>
+              <p><span className="font-semibold text-[#4a342a]">Voided at:</span> {formatTimestamp(details.voidedAt)}</p>
+              <p><span className="font-semibold text-[#4a342a]">Voided by:</span> {formatDisplayValue(details.voidedBy)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/75 p-4">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Processing notes</p>
+            <div className="mt-3 space-y-2 text-sm text-[#7d5a44]">
+              <p><span className="font-semibold text-[#4a342a]">Cashier:</span> {details.cashierName}</p>
+              <p><span className="font-semibold text-[#4a342a]">Payment:</span> {paymentMethodLabel(details.paymentMethod)}</p>
+              <p><span className="font-semibold text-[#4a342a]">Instructions:</span> {formatDisplayValue(details.notes)}</p>
+              <p><span className="font-semibold text-[#4a342a]">Data source:</span> {details.source}</p>
             </div>
           </div>
         </div>
@@ -273,7 +379,7 @@ export function TransactionDetailsModal({
               Transaction details
             </DrawerTitle>
             <DrawerDescription className="text-[#7d5a44]">
-              Itemized receipt view with live transaction updates.
+              Itemized receipt view with payment details, timestamps, and receipt reprinting.
             </DrawerDescription>
           </DrawerHeader>
           <div className="overflow-y-auto px-5 pb-5">{body}</div>
@@ -284,14 +390,14 @@ export function TransactionDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto border border-[#f5f1ea]/55 bg-[#f5f1ea] text-[#4a342a] shadow-[0_24px_48px_rgba(123,111,25,0.1)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ReceiptText className="h-5 w-5" />
             Transaction details
           </DialogTitle>
           <DialogDescription>
-            Itemized receipt view with live transaction updates.
+            Itemized receipt view with payment details, timestamps, and receipt reprinting.
           </DialogDescription>
         </DialogHeader>
         {body}

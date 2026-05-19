@@ -82,6 +82,10 @@ export interface TransactionDetails {
   cashierName: string
   orderStatus: "pending" | "completed" | "voided" | "cancelled"
   notes: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  voidedAt: string | null
+  voidedBy: string | null
   source: "supabase-relational" | "supabase-json" | "local-fallback"
 }
 
@@ -228,6 +232,10 @@ function mapFallbackTransaction(transaction: Transaction): TransactionDetails {
     cashierName: transaction.processedBy || "Unknown",
     orderStatus: normalizeOrderStatus(transaction.orderStatus, transaction.voided),
     notes: transaction.notes || null,
+    createdAt: null,
+    updatedAt: null,
+    voidedAt: transaction.voidedAt || null,
+    voidedBy: transaction.voidedBy || null,
     source: "local-fallback",
   }
 }
@@ -256,6 +264,10 @@ function mapTransactionRow(row: TransactionTableRow, source: TransactionDetails[
     cashierName: row.processed_by || "Unknown",
     orderStatus: normalizeOrderStatus(row.order_status, row.voided),
     notes: row.notes || null,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+    voidedAt: null,
+    voidedBy: null,
     source,
   }
 }
