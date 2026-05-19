@@ -27,7 +27,7 @@ ALTER TABLE users
 
 ALTER TABLE users
   ADD CONSTRAINT users_role_check
-  CHECK (role IN ('admin', 'cashier', 'staff', 'manager'));
+  CHECK (role IN ('admin', 'cashier', 'inventory_staff', 'barista', 'manager', 'kitchen'));
 
 ALTER TABLE products
   DROP CONSTRAINT IF EXISTS products_category_check;

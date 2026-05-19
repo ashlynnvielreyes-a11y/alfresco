@@ -17,7 +17,8 @@ export interface QueueMetadata {
 }
 
 const QUEUE_META_PREFIX = "__QUEUE_META__:"
-const DAILY_QUEUE_START = 1001
+const DEFAULT_QUEUE_START = 1201
+const DAILY_QUEUE_RESET_ENABLED = true
 
 const defaultQueueMetadata: QueueMetadata = {
   priority: "normal",
@@ -120,23 +121,36 @@ export function getTransactionQueueMetadata(transaction: Transaction) {
   return parseQueueMetadata(transaction.notes)
 }
 
+export function normalizeQueueNumber(value: string | number | null | undefined) {
+  const digitsOnly = String(value ?? "").replace(/\D/g, "")
+  return digitsOnly.length > 0 ? digitsOnly : null
+}
+
+export function isQueueDailyResetEnabled() {
+  return DAILY_QUEUE_RESET_ENABLED
+}
+
+export function getQueueStartNumber() {
+  return DEFAULT_QUEUE_START
+}
+
 export function getNextDailyQueueNumber(transactions: Transaction[], date: string) {
   const highestQueueNumber = transactions.reduce((highest, transaction) => {
-    if (transaction.date !== date) return highest
+    if (isQueueDailyResetEnabled() && transaction.date !== date) return highest
 
-    const parsed = Number.parseInt(String(transaction.queueNumber || "").trim(), 10)
+    const parsed = Number.parseInt(normalizeQueueNumber(transaction.queueNumber) || "", 10)
     if (!Number.isFinite(parsed)) return highest
 
     return Math.max(highest, parsed)
-  }, DAILY_QUEUE_START - 1)
+  }, getQueueStartNumber() - 1)
 
   return String(highestQueueNumber + 1)
 }
 
 export function getCurrentDailyQueueNumber(transactions: Transaction[], date: string) {
   const nextQueueNumber = Number.parseInt(getNextDailyQueueNumber(transactions, date), 10)
-  if (!Number.isFinite(nextQueueNumber)) return String(DAILY_QUEUE_START)
-  return String(Math.max(DAILY_QUEUE_START, nextQueueNumber - 1))
+  if (!Number.isFinite(nextQueueNumber)) return String(getQueueStartNumber())
+  return String(Math.max(getQueueStartNumber(), nextQueueNumber - 1))
 }
 
 export function canAccessQueue(role: AppUserRole) {

@@ -123,8 +123,19 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError || !newUser) {
+      const insertMessage = insertError?.message || ""
+      if (insertMessage.includes("users_role_check")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Database role rules are outdated. Apply the latest users role migration, then try creating the kitchen account again.",
+          },
+          { status: 500 }
+        )
+      }
+
       return NextResponse.json(
-        { success: false, error: insertError?.message || "Registration failed" },
+        { success: false, error: insertMessage || "Registration failed" },
         { status: 500 }
       )
     }

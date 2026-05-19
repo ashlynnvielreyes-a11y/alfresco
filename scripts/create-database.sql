@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) DEFAULT 'staff' CHECK (role IN ('admin', 'staff', 'manager')),
+    role VARCHAR(50) DEFAULT 'cashier' CHECK (role IN ('admin', 'cashier', 'inventory_staff', 'barista', 'manager', 'kitchen')),
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

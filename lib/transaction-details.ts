@@ -2,7 +2,7 @@
 
 import type { CartItem, Transaction } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
-import { getQueueUserNote } from "@/lib/queue"
+import { getQueueUserNote, normalizeQueueNumber } from "@/lib/queue"
 
 export interface TransactionTableRow {
   id?: string | number | null
@@ -216,7 +216,7 @@ function parseItemsPayload(items: TransactionTableRow["items"]): CartItem[] {
 function mapFallbackTransaction(transaction: Transaction): TransactionDetails {
   return {
     transactionId: transaction.id,
-    queueNumber: transaction.queueNumber || null,
+    queueNumber: normalizeQueueNumber(transaction.queueNumber),
     customerName: transaction.customerName || null,
     date: transaction.date,
     time: transaction.time,
@@ -248,7 +248,7 @@ function mapTransactionRow(row: TransactionTableRow, source: TransactionDetails[
 
   return {
     transactionId: row.transaction_number || String(row.id || "Unknown"),
-    queueNumber: row.queue_number || null,
+    queueNumber: normalizeQueueNumber(row.queue_number),
     customerName: row.customer_name || null,
     date: row.date || "",
     time: row.time || "",

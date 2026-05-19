@@ -25,6 +25,7 @@ import {
   refreshOfflineSyncStatus,
   restoreLocalStorageFromSnapshot,
 } from "./offline-sync"
+import { normalizeQueueNumber } from "./queue"
 
 const PRODUCTS_KEY = "alfresco_products"
 const TRANSACTIONS_KEY = "alfresco_transactions"
@@ -742,7 +743,7 @@ export function getInventoryAlerts(
 function getNormalizedTransactions(list: Transaction[]): Transaction[] {
   return list.map((transaction) => ({
     ...transaction,
-    queueNumber: transaction.queueNumber || null,
+    queueNumber: normalizeQueueNumber(transaction.queueNumber),
     customerName: transaction.customerName || null,
     discountType: transaction.discountType === "senior" || transaction.discountType === "pwd" ? transaction.discountType : "none",
     discountPercent:
@@ -2281,7 +2282,7 @@ export async function getTransactions(): Promise<Transaction[]> {
     if (!error && data && data.length > 0) {
       const mapped = data.map((t: any) => ({
         id: t.transaction_number || t.id || `#${Math.random().toString().slice(2, 7)}`,
-        queueNumber: t.queue_number || null,
+        queueNumber: normalizeQueueNumber(t.queue_number),
         customerName: t.customer_name || null,
         date: t.date,
         time: t.time,
@@ -3056,6 +3057,7 @@ export function canAccessDashboard(role: UserRole): boolean {
 }
 
 export function getDefaultRouteForRole(role: UserRole): string {
+  if (role === "admin") return "/queue-management"
   if (role === "cashier") return "/pos"
   if (role === "barista") return "/queue-management"
   if (role === "kitchen") return "/queue-management"
