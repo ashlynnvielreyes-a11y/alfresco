@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
-import { buildQueueMetadataNote } from "@/lib/queue"
+import { buildQueueMetadataNote, getNextDailyQueueNumber } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -676,12 +676,14 @@ export default function POSPage() {
 
     const now = new Date()
     const transactions = await getTransactions()
+    const transactionDate = now.toISOString().split("T")[0]
     const transactionId = String(transactions.length + 1).padStart(5, "0")
+    const queueNumber = getNextDailyQueueNumber(transactions, transactionDate)
 
     const transaction: Transaction = {
       id: `#${transactionId}`,
       items: cart,
-      queueNumber: activeOrderId || transactionId,
+      queueNumber,
       customerName: null,
       subtotal,
       discountType,
@@ -701,7 +703,7 @@ export default function POSPage() {
         placedAt: now.toISOString(),
       }),
       orderStatus: "preparing",
-      date: now.toISOString().split("T")[0],
+      date: transactionDate,
       time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase(),
       voided: false,
     }

@@ -27,6 +27,7 @@ import {
   Wallet,
 } from "lucide-react"
 
+import { AuthGuard } from "@/components/auth-guard"
 import { Sidebar } from "@/components/sidebar"
 import { SalesSnapshotCard } from "@/components/sales-snapshot-card"
 import type { SalesSnapshotData } from "@/components/sales-snapshot-card"
@@ -283,7 +284,7 @@ function Panel({
   )
 }
 
-export default function SalesAnalyticsPage() {
+function SalesAnalyticsContent() {
   const defaults = getDefaultRange()
   const [fromDate, setFromDate] = useState(defaults.fromDate)
   const [toDate, setToDate] = useState(defaults.toDate)
@@ -938,5 +939,13 @@ export default function SalesAnalyticsPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function SalesAnalyticsPage() {
+  return (
+    <AuthGuard requiredPermission="sales_analytics">
+      <SalesAnalyticsContent />
+    </AuthGuard>
   )
 }

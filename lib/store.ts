@@ -3047,6 +3047,10 @@ export function canAccessSales(role: UserRole): boolean {
   return role === "admin" || role === "cashier" || role === "inventory_staff" || role === "manager"
 }
 
+export function canAccessSalesAnalytics(role: UserRole): boolean {
+  return role === "admin" || role === "inventory_staff" || role === "manager"
+}
+
 export function canAccessDashboard(role: UserRole): boolean {
   return role === "admin" || role === "inventory_staff" || role === "manager"
 }

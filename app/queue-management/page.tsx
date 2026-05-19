@@ -2,11 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  AlarmClock,
   BellRing,
   CheckCheck,
   ChefHat,
-  Clock3,
   Filter,
   Search,
   ShieldAlert,
@@ -14,22 +12,14 @@ import {
   XCircle,
 } from "lucide-react"
 
-import { Sidebar } from "@/components/sidebar"
 import { AuthGuard } from "@/components/auth-guard"
+import { Sidebar } from "@/components/sidebar"
 import { TransactionDetailsModal } from "@/components/transaction-details-modal"
-import { createClient } from "@/lib/supabase/client"
-import {
-  getCurrentUser,
-  getTransactions,
-  initializeSupabaseStore,
-  updateTransaction,
-} from "@/lib/store"
 import {
   buildQueueMetadataNote,
   canCompleteQueuedOrders,
   canManagePreparing,
   canPrioritizeQueue,
-  getDefaultQueueMetadata,
   getQueueOrderTypeLabel,
   getQueuePriorityLabel,
   getTransactionItemCount,
@@ -39,6 +29,8 @@ import {
   type QueueOrderType,
   type QueuePriority,
 } from "@/lib/queue"
+import { getCurrentUser, getTransactions, initializeSupabaseStore, updateTransaction } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
 import type { AppUserRole, Transaction } from "@/lib/types"
 
 type QueueFilter = "all" | "preparing" | "ready" | "completed" | "cancelled"
@@ -188,59 +180,63 @@ function StageColumn({
           </div>
         ) : (
           records.map((record) => (
-            <button
+            <article
               key={record.transaction.id}
-              type="button"
-              onClick={() => onOpen(record.transaction)}
-              className="block w-full rounded-[24px] border border-[#d7c9b8]/60 bg-[#f5f1ea]/78 p-4 text-left shadow-[0_18px_36px_rgba(74,52,42,0.06)] transition-colors hover:bg-[#fbf8f3]"
+              className="rounded-[24px] border border-[#d7c9b8]/60 bg-[#f5f1ea]/78 p-4 text-left shadow-[0_18px_36px_rgba(74,52,42,0.06)] transition-colors hover:bg-[#fbf8f3]"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-[#4a342a] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#f5f1ea]">
-                      Queue {record.transaction.queueNumber || record.transaction.id}
-                    </span>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(record.transaction.orderStatus)}`}>
-                      {formatStatus(record.transaction.orderStatus)}
-                    </span>
-                    <span className="rounded-full bg-[#efe2d4] px-3 py-1 text-xs font-semibold text-[#7d5a44]">
-                      {getQueuePriorityLabel(record.queueMeta.priority)}
-                    </span>
+              <button
+                type="button"
+                onClick={() => onOpen(record.transaction)}
+                className="block w-full text-left"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[#4a342a] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#f5f1ea]">
+                        Queue {record.transaction.queueNumber || record.transaction.id}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(record.transaction.orderStatus)}`}>
+                        {formatStatus(record.transaction.orderStatus)}
+                      </span>
+                      <span className="rounded-full bg-[#efe2d4] px-3 py-1 text-xs font-semibold text-[#7d5a44]">
+                        {getQueuePriorityLabel(record.queueMeta.priority)}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-[#4a342a]">
+                      {record.transaction.customerName || "Walk-in customer"}
+                    </p>
+                    <p className="mt-1 text-sm text-[#7d5a44]">
+                      {record.itemSummary} • {record.itemCount} item{record.itemCount === 1 ? "" : "s"}
+                    </p>
                   </div>
-                  <p className="mt-3 text-lg font-semibold text-[#4a342a]">
-                    {record.transaction.customerName || "Walk-in customer"}
-                  </p>
-                  <p className="mt-1 text-sm text-[#7d5a44]">
-                    {record.itemSummary} • {record.itemCount} item{record.itemCount === 1 ? "" : "s"}
-                  </p>
+
+                  <div className="text-right">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getDelayTone(record.waitMs)}`}>
+                      {formatTimer(record.waitMs)}
+                    </span>
+                    <p className="mt-3 text-sm font-semibold text-[#4a342a]">{formatCurrency(record.transaction.total)}</p>
+                    <p className="text-xs text-[#7d5a44]">{paymentStatusLabel(record.transaction)}</p>
+                  </div>
                 </div>
 
-                <div className="text-right">
-                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getDelayTone(record.waitMs)}`}>
-                    {formatTimer(record.waitMs)}
-                  </span>
-                  <p className="mt-3 text-sm font-semibold text-[#4a342a]">{formatCurrency(record.transaction.total)}</p>
-                  <p className="text-xs text-[#7d5a44]">{paymentStatusLabel(record.transaction)}</p>
+                <div className="mt-4 grid gap-3 text-sm text-[#7d5a44] md:grid-cols-2">
+                  <div className="rounded-2xl bg-white/65 px-3 py-2">
+                    <span className="font-semibold text-[#4a342a]">Order type:</span> {record.serviceLabel}
+                  </div>
+                  <div className="rounded-2xl bg-white/65 px-3 py-2">
+                    <span className="font-semibold text-[#4a342a]">Assigned staff:</span> {record.queueMeta.assignedStaffName || "Unassigned"}
+                  </div>
+                  <div className="rounded-2xl bg-white/65 px-3 py-2">
+                    <span className="font-semibold text-[#4a342a]">Product mix:</span> {record.productMix}
+                  </div>
+                  <div className="rounded-2xl bg-white/65 px-3 py-2">
+                    <span className="font-semibold text-[#4a342a]">Placed:</span> {record.queueMeta.placedAt ? new Date(record.queueMeta.placedAt).toLocaleTimeString() : `${record.transaction.date} ${record.transaction.time}`}
+                  </div>
                 </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 text-sm text-[#7d5a44] md:grid-cols-2">
-                <div className="rounded-2xl bg-white/65 px-3 py-2">
-                  <span className="font-semibold text-[#4a342a]">Order type:</span> {record.serviceLabel}
-                </div>
-                <div className="rounded-2xl bg-white/65 px-3 py-2">
-                  <span className="font-semibold text-[#4a342a]">Assigned staff:</span> {record.queueMeta.assignedStaffName || "Unassigned"}
-                </div>
-                <div className="rounded-2xl bg-white/65 px-3 py-2">
-                  <span className="font-semibold text-[#4a342a]">Product mix:</span> {record.productMix}
-                </div>
-                <div className="rounded-2xl bg-white/65 px-3 py-2">
-                  <span className="font-semibold text-[#4a342a]">Placed:</span> {record.queueMeta.placedAt ? new Date(record.queueMeta.placedAt).toLocaleTimeString() : `${record.transaction.date} ${record.transaction.time}`}
-                </div>
-              </div>
+              </button>
 
               {(mayPrioritize || mayManagePreparing || mayComplete) ? (
-                <div className="mt-4 flex flex-col gap-3" onClick={(event) => event.stopPropagation()}>
+                <div className="mt-4 flex flex-col gap-3">
                   {mayPrioritize ? (
                     <div className="grid gap-2 md:grid-cols-2">
                       <label className="rounded-2xl border border-[#d7c9b8] bg-white/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#7d5a44]">
@@ -303,7 +299,9 @@ function StageColumn({
                       </button>
                     ) : null}
 
-                    {(role === "admin" || role === "cashier") && record.transaction.orderStatus !== "completed" && record.transaction.orderStatus !== "cancelled" ? (
+                    {(role === "admin" || role === "cashier") &&
+                    record.transaction.orderStatus !== "completed" &&
+                    record.transaction.orderStatus !== "cancelled" ? (
                       <button
                         type="button"
                         onClick={() => onCancel(record.transaction)}
@@ -316,7 +314,7 @@ function StageColumn({
                   </div>
                 </div>
               ) : null}
-            </button>
+            </article>
           ))
         )}
       </div>
@@ -436,7 +434,11 @@ function QueueManagementContent() {
   const delayedOrders = filteredRecords.filter((record) => record.waitMs >= 15 * 60 * 1000).length
 
   const updateQueueTransaction = useCallback(
-    async (transaction: Transaction, nextStatus: Transaction["orderStatus"], metadataPatch?: Partial<ReturnType<typeof getTransactionQueueMetadata>>) => {
+    async (
+      transaction: Transaction,
+      nextStatus: Transaction["orderStatus"],
+      metadataPatch?: Partial<ReturnType<typeof getTransactionQueueMetadata>>
+    ) => {
       const queueMeta = getTransactionQueueMetadata(transaction)
       const nextMeta = {
         ...queueMeta,

@@ -119,6 +119,19 @@ export function getTransactionQueueMetadata(transaction: Transaction) {
   return parseQueueMetadata(transaction.notes)
 }
 
+export function getNextDailyQueueNumber(transactions: Transaction[], date: string) {
+  const highestQueueNumber = transactions.reduce((highest, transaction) => {
+    if (transaction.date !== date) return highest
+
+    const parsed = Number.parseInt(String(transaction.queueNumber || "").trim(), 10)
+    if (!Number.isFinite(parsed)) return highest
+
+    return Math.max(highest, parsed)
+  }, 0)
+
+  return String(highestQueueNumber + 1)
+}
+
 export function canAccessQueue(role: AppUserRole) {
   return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff"
 }

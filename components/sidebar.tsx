@@ -14,6 +14,7 @@ import {
   Leaf,
   LogOut,
   Menu,
+  MonitorPlay,
   Package,
   Plus,
   ReceiptText,
@@ -31,6 +32,7 @@ import {
   canAccessPos,
   canAccessQueue,
   canAccessSales,
+  canAccessSalesAnalytics,
   getCurrentUser,
   getDefaultRouteForRole,
   getUserRole,
@@ -44,7 +46,7 @@ interface NavItem {
   icon: typeof LayoutDashboard
   description: string
   section: "Core" | "Operations" | "Admin"
-  permission?: "dashboard" | "pos" | "queue" | "inventory" | "sales" | "admin"
+  permission?: "dashboard" | "pos" | "queue" | "inventory" | "sales" | "sales_analytics" | "admin"
 }
 
 const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
@@ -52,9 +54,10 @@ const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
 const allNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Role-tailored overview", section: "Core", permission: "dashboard" },
   { href: "/pos", label: "Checkout", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
-  { href: "/queue-management", label: "Queue", icon: ReceiptText, description: "Track preparing and ready orders", section: "Core", permission: "queue" },
+  { href: "/queue-management", label: "Kitchen Dashboard", icon: ReceiptText, description: "Update preparing and ready orders", section: "Core", permission: "queue" },
+  { href: "/queue-display", label: "Queue Display", icon: MonitorPlay, description: "Show the live customer board", section: "Core", permission: "queue" },
   { href: "/sales-history", label: "Sales History", icon: FileText, description: "Search receipts and export records", section: "Core", permission: "sales" },
-  { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, description: "Review KPIs and business insights", section: "Core", permission: "sales" },
+  { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, description: "Review KPIs and business insights", section: "Core", permission: "sales_analytics" },
   { href: "/inventory", label: "Inventory", icon: Package, description: "Monitor stock levels", section: "Operations", permission: "inventory" },
   { href: "/ingredients", label: "Ingredients", icon: Leaf, description: "Manage raw materials", section: "Operations", permission: "inventory" },
   { href: "/expiration-logs", label: "Expiry Logs", icon: AlertTriangle, description: "Review expiring items", section: "Operations", permission: "inventory" },
@@ -77,6 +80,8 @@ const getNavItemsForRole = (role: UserRole): NavItem[] => {
         return canAccessInventory(role)
       case "sales":
         return canAccessSales(role)
+      case "sales_analytics":
+        return canAccessSalesAnalytics(role)
       case "admin":
         return role === "admin"
       default:
