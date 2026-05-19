@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessSales, getDefaultRouteForRole, validateCurrentSession, type UserRole } from "@/lib/store"
+import { isAuthenticated, getUserRole, canAccessInventory, canAccessPos, canAccessQueue, canAccessSales, getDefaultRouteForRole, validateCurrentSession, type UserRole } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 
 interface AuthGuardProps {
   children: React.ReactNode
   requiredRole?: UserRole
-  requiredPermission?: "pos" | "inventory" | "sales"
+  requiredPermission?: "pos" | "inventory" | "queue" | "sales"
 }
 
 export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGuardProps) {
@@ -64,6 +64,13 @@ export function AuthGuard({ children, requiredRole, requiredPermission }: AuthGu
       }
 
       if (requiredPermission === "inventory" && !canAccessInventory(userRole)) {
+        setIsAuthorized(false)
+        setIsLoading(false)
+        router.replace(defaultRoute)
+        return
+      }
+
+      if (requiredPermission === "queue" && !canAccessQueue(userRole)) {
         setIsAuthorized(false)
         setIsLoading(false)
         router.replace(defaultRoute)

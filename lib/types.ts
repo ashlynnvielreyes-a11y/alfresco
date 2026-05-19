@@ -128,7 +128,7 @@ export interface Transaction {
   change: number
   processedBy: string
   notes?: string | null
-  orderStatus?: "pending" | "completed" | "voided" | "cancelled"
+  orderStatus?: "pending" | "preparing" | "ready" | "completed" | "voided" | "cancelled"
   date: string
   time: string
   voided?: boolean
@@ -153,7 +153,7 @@ export interface ActiveOrder {
   lastUpdatedAt: string
 }
 
-export type AppUserRole = "admin" | "cashier" | "inventory_staff"
+export type AppUserRole = "admin" | "cashier" | "inventory_staff" | "barista" | "manager"
 
 export interface AppUser {
   id: string

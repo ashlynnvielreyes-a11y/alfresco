@@ -2510,6 +2510,53 @@ export async function saveTransaction(transaction: Transaction): Promise<void> {
   }
 }
 
+export async function updateTransaction(
+  transactionId: string,
+  updates: Partial<Transaction>
+): Promise<Transaction | null> {
+  if (typeof window === "undefined") return null
+
+  const transactions = await getTransactions()
+  const index = transactions.findIndex((transaction) => transaction.id === transactionId)
+  if (index === -1) return null
+
+  const nextTransaction: Transaction = {
+    ...transactions[index],
+    ...updates,
+    queueNumber: updates.queueNumber ?? transactions[index].queueNumber ?? null,
+    customerName: updates.customerName ?? transactions[index].customerName ?? null,
+    discountType:
+      updates.discountType === "senior" || updates.discountType === "pwd"
+        ? updates.discountType
+        : (updates.discountType === "none" ? "none" : transactions[index].discountType ?? "none"),
+    discountPercent: updates.discountPercent ?? transactions[index].discountPercent ?? 0,
+    discountAmount: updates.discountAmount ?? transactions[index].discountAmount ?? 0,
+    taxAmount: updates.taxAmount ?? transactions[index].taxAmount ?? 0,
+    notes: updates.notes ?? transactions[index].notes ?? null,
+    orderStatus: updates.voided ? "voided" : updates.orderStatus ?? transactions[index].orderStatus ?? "completed",
+    voided: updates.voided ?? transactions[index].voided ?? false,
+  }
+
+  transactions[index] = nextTransaction
+  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(getNormalizedTransactions(transactions)))
+  void cacheOfflineSnapshot("transactions", getNormalizedTransactions(transactions))
+
+  try {
+    if (!navigator.onLine) {
+      await enqueueOfflineOperation("save_transaction", nextTransaction, "transactions")
+      return nextTransaction
+    }
+
+    await syncTransactionToSupabase(nextTransaction)
+    await refreshOfflineSyncStatus()
+  } catch (error) {
+    console.log("[v0] Error updating transaction in Supabase:", error)
+    await enqueueOfflineOperation("save_transaction", nextTransaction, "transactions")
+  }
+
+  return nextTransaction
+}
+
 function saveToLocalStorage(transaction: Transaction): void {
   const transactions = localStorage.getItem(TRANSACTIONS_KEY)
   const list = transactions ? (JSON.parse(transactions) as Transaction[]) : []
@@ -2939,7 +2986,7 @@ export type AuthUser = AppUser
 const AUTH_COOKIE_KEY = "alfresco_auth_state"
 
 function normalizeUserRole(role: string | null | undefined): UserRole {
-  if (role === "admin" || role === "cashier" || role === "inventory_staff") {
+  if (role === "admin" || role === "cashier" || role === "inventory_staff" || role === "barista" || role === "manager") {
     return role
   }
 
@@ -2989,19 +3036,25 @@ export function canAccessPos(role: UserRole): boolean {
 }
 
 export function canAccessInventory(role: UserRole): boolean {
-  return role === "admin" || role === "inventory_staff"
+  return role === "admin" || role === "inventory_staff" || role === "manager"
+}
+
+export function canAccessQueue(role: UserRole): boolean {
+  return role === "admin" || role === "cashier" || role === "barista" || role === "manager" || role === "inventory_staff"
 }
 
 export function canAccessSales(role: UserRole): boolean {
-  return role === "admin" || role === "cashier" || role === "inventory_staff"
+  return role === "admin" || role === "cashier" || role === "inventory_staff" || role === "manager"
 }
 
 export function canAccessDashboard(role: UserRole): boolean {
-  return role === "admin" || role === "inventory_staff"
+  return role === "admin" || role === "inventory_staff" || role === "manager"
 }
 
 export function getDefaultRouteForRole(role: UserRole): string {
   if (role === "cashier") return "/pos"
+  if (role === "barista") return "/queue-management"
+  if (role === "manager") return "/queue-management"
   if (role === "inventory_staff") return "/dashboard"
   return "/dashboard"
 }

@@ -24,7 +24,7 @@ import type { CartItem, ProductCategory, Transaction } from "@/lib/types"
 
 type SortKey = "id" | "dateTime" | "cashier" | "paymentMethod" | "orderType" | "status" | "total"
 type SortDirection = "asc" | "desc"
-type StatusFilter = "all" | "completed" | "pending" | "voided" | "cancelled"
+type StatusFilter = "all" | "pending" | "preparing" | "ready" | "completed" | "voided" | "cancelled"
 type PaymentFilter = "all" | "cash" | "gcash"
 type OrderTypeFilter = "all" | "Combo" | "Meal" | "Beverage" | "Mixed" | "Other"
 type AdjustmentFilter = "all" | "clean" | "voided"
@@ -76,6 +76,10 @@ function getStatusTone(status: TransactionRecord["status"]) {
       return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "pending":
       return "border-amber-200 bg-amber-50 text-amber-700"
+    case "preparing":
+      return "border-sky-200 bg-sky-50 text-sky-700"
+    case "ready":
+      return "border-violet-200 bg-violet-50 text-violet-700"
     case "voided":
       return "border-rose-200 bg-rose-50 text-rose-700"
     default:
@@ -111,7 +115,12 @@ function transactionOrderType(transaction: Transaction): OrderTypeFilter {
 
 function getTransactionStatus(transaction: Transaction): TransactionRecord["status"] {
   if (transaction.voided) return "voided"
-  if (transaction.orderStatus === "pending" || transaction.orderStatus === "cancelled") {
+  if (
+    transaction.orderStatus === "pending" ||
+    transaction.orderStatus === "preparing" ||
+    transaction.orderStatus === "ready" ||
+    transaction.orderStatus === "cancelled"
+  ) {
     return transaction.orderStatus
   }
   return "completed"
@@ -586,6 +595,8 @@ export default function SalesHistoryPage() {
                   </label>
                   <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="w-full bg-transparent text-sm text-[#4a342a] outline-none">
                     <option value="all">All statuses</option>
+                    <option value="preparing">Preparing</option>
+                    <option value="ready">Ready</option>
                     <option value="completed">Completed</option>
                     <option value="pending">Pending</option>
                     <option value="voided">Voided</option>

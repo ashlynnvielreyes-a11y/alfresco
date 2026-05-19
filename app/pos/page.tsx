@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
+import { buildQueueMetadataNote } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -692,8 +693,14 @@ export default function POSPage() {
       cashReceived: isCashPayment ? cash : total,
       change: isCashPayment ? change : 0,
       processedBy: currentUser?.username || "Unknown",
-      notes: null,
-      orderStatus: "completed",
+      notes: buildQueueMetadataNote({
+        priority: "normal",
+        orderType: "to-serve",
+        assignedStaffName: null,
+        assignedStaffRole: null,
+        placedAt: now.toISOString(),
+      }),
+      orderStatus: "preparing",
       date: now.toISOString().split("T")[0],
       time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase(),
       voided: false,

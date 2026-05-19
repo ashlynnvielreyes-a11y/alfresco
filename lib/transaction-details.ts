@@ -2,6 +2,7 @@
 
 import type { CartItem, Transaction } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
+import { getQueueUserNote } from "@/lib/queue"
 
 export interface TransactionTableRow {
   id?: string | number | null
@@ -80,7 +81,7 @@ export interface TransactionDetails {
   cashReceived: number
   changeAmount: number
   cashierName: string
-  orderStatus: "pending" | "completed" | "voided" | "cancelled"
+  orderStatus: "pending" | "preparing" | "ready" | "completed" | "voided" | "cancelled"
   notes: string | null
   createdAt: string | null
   updatedAt: string | null
@@ -123,7 +124,7 @@ function normalizeDiscountType(value: string | null | undefined): TransactionDet
 
 function normalizeOrderStatus(value: string | null | undefined, isVoided: boolean | null | undefined): TransactionDetails["orderStatus"] {
   if (isVoided) return "voided"
-  return value === "pending" || value === "completed" || value === "voided" || value === "cancelled" ? value : "completed"
+  return value === "pending" || value === "preparing" || value === "ready" || value === "completed" || value === "voided" || value === "cancelled" ? value : "completed"
 }
 
 function normalizePaymentMethod(value: string | null | undefined): TransactionDetails["paymentMethod"] {
@@ -231,7 +232,7 @@ function mapFallbackTransaction(transaction: Transaction): TransactionDetails {
     changeAmount: transaction.change || 0,
     cashierName: transaction.processedBy || "Unknown",
     orderStatus: normalizeOrderStatus(transaction.orderStatus, transaction.voided),
-    notes: transaction.notes || null,
+    notes: getQueueUserNote(transaction.notes) || null,
     createdAt: null,
     updatedAt: null,
     voidedAt: transaction.voidedAt || null,
@@ -263,7 +264,7 @@ function mapTransactionRow(row: TransactionTableRow, source: TransactionDetails[
     changeAmount: Number(row.change_amount || 0),
     cashierName: row.processed_by || "Unknown",
     orderStatus: normalizeOrderStatus(row.order_status, row.voided),
-    notes: row.notes || null,
+    notes: getQueueUserNote(row.notes) || null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
     voidedAt: null,

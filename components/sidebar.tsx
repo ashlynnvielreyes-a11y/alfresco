@@ -16,6 +16,7 @@ import {
   Menu,
   Package,
   Plus,
+  ReceiptText,
   Settings,
   ShieldCheck,
   ShoppingCart,
@@ -28,6 +29,7 @@ import {
   canAccessDashboard,
   canAccessInventory,
   canAccessPos,
+  canAccessQueue,
   canAccessSales,
   getCurrentUser,
   getDefaultRouteForRole,
@@ -42,7 +44,7 @@ interface NavItem {
   icon: typeof LayoutDashboard
   description: string
   section: "Core" | "Operations" | "Admin"
-  permission?: "dashboard" | "pos" | "inventory" | "sales" | "admin"
+  permission?: "dashboard" | "pos" | "queue" | "inventory" | "sales" | "admin"
 }
 
 const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
@@ -50,6 +52,7 @@ const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
 const allNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Role-tailored overview", section: "Core", permission: "dashboard" },
   { href: "/pos", label: "Checkout", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
+  { href: "/queue-management", label: "Queue", icon: ReceiptText, description: "Track preparing and ready orders", section: "Core", permission: "queue" },
   { href: "/sales-history", label: "Sales History", icon: FileText, description: "Search receipts and export records", section: "Core", permission: "sales" },
   { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, description: "Review KPIs and business insights", section: "Core", permission: "sales" },
   { href: "/inventory", label: "Inventory", icon: Package, description: "Monitor stock levels", section: "Operations", permission: "inventory" },
@@ -68,6 +71,8 @@ const getNavItemsForRole = (role: UserRole): NavItem[] => {
         return canAccessDashboard(role)
       case "pos":
         return canAccessPos(role)
+      case "queue":
+        return canAccessQueue(role)
       case "inventory":
         return canAccessInventory(role)
       case "sales":
@@ -86,6 +91,10 @@ function formatRoleLabel(role: UserRole) {
       return "Admin"
     case "cashier":
       return "Staff"
+    case "barista":
+      return "Barista"
+    case "manager":
+      return "Manager"
     case "inventory_staff":
       return "Manager"
     default:
@@ -102,10 +111,17 @@ function getRoleAccent(role: UserRole) {
         summary: "Full platform visibility and control",
       }
     case "inventory_staff":
+    case "manager":
       return {
         icon: BriefcaseBusiness,
         gradient: "from-[#5a4134] via-[#8a6a55] to-[#d7c9b8]",
         summary: "Operations, stock health, and planning",
+      }
+    case "barista":
+      return {
+        icon: ReceiptText,
+        gradient: "from-[#4d3f34] via-[#8d6b55] to-[#d7c4ae]",
+        summary: "Queue flow, preparation speed, and handoff readiness",
       }
     default:
       return {
