@@ -1,10 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, Settings, FileText, LayoutGrid, ShoppingCart, ChevronLeft } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById } from "@/lib/store"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, Settings, FileText, LayoutGrid, ShoppingCart, ChevronLeft, LogOut, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById, logout } from "@/lib/store"
 import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getLocalDateKey, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
@@ -15,6 +15,7 @@ const categories = ["All Items", "Coffee", "Milk Tea", "Fruit Soda", "Silog", "C
 const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 const comboProductIdOffset = 100000
 const POS_SIDEBAR_COLLAPSE_KEY = "alfresco_pos_sidebar_collapsed"
+const POS_ORDER_SUMMARY_COLLAPSE_KEY = "alfresco_pos_order_summary_collapsed"
 
 const posWorkspaceLinks = [
   { href: "/pos", label: "POS", description: "New Order", icon: ShoppingCart },
@@ -91,6 +92,7 @@ function buildComboProduct(combo: ComboMeal, products: Product[]): Product | nul
 
 export default function POSPage() {
   const pathname = usePathname()
+  const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [comboMeals, setComboMeals] = useState<ComboMeal[]>([])
@@ -127,6 +129,7 @@ export default function POSPage() {
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([])
   const [isTakingOverOrder, setIsTakingOverOrder] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isOrderSummaryCollapsed, setIsOrderSummaryCollapsed] = useState(false)
 
   // Payment and discount state
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash">("cash")
@@ -166,12 +169,18 @@ export default function POSPage() {
   useEffect(() => {
     if (typeof window === "undefined") return
     setIsSidebarCollapsed(window.localStorage.getItem(POS_SIDEBAR_COLLAPSE_KEY) === "true")
+    setIsOrderSummaryCollapsed(window.localStorage.getItem(POS_ORDER_SUMMARY_COLLAPSE_KEY) === "true")
   }, [])
 
   useEffect(() => {
     if (typeof window === "undefined") return
     window.localStorage.setItem(POS_SIDEBAR_COLLAPSE_KEY, String(isSidebarCollapsed))
   }, [isSidebarCollapsed])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem(POS_ORDER_SUMMARY_COLLAPSE_KEY, String(isOrderSummaryCollapsed))
+  }, [isOrderSummaryCollapsed])
 
   useEffect(() => {
     const supabase = createClient()
@@ -923,6 +932,11 @@ export default function POSPage() {
     setShowVoidKeyInput(false)
   }
 
+  const handlePosLogout = useCallback(() => {
+    logout()
+    router.push("/")
+  }, [router])
+
   const handleVoidTransaction = async () => {
     if (!selectedTransactionToVoid || !voidKeyInput) {
       setVoidError("Please select a transaction and enter the void key")
@@ -977,12 +991,17 @@ export default function POSPage() {
     }
   }
 
+  const visibleWorkspaceLinks = useMemo(
+    () => posWorkspaceLinks.filter((item) => item.href !== "/settings" || currentUser?.role !== "cashier"),
+    [currentUser?.role]
+  )
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-5">
-      <div className={`mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1600px] overflow-hidden rounded-[28px] border border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_28px_80px_rgba(74,52,42,0.14)] transition-[grid-template-columns] duration-300 ${
-        isSidebarCollapsed ? "lg:grid-cols-[92px_minmax(0,1fr)]" : "lg:grid-cols-[220px_minmax(0,1fr)]"
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-4">
+      <div className={`mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1680px] overflow-hidden rounded-[28px] border border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_28px_80px_rgba(74,52,42,0.14)] transition-[grid-template-columns] duration-300 ${
+        isSidebarCollapsed ? "lg:grid-cols-[88px_minmax(0,1fr)]" : "lg:grid-cols-[204px_minmax(0,1fr)]"
       }`}>
-        <aside className="border-r border-[#7d5a44]/25 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] p-4 text-[#f5f1ea]">
+        <aside className="flex h-full flex-col border-r border-[#7d5a44]/25 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] p-3 text-[#f5f1ea] lg:p-4">
           <div className={`mb-5 flex ${isSidebarCollapsed ? "flex-col items-center gap-3" : "items-start justify-between gap-3"}`}>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
               <p className={`font-semibold tracking-[0.18em] text-[#d6bfaa] ${isSidebarCollapsed ? "text-center text-xs" : "text-sm"}`}>AL FRESCO</p>
@@ -999,7 +1018,7 @@ export default function POSPage() {
           </div>
 
           <div className="space-y-2">
-            {posWorkspaceLinks.map((item) => {
+            {visibleWorkspaceLinks.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
               return (
@@ -1011,13 +1030,13 @@ export default function POSPage() {
                     isActive
                       ? "bg-[#f5f1ea] text-[#4a342a] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
                       : "text-[#f7ede4]/78 hover:bg-white/8 hover:text-white"
-                  } ${isSidebarCollapsed ? "justify-center px-0 py-3" : "gap-3 px-3 py-3"}`}
+                  } ${isSidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"}`}
                 >
-                  <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? "bg-[#d7c9b8]" : "bg-white/8"}`}>
-                    <Icon className="h-4 w-4" />
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${isActive ? "bg-[#d7c9b8]" : "bg-white/8"}`}>
+                    <Icon className="h-[0.95rem] w-[0.95rem]" />
                   </span>
                   <span className={`min-w-0 ${isSidebarCollapsed ? "hidden" : "block"}`}>
-                    <span className="block text-sm font-semibold">{item.label}</span>
+                    <span className="block text-[0.92rem] font-semibold">{item.label}</span>
                     <span className={`block text-[11px] ${isActive ? "text-[#7d5a44]" : "text-[#f5f1ea]/65"}`}>{item.description}</span>
                   </span>
                 </Link>
@@ -1046,6 +1065,22 @@ export default function POSPage() {
               </div>
             </div>
           </div>
+
+          <div className="mt-auto border-t border-white/10 pt-3">
+            <button
+              type="button"
+              onClick={handlePosLogout}
+              title={isSidebarCollapsed ? "Logout" : undefined}
+              className={`flex w-full items-center rounded-2xl border transition-colors ${
+                isSidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"
+              } border-[#d9b2a7]/35 bg-[#8c5a4c]/18 text-[#f5dfd7] hover:bg-[#9a6758]/24`}
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#d9b2a7]/35 bg-white/10">
+                <LogOut className="h-[0.95rem] w-[0.95rem]" />
+              </span>
+              {!isSidebarCollapsed && <span className="text-sm font-semibold">Logout</span>}
+            </button>
+          </div>
         </aside>
 
       <main className="relative flex-1 overflow-y-auto bg-[#f5f1ea] p-4 lg:p-5">
@@ -1053,9 +1088,9 @@ export default function POSPage() {
           <div className="absolute left-0 top-10 h-72 w-72 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
           <div className="absolute right-8 top-24 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
         </div>
-        <div className="relative z-10 mx-auto flex max-w-[1500px] flex-col gap-4">
+        <div className="relative z-10 mx-auto flex max-w-[1540px] flex-col gap-4 lg:gap-5">
           <section className="rounded-[24px] border border-[#7d5a44]/35 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] px-4 py-4 text-[#f5f1ea] shadow-[0_24px_48px_rgba(74,52,42,0.22)] lg:px-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f5f1ea]/15 bg-[#f5f1ea]/10">
                   <ReceiptText className="h-5 w-5" />
@@ -1066,7 +1101,7 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <div className="grid flex-1 gap-3 xl:mx-6 xl:max-w-3xl xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+              <div className="grid flex-1 gap-3 2xl:mx-4 2xl:max-w-4xl xl:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d7c9b8]" />
                   <input
@@ -1093,8 +1128,12 @@ export default function POSPage() {
             </div>
           </section>
 
-          <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_350px]">
-            <section className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)]">
+          <div className={`grid gap-4 xl:items-start 2xl:gap-5 ${
+            isOrderSummaryCollapsed
+              ? "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_72px]"
+              : "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_minmax(292px,0.32fr)] 2xl:grid-cols-[minmax(188px,0.2fr)_minmax(0,1fr)_minmax(316px,0.28fr)]"
+          }`}>
+            <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)]">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#d7c9b8] text-[#4a342a]">
                   <LayoutGrid className="h-4 w-4" />
@@ -1105,12 +1144,12 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:flex-col">
+              <div className="mt-4 flex flex-wrap gap-2 xl:flex-col">
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={`min-w-fit rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+                    className={`min-w-fit rounded-2xl px-3 py-2.5 text-left text-[0.92rem] font-medium transition ${
                       selectedCategory === cat
                         ? "bg-[#4a342a] text-[#f7ede4] shadow-[0_12px_24px_rgba(74,52,42,0.18)]"
                         : "border border-[#d7c9b8] bg-[#f5f1ea] text-[#7d5a44] hover:bg-[#ede3d8]"
@@ -1122,19 +1161,19 @@ export default function POSPage() {
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2.5">
                   <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Preparing</p>
                   <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{queueSnapshot.preparing.length}</p>
                 </article>
-                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2.5">
                   <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Ready</p>
                   <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{queueSnapshot.ready.length}</p>
                 </article>
-                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2.5">
                   <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Low Stock</p>
                   <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{lowStockIngredientsCount}</p>
                 </article>
-                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-3">
+                <article className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2.5">
                   <p className="text-[10px] uppercase tracking-[0.16em] text-[#876755]">Expired</p>
                   <p className="mt-2 text-xl font-semibold text-[#3d2a1f]">{expiredIngredientsCount}</p>
                 </article>
@@ -1143,7 +1182,7 @@ export default function POSPage() {
               <div className="mt-5 space-y-3">
                 <Link
                   href="/kitchen-dashboard"
-                  className="flex items-center justify-between rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm font-medium text-[#4a342a] transition hover:bg-[#ede3d8]"
+                  className="flex items-center justify-between rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2.5 text-sm font-medium text-[#4a342a] transition hover:bg-[#ede3d8]"
                 >
                   <span className="flex items-center gap-2">
                     <ChefHat className="h-4 w-4" />
@@ -1153,7 +1192,7 @@ export default function POSPage() {
                 </Link>
                 <Link
                   href="/queue-display"
-                  className="flex items-center justify-between rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-4 py-3 text-sm font-medium text-[#4a342a] transition hover:bg-[#ede3d8]"
+                  className="flex items-center justify-between rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2.5 text-sm font-medium text-[#4a342a] transition hover:bg-[#ede3d8]"
                 >
                   <span className="flex items-center gap-2">
                     <MonitorPlay className="h-4 w-4" />
@@ -1164,7 +1203,7 @@ export default function POSPage() {
               </div>
             </section>
 
-            <section className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/94 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
+            <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/94 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[#8c6c58]">All Products</p>
@@ -1186,7 +1225,7 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
               {/* Show combo meals when Combos category is selected */}
               {(selectedCategory === "Combos" || selectedCategory === "All Items") && comboMeals
                 .filter(combo => combo.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1199,13 +1238,13 @@ export default function POSPage() {
                       key={`combo-${combo.id}`}
                       onClick={() => handleComboClick(combo)}
                       disabled={unavailable}
-                      className={`group relative overflow-hidden rounded-[22px] border p-3 text-left transition-all lg:p-4 ${
+                      className={`group relative overflow-hidden rounded-[22px] border p-3 text-left transition-all ${
                         unavailable
                           ? "cursor-not-allowed border-[#d7c9b8] bg-[#ede3d8]"
                           : "border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_12px_28px_rgba(74,52,42,0.08)] hover:-translate-y-0.5 hover:border-[#7d5a44]/60"
                       }`}
                     >
-                      <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f1ea_0%,#d7c9b8_52%,#7d5a44_100%)] text-lg font-semibold text-[#4a342a] shadow-[inset_0_4px_10px_rgba(255,255,255,0.28)]">
+                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f1ea_0%,#d7c9b8_52%,#7d5a44_100%)] text-base font-semibold text-[#4a342a] shadow-[inset_0_4px_10px_rgba(255,255,255,0.28)]">
                         {combo.name
                           .split(" ")
                           .slice(0, 2)
@@ -1213,23 +1252,23 @@ export default function POSPage() {
                           .join("")}
                       </div>
                       <div className="absolute right-3 top-3">
-                        <span className="text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold bg-[#7d5a44] text-[#f5f1ea]">
+                        <span className="rounded-full bg-[#7d5a44] px-1.5 py-0.5 text-[10px] font-semibold text-[#f5f1ea]">
                           COMBO
                         </span>
                       </div>
                       <div className="flex justify-between items-start">
-                        <h3 className={`font-semibold pr-12 text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-[#2d2019]"}`}>
+                        <h3 className={`pr-12 text-sm font-semibold ${unavailable ? "text-[#7d5a44]" : "text-[#2d2019]"}`}>
                           {combo.name}
                         </h3>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-[10px] text-[#7e6656] lg:text-xs">
+                      <p className="mt-1 line-clamp-2 text-[11px] text-[#7e6656]">
                         {combo.description}
                       </p>
                       <div className="mt-3 flex items-center justify-between">
-                        <p className={`font-bold text-sm lg:text-base ${unavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
+                        <p className={`text-sm font-bold ${unavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
                           P{combo.price.toFixed(2)}
                         </p>
-                        <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold ${
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                           unavailable
                             ? "bg-[#d7c9b8] text-[#4a342a]"
                             : "bg-[#4a342a] text-[#f5f1ea]"
@@ -1238,7 +1277,7 @@ export default function POSPage() {
                         </span>
                       </div>
                       {unavailable && reason && (
-                        <p className="text-[10px] lg:text-xs text-[#7d5a44] mt-1">
+                        <p className="mt-1 text-[10px] text-[#7d5a44]">
                           {reason}
                         </p>
                       )}
@@ -1258,7 +1297,7 @@ export default function POSPage() {
                     key={product.id}
                     onClick={() => handleProductClick(product)}
                     disabled={isUnavailable}
-                    className={`group relative overflow-hidden rounded-[22px] border p-3 text-left transition-all lg:p-4 ${
+                    className={`group relative overflow-hidden rounded-[22px] border p-3 text-left transition-all ${
                       isUnavailable
                         ? "cursor-not-allowed border-[#d7c9b8] bg-[#ede3d8]"
                         : inCart
@@ -1271,7 +1310,7 @@ export default function POSPage() {
                         <AlertTriangle className="h-4 w-4 text-[#b2967d]" />
                       </div>
                     )}
-                    <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f1ea_0%,#d7c9b8_52%,#7d5a44_100%)] text-lg font-semibold text-[#4a342a] shadow-[inset_0_4px_10px_rgba(255,255,255,0.28)]">
+                    <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f1ea_0%,#d7c9b8_52%,#7d5a44_100%)] text-base font-semibold text-[#4a342a] shadow-[inset_0_4px_10px_rgba(255,255,255,0.28)]">
                       {product.name
                         .split(" ")
                         .slice(0, 2)
@@ -1279,8 +1318,8 @@ export default function POSPage() {
                         .join("")}
                     </div>
                     <div className="flex justify-between items-start gap-2">
-                      <h3 className={`font-semibold text-sm lg:text-base ${isUnavailable ? "text-[#7d5a44]" : "text-[#2d2019]"}`}>{product.name}</h3>
-                      <span className={`text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full font-semibold flex-shrink-0 ${
+                      <h3 className={`text-sm font-semibold ${isUnavailable ? "text-[#7d5a44]" : "text-[#2d2019]"}`}>{product.name}</h3>
+                      <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                         isUnavailable
                           ? "bg-[#d7c9b8] text-[#4a342a]"
                           : "bg-[#4a342a] text-[#f5f1ea]"
@@ -1288,11 +1327,11 @@ export default function POSPage() {
                         {availableStock}
                       </span>
                     </div>
-                    <p className={`font-bold mt-2 text-sm lg:text-base ${isUnavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
+                    <p className={`mt-2 text-sm font-bold ${isUnavailable ? "text-[#7d5a44]" : "text-[#4a342a]"}`}>
                       P{product.price.toFixed(2)}
                     </p>
                     {hasIngredientIssue && (
-                      <p className="text-[10px] lg:text-xs text-[#7d5a44] mt-1">
+                      <p className="mt-1 text-[10px] text-[#7d5a44]">
                         Warning: {unavailableProducts.get(product.id)?.[0] || "Unavailable ingredients"}
                       </p>
                     )}
@@ -1310,19 +1349,70 @@ export default function POSPage() {
               </div>
             </section>
 
-            <aside className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
-            <div className="mb-4 flex items-center justify-between">
+            <aside className={`min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 shadow-[0_16px_32px_rgba(74,52,42,0.08)] xl:sticky xl:top-4 ${
+              isOrderSummaryCollapsed ? "p-2" : "p-4 lg:p-5"
+            }`}>
+            <div className={`mb-4 flex items-center justify-between ${isOrderSummaryCollapsed ? "min-h-[420px] flex-col py-2" : ""}`}>
+              {isOrderSummaryCollapsed ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsOrderSummaryCollapsed(false)}
+                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] text-[#7d5a44] transition hover:bg-[#ede3d8]"
+                    aria-label="Expand order summary"
+                  >
+                    <PanelRightOpen className="h-4 w-4" />
+                  </button>
+                  <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#8c6c58]">Queue</p>
+                      <p className="mt-1 text-lg font-semibold text-[#352419]">#{nextQueueNumberPreview}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#8c6c58]">Items</p>
+                      <p className="mt-1 text-lg font-semibold text-[#352419]">{cartItemCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#8c6c58]">Total</p>
+                      <p className="mt-1 text-lg font-semibold text-[#352419]">P{total.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={confirmSale}
+                    disabled={cart.length === 0 || (isCashPayment && cash < total)}
+                    className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#4a342a] text-[#f5f1ea] transition hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Pay now"
+                  >
+                    <ReceiptText className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <>
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-[#8c6c58]">Order Summary</p>
                 <h2 className="mt-1 text-lg font-semibold text-[#352419] lg:text-xl">Queue #{nextQueueNumberPreview}</h2>
               </div>
-              <button onClick={clearCart} className="rounded-xl border border-[#d7c9b8] p-2 text-[#7d5a44] transition hover:bg-[#ede3d8]">
-                <Trash2 className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOrderSummaryCollapsed(true)}
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl border border-[#d7c9b8] text-[#7d5a44] transition hover:bg-[#ede3d8] xl:flex"
+                  aria-label="Collapse order summary"
+                >
+                  <PanelRightClose className="h-4 w-4" />
+                </button>
+                <button onClick={clearCart} className="rounded-xl border border-[#d7c9b8] p-2 text-[#7d5a44] transition hover:bg-[#ede3d8]">
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              </div>
+                </>
+              )}
             </div>
 
+            {!isOrderSummaryCollapsed && (
+            <>
             {/* Cart Items */}
-            <div className="cafe-scrollbar mb-4 max-h-40 space-y-3 overflow-y-auto rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea] p-3 lg:max-h-64">
+            <div className="cafe-scrollbar mb-4 max-h-44 space-y-3 overflow-y-auto rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea] p-3 xl:max-h-[18rem]">
               {cart.length === 0 ? (
                 <p className="py-8 text-center text-sm text-[#8b7568]">
                   Your cart is empty
@@ -1335,7 +1425,7 @@ export default function POSPage() {
                   
                   return (
                     <div key={`${itemKey}-${index}`} className="mb-3 rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] p-3">
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="mb-2 flex items-start justify-between">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-[#2d2019]">{item.product.name}</p>
                           {item.comboMeal && (
@@ -1575,6 +1665,8 @@ export default function POSPage() {
                 </button>
               </div>
             </div>
+            </>
+            )}
             </aside>
           </div>
         </div>
