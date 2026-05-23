@@ -10,6 +10,7 @@ import {
   Clock3,
   Dot,
   LayoutGrid,
+  Loader2,
   ListOrdered,
   Megaphone,
   PauseCircle,
@@ -24,6 +25,7 @@ import {
 
 import { AuthGuard } from "@/components/auth-guard"
 import { Button } from "@/components/ui/button"
+import { toast } from "@/hooks/use-toast"
 import {
   buildQueueMetadataNote,
   getQueueUserNote,
@@ -253,12 +255,16 @@ function StageColumn({
   heldOrders,
   selectedTransactionId,
   onSelect,
+  onStageAction,
+  processingAction,
 }: {
   stage: KitchenStage
   records: KitchenRecord[]
   heldOrders: Set<string>
   selectedTransactionId: string | null
   onSelect: (transactionId: string) => void
+  onStageAction: (record: KitchenRecord) => void
+  processingAction: { transactionId: string; nextStatus: Transaction["orderStatus"] } | null
 }) {
   const style = STAGE_STYLES[stage]
   const StageIcon = getStageIcon(stage)
@@ -289,6 +295,26 @@ function StageColumn({
             const isSelected = selectedTransactionId === record.transaction.id
             const isHeld = heldOrders.has(record.transaction.id)
             const cardStatusLabel = isHeld ? "Hold" : getCardStatusLabel(stage)
+            const primaryActionLabel =
+              stage === "new"
+                ? "Start Preparing"
+                : stage === "preparing"
+                ? "Mark as Ready"
+                : stage === "ready"
+                ? "Complete Order"
+                : null
+            const nextStatus =
+              stage === "new"
+                ? "preparing"
+                : stage === "preparing"
+                ? "ready"
+                : stage === "ready"
+                ? "completed"
+                : null
+            const isProcessingPrimaryAction =
+              Boolean(nextStatus) &&
+              processingAction?.transactionId === record.transaction.id &&
+              processingAction?.nextStatus === nextStatus
 
             return (
               <button
@@ -334,6 +360,29 @@ function StageColumn({
                     {cardStatusLabel}
                   </span>
                 </div>
+
+                {primaryActionLabel ? (
+                  <div className="mt-4 border-t border-slate-200 pt-3">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onStageAction(record)
+                      }}
+                      disabled={isProcessingPrimaryAction}
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-white transition ${
+                        stage === "new"
+                          ? "bg-[#b2967d] hover:bg-[#9f846b]"
+                          : stage === "preparing"
+                          ? "bg-[#7d5a44] hover:bg-[#6a4b3a]"
+                          : "bg-[#4a342a] hover:bg-[#7d5a44]"
+                      } disabled:cursor-not-allowed disabled:opacity-70`}
+                    >
+                      {isProcessingPrimaryAction ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      <span>{primaryActionLabel}</span>
+                    </button>
+                  </div>
+                ) : null}
               </button>
             )
           })
@@ -357,16 +406,36 @@ function KitchenDashboardContent() {
   const [isOnline, setIsOnline] = useState(true)
   const [heldOrderIds, setHeldOrderIds] = useState<string[]>([])
   const [controlMessage, setControlMessage] = useState("Realtime sync active with cashier POS and customer queue display.")
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false)
+  const [processingAction, setProcessingAction] = useState<{ transactionId: string; nextStatus: Transaction["orderStatus"] } | null>(null)
 
   const currentUser = getCurrentUser()
 
-  const loadKitchenOrders = useCallback(async () => {
-    await initializeSupabaseStore()
-    const nextTransactions = await getTransactions()
-    const kitchenTransactions = nextTransactions.filter(shouldShowOnKitchenBoard)
+  const loadKitchenOrders = useCallback(async (options?: { showLoading?: boolean }) => {
+    const shouldShowLoading = options?.showLoading ?? false
 
-    setTransactions(kitchenTransactions)
-    setLastSyncAt(new Date())
+    if (shouldShowLoading) {
+      setIsRefreshingOrders(true)
+    }
+
+    try {
+      await initializeSupabaseStore()
+      const nextTransactions = await getTransactions()
+      const kitchenTransactions = nextTransactions.filter(shouldShowOnKitchenBoard)
+
+      setTransactions(kitchenTransactions)
+      setLastSyncAt(new Date())
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Refresh failed",
+        description: error instanceof Error ? error.message : "The kitchen queue could not be refreshed.",
+      })
+    } finally {
+      if (shouldShowLoading) {
+        setIsRefreshingOrders(false)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -460,8 +529,33 @@ function KitchenDashboardContent() {
   const totalOrders = recordsByStage.new.length + recordsByStage.preparing.length + recordsByStage.ready.length
   const notificationCount = recordsByStage.new.length + recordsByStage.ready.length
 
+  const applyTransactionLocally = useCallback(
+    (transactionId: string, updates: Partial<Transaction>) => {
+      setTransactions((currentTransactions) => {
+        const nextTransactions = currentTransactions
+          .map((transaction) =>
+            transaction.id === transactionId
+              ? ({
+                  ...transaction,
+                  ...updates,
+                } satisfies Transaction)
+              : transaction
+          )
+          .filter(shouldShowOnKitchenBoard)
+
+        return nextTransactions
+      })
+    },
+    []
+  )
+
   const updateQueueStatus = useCallback(
-    async (transaction: Transaction, nextStatus: Transaction["orderStatus"], metadataPatch?: Partial<QueueMetadata>) => {
+    async (
+      transaction: Transaction,
+      nextStatus: Transaction["orderStatus"],
+      successMessage: string,
+      metadataPatch?: Partial<QueueMetadata>
+    ) => {
       const queueMeta = getTransactionQueueMetadata(transaction)
       const nextQueueMeta: QueueMetadata = {
         ...queueMeta,
@@ -469,21 +563,81 @@ function KitchenDashboardContent() {
         placedAt: queueMeta.placedAt || new Date().toISOString(),
       }
 
-      await updateTransaction(transaction.id, {
+      const optimisticTransaction: Partial<Transaction> = {
         orderStatus: nextStatus,
         notes: buildQueueMetadataNote(nextQueueMeta, transaction.notes),
-      })
+      }
+      const previousTransaction = transaction
 
-      setControlMessage(`Order ${normalizeQueueNumber(transaction.queueNumber) || "----"} moved to ${nextStatus}.`)
-      await loadKitchenOrders()
+      setProcessingAction({ transactionId: transaction.id, nextStatus })
+      applyTransactionLocally(transaction.id, optimisticTransaction)
+
+      try {
+        await updateTransaction(transaction.id, optimisticTransaction)
+        setControlMessage(`Order ${normalizeQueueNumber(transaction.queueNumber) || "----"} moved to ${nextStatus}.`)
+        setLastSyncAt(new Date())
+        toast({
+          title: "Order updated",
+          description: successMessage,
+        })
+      } catch (error) {
+        applyTransactionLocally(transaction.id, previousTransaction)
+        setControlMessage(`Unable to update order ${normalizeQueueNumber(transaction.queueNumber) || "----"}.`)
+        toast({
+          variant: "destructive",
+          title: "Update failed",
+          description: error instanceof Error ? error.message : "The order status could not be updated.",
+        })
+      } finally {
+        setProcessingAction((currentAction) =>
+          currentAction?.transactionId === transaction.id && currentAction.nextStatus === nextStatus ? null : currentAction
+        )
+      }
     },
-    [loadKitchenOrders]
+    [applyTransactionLocally]
+  )
+
+  const handleAdvanceStage = useCallback(
+    async (record: KitchenRecord) => {
+      if (record.stage === "new") {
+        await updateQueueStatus(
+          record.transaction,
+          "preparing",
+          `Order ${record.queueNumberLabel} is now Preparing.`,
+          {
+            assignedStaffName: currentUser?.username || record.queueMeta.assignedStaffName,
+            assignedStaffRole: currentUser?.role || record.queueMeta.assignedStaffRole,
+          }
+        )
+        return
+      }
+
+      if (record.stage === "preparing") {
+        await updateQueueStatus(
+          record.transaction,
+          "ready",
+          `Order ${record.queueNumberLabel} is now Ready to Serve.`,
+          { readyAt: new Date().toISOString() }
+        )
+        return
+      }
+
+      if (record.stage === "ready") {
+        await updateQueueStatus(
+          record.transaction,
+          "completed",
+          `Order ${record.queueNumberLabel} has been completed.`,
+          { completedAt: new Date().toISOString() }
+        )
+      }
+    },
+    [currentUser?.role, currentUser?.username, updateQueueStatus]
   )
 
   const handleAcceptOrder = useCallback(async () => {
     if (!selectedRecord) return
 
-    await updateQueueStatus(selectedRecord.transaction, "preparing", {
+    await updateQueueStatus(selectedRecord.transaction, "preparing", `Order ${selectedRecord.queueNumberLabel} is now Preparing.`, {
       assignedStaffName: currentUser?.username || selectedRecord.queueMeta.assignedStaffName,
       assignedStaffRole: currentUser?.role || selectedRecord.queueMeta.assignedStaffRole,
     })
@@ -492,7 +646,7 @@ function KitchenDashboardContent() {
   const handleMarkPreparing = useCallback(async () => {
     if (!selectedRecord) return
 
-    await updateQueueStatus(selectedRecord.transaction, "preparing", {
+    await updateQueueStatus(selectedRecord.transaction, "preparing", `Order ${selectedRecord.queueNumberLabel} is now Preparing.`, {
       assignedStaffName: currentUser?.username || selectedRecord.queueMeta.assignedStaffName,
       assignedStaffRole: currentUser?.role || selectedRecord.queueMeta.assignedStaffRole,
     })
@@ -500,32 +654,56 @@ function KitchenDashboardContent() {
 
   const handleMarkReady = useCallback(async () => {
     if (!selectedRecord) return
-    await updateQueueStatus(selectedRecord.transaction, "ready", { readyAt: new Date().toISOString() })
+    await updateQueueStatus(selectedRecord.transaction, "ready", `Order ${selectedRecord.queueNumberLabel} is now Ready to Serve.`, { readyAt: new Date().toISOString() })
   }, [selectedRecord, updateQueueStatus])
 
   const handleCompleteOrder = useCallback(async () => {
     if (!selectedRecord) return
-    await updateQueueStatus(selectedRecord.transaction, "completed", { completedAt: new Date().toISOString() })
+    await updateQueueStatus(selectedRecord.transaction, "completed", `Order ${selectedRecord.queueNumberLabel} has been completed.`, { completedAt: new Date().toISOString() })
   }, [selectedRecord, updateQueueStatus])
 
   const handleCancelOrder = useCallback(async () => {
     if (!selectedRecord) return
+    const nextNotes = buildQueueMetadataNote(
+      {
+        ...selectedRecord.queueMeta,
+        cancelledAt: new Date().toISOString(),
+        placedAt: selectedRecord.queueMeta.placedAt || selectedRecord.placedAt.toISOString(),
+      },
+      selectedRecord.transaction.notes
+    )
+    const previousTransaction = selectedRecord.transaction
 
-    await updateTransaction(selectedRecord.transaction.id, {
+    setProcessingAction({ transactionId: selectedRecord.transaction.id, nextStatus: "cancelled" })
+    applyTransactionLocally(selectedRecord.transaction.id, {
       orderStatus: "cancelled",
-      notes: buildQueueMetadataNote(
-        {
-          ...selectedRecord.queueMeta,
-          cancelledAt: new Date().toISOString(),
-          placedAt: selectedRecord.queueMeta.placedAt || selectedRecord.placedAt.toISOString(),
-        },
-        selectedRecord.transaction.notes
-      ),
+      notes: nextNotes,
     })
 
-    setControlMessage(`Order ${selectedRecord.queueNumberLabel} was cancelled.`)
-    await loadKitchenOrders()
-  }, [loadKitchenOrders, selectedRecord])
+    try {
+      await updateTransaction(selectedRecord.transaction.id, {
+        orderStatus: "cancelled",
+        notes: nextNotes,
+      })
+      setControlMessage(`Order ${selectedRecord.queueNumberLabel} was cancelled.`)
+      setLastSyncAt(new Date())
+      toast({
+        title: "Order cancelled",
+        description: `Order ${selectedRecord.queueNumberLabel} was removed from the active queue.`,
+      })
+    } catch (error) {
+      applyTransactionLocally(selectedRecord.transaction.id, previousTransaction)
+      toast({
+        variant: "destructive",
+        title: "Cancellation failed",
+        description: error instanceof Error ? error.message : "The order could not be cancelled.",
+      })
+    } finally {
+      setProcessingAction((currentAction) =>
+        currentAction?.transactionId === selectedRecord.transaction.id && currentAction.nextStatus === "cancelled" ? null : currentAction
+      )
+    }
+  }, [applyTransactionLocally, selectedRecord])
 
   const handleCallNextQueue = useCallback(() => {
     const nextRecord = recordsByStage.new[0] || recordsByStage.preparing[0] || recordsByStage.ready[0]
@@ -627,6 +805,15 @@ function KitchenDashboardContent() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
+                <Button
+                  type="button"
+                  onClick={() => void loadKitchenOrders({ showLoading: true })}
+                  disabled={isRefreshingOrders}
+                  className="h-[4.5rem] rounded-[16px] border border-[#d7c9b8]/18 bg-[#f5f1ea]/8 px-4 text-base font-bold text-white hover:bg-[#f5f1ea]/12 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isRefreshingOrders ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Refresh Queue
+                </Button>
                 <div className="flex items-center gap-3 rounded-[16px] border border-[#d7c9b8]/18 bg-[#f5f1ea]/8 px-4 py-3">
                   <Clock3 className="h-7 w-7 text-white" />
                   <div>
@@ -656,6 +843,8 @@ function KitchenDashboardContent() {
                   heldOrders={heldOrders}
                   selectedTransactionId={selectedTransactionId}
                   onSelect={setSelectedTransactionId}
+                  onStageAction={(record) => void handleAdvanceStage(record)}
+                  processingAction={processingAction}
                 />
                 <StageColumn
                   stage="preparing"
@@ -663,6 +852,8 @@ function KitchenDashboardContent() {
                   heldOrders={heldOrders}
                   selectedTransactionId={selectedTransactionId}
                   onSelect={setSelectedTransactionId}
+                  onStageAction={(record) => void handleAdvanceStage(record)}
+                  processingAction={processingAction}
                 />
                 <StageColumn
                   stage="ready"
@@ -670,6 +861,8 @@ function KitchenDashboardContent() {
                   heldOrders={heldOrders}
                   selectedTransactionId={selectedTransactionId}
                   onSelect={setSelectedTransactionId}
+                  onStageAction={(record) => void handleAdvanceStage(record)}
+                  processingAction={processingAction}
                 />
                 <StageColumn
                   stage="completed"
@@ -677,6 +870,8 @@ function KitchenDashboardContent() {
                   heldOrders={heldOrders}
                   selectedTransactionId={selectedTransactionId}
                   onSelect={setSelectedTransactionId}
+                  onStageAction={(record) => void handleAdvanceStage(record)}
+                  processingAction={processingAction}
                 />
                 </div>
               </section>
@@ -745,16 +940,26 @@ function KitchenDashboardContent() {
                     <div className="mt-5 grid grid-cols-2 gap-3">
                       <Button
                         onClick={selectedRecord.stage === "preparing" ? handleMarkReady : handleAcceptOrder}
-                        disabled={selectedRecord.stage !== "new" && selectedRecord.stage !== "preparing"}
+                        disabled={
+                          (selectedRecord.stage !== "new" && selectedRecord.stage !== "preparing") ||
+                          Boolean(processingAction)
+                        }
                         className={`h-12 rounded-xl text-base font-bold text-white ${selectedRecord.stage === "preparing" ? "bg-[#7d5a44] hover:bg-[#6a4b3a]" : "bg-[#b2967d] hover:bg-[#9f846b]"}`}
                       >
-                        {selectedRecord.stage === "preparing" ? "Mark Ready" : "Accept Order"}
+                        {processingAction?.transactionId === selectedRecord.transaction.id &&
+                        (processingAction.nextStatus === "preparing" || processingAction.nextStatus === "ready") ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        {selectedRecord.stage === "preparing" ? "Mark as Ready" : "Start Preparing"}
                       </Button>
                       <Button
                         onClick={handleCancelOrder}
-                        disabled={selectedRecord.stage === "completed"}
+                        disabled={selectedRecord.stage === "completed" || Boolean(processingAction)}
                         className="h-12 rounded-xl bg-[#dc2626] text-base font-bold text-white hover:bg-[#b91c1c]"
                       >
+                        {processingAction?.transactionId === selectedRecord.transaction.id && processingAction.nextStatus === "cancelled" ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
                         Cancel Order
                       </Button>
                     </div>
@@ -762,16 +967,22 @@ function KitchenDashboardContent() {
                     <div className="mt-3 grid gap-3">
                       <Button
                         onClick={handleMarkPreparing}
-                        disabled={selectedRecord.stage !== "new"}
+                        disabled={selectedRecord.stage !== "new" || Boolean(processingAction)}
                         className="h-11 rounded-xl bg-[#d7c9b8] text-base font-bold text-[#4a342a] hover:bg-[#cab8a3]"
                       >
+                        {processingAction?.transactionId === selectedRecord.transaction.id && processingAction.nextStatus === "preparing" ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
                         Mark Preparing
                       </Button>
                       <Button
                         onClick={handleCompleteOrder}
-                        disabled={selectedRecord.stage !== "ready"}
+                        disabled={selectedRecord.stage !== "ready" || Boolean(processingAction)}
                         className="h-11 rounded-xl bg-[#4a342a] text-base font-bold text-white hover:bg-[#7d5a44]"
                       >
+                        {processingAction?.transactionId === selectedRecord.transaction.id && processingAction.nextStatus === "completed" ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
                         Complete Order
                       </Button>
                     </div>
