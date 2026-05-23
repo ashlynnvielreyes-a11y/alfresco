@@ -464,6 +464,20 @@ export default function DashboardPage() {
                 Review inventory
                 <Boxes className="h-4 w-4" />
               </Link>
+              <Link
+                href="/queue-display"
+                className="inline-flex items-center gap-2 rounded-full border border-[#b2967d] bg-[#f5f1ea]/80 px-5 py-3 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
+              >
+                Queue display
+                <TimerReset className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/kitchen-dashboard"
+                className="inline-flex items-center gap-2 rounded-full border border-[#b2967d] bg-[#f5f1ea]/80 px-5 py-3 text-sm font-semibold text-[#4a342a] transition-colors hover:bg-[#ede3d8]"
+              >
+                Kitchen dashboard
+                <Package className="h-4 w-4" />
+              </Link>
               <button
                 type="button"
                 onClick={() => void refreshDashboard(true)}

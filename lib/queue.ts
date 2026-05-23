@@ -17,7 +17,7 @@ export interface QueueMetadata {
 }
 
 const QUEUE_META_PREFIX = "__QUEUE_META__:"
-const DEFAULT_QUEUE_START = 1201
+const DEFAULT_QUEUE_START = 1
 const DAILY_QUEUE_RESET_ENABLED = true
 
 const defaultQueueMetadata: QueueMetadata = {

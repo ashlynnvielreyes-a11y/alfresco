@@ -2,6 +2,7 @@
 
 import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Bell,
   Check,
@@ -11,6 +12,7 @@ import {
   Dot,
   LayoutGrid,
   Loader2,
+  LogOut,
   ListOrdered,
   Megaphone,
   PauseCircle,
@@ -24,6 +26,7 @@ import {
 } from "lucide-react"
 
 import { AuthGuard } from "@/components/auth-guard"
+import { LiveQueueBoard } from "@/components/live-queue-board"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -33,7 +36,7 @@ import {
   normalizeQueueNumber,
   type QueueMetadata,
 } from "@/lib/queue"
-import { getCurrentUser, getTransactions, initializeSupabaseStore, updateTransaction } from "@/lib/store"
+import { getCurrentUser, getTransactions, initializeSupabaseStore, logout, updateTransaction } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import type { CartItem, Transaction } from "@/lib/types"
 
@@ -399,6 +402,7 @@ function StageColumn({
 }
 
 function KitchenDashboardContent() {
+  const router = useRouter()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null)
   const [clockNow, setClockNow] = useState(() => new Date())
@@ -410,6 +414,11 @@ function KitchenDashboardContent() {
   const [processingAction, setProcessingAction] = useState<{ transactionId: string; nextStatus: Transaction["orderStatus"] } | null>(null)
 
   const currentUser = getCurrentUser()
+
+  const handleLogout = useCallback(() => {
+    logout()
+    router.push("/")
+  }, [router])
 
   const loadKitchenOrders = useCallback(async (options?: { showLoading?: boolean }) => {
     const shouldShowLoading = options?.showLoading ?? false
@@ -829,14 +838,30 @@ function KitchenDashboardContent() {
                     </span>
                   </div>
                 </div>
+                <Button
+                  type="button"
+                  onClick={handleLogout}
+                  className="h-[4.5rem] rounded-[16px] border border-[#d9b2a7]/22 bg-[#8c5a4c]/22 px-4 text-base font-bold text-[#f8e6de] hover:bg-[#9a6758]/28"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
               </div>
             </div>
           </header>
 
           <main className="mt-4 grid flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-4">
+              <LiveQueueBoard
+                transactions={transactions}
+                loading={isRefreshingOrders && transactions.length === 0}
+                onRefresh={() => void loadKitchenOrders({ showLoading: true })}
+                refreshDisabled={isRefreshingOrders}
+                embedded
+              />
+
               <section className="min-h-0 rounded-[22px] border border-[#d7c9b8]/16 bg-[#f5f1ea]/6 p-3 shadow-[0_20px_60px_rgba(74,52,42,0.28)]">
-                <div className="grid min-h-[calc(100vh-16.5rem)] gap-3 xl:grid-cols-4">
+                <div className="grid min-h-[42rem] gap-3 xl:grid-cols-4">
                 <StageColumn
                   stage="new"
                   records={recordsByStage.new}
