@@ -1002,6 +1002,23 @@ export default function POSPage() {
   const primaryWorkspaceLinks = useMemo(() => visibleWorkspaceLinks.filter((item) => item.href !== "/settings"), [visibleWorkspaceLinks])
   const settingsWorkspaceLink = useMemo(() => visibleWorkspaceLinks.find((item) => item.href === "/settings"), [visibleWorkspaceLinks])
   const isAdminPos = currentUser?.role === "admin"
+  const headerCardsGridClass = isSidebarCollapsed
+    ? "sm:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(140px,0.72fr))]"
+    : "sm:grid-cols-2 2xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(140px,0.72fr))]"
+  const workspaceGridClass = isOrderSummaryCollapsed
+    ? isSidebarCollapsed
+      ? "xl:grid-cols-[minmax(220px,0.24fr)_minmax(0,1fr)_84px]"
+      : "xl:grid-cols-[minmax(190px,0.22fr)_minmax(0,1fr)_80px]"
+    : isAdminPos
+    ? isSidebarCollapsed
+      ? "xl:grid-cols-[minmax(280px,0.32fr)_minmax(0,1fr)_minmax(320px,0.3fr)] 2xl:grid-cols-[minmax(300px,0.3fr)_minmax(0,1fr)_minmax(340px,0.28fr)]"
+      : "xl:grid-cols-[minmax(250px,0.3fr)_minmax(0,1fr)_minmax(292px,0.3fr)] 2xl:grid-cols-[minmax(280px,0.32fr)_minmax(0,1fr)_minmax(320px,0.28fr)]"
+    : isSidebarCollapsed
+    ? "xl:grid-cols-[minmax(220px,0.24fr)_minmax(0,1fr)_minmax(320px,0.3fr)] 2xl:grid-cols-[minmax(240px,0.23fr)_minmax(0,1fr)_minmax(340px,0.28fr)]"
+    : "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_minmax(292px,0.32fr)] 2xl:grid-cols-[minmax(188px,0.2fr)_minmax(0,1fr)_minmax(316px,0.28fr)]"
+  const productGridClass = isSidebarCollapsed
+    ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+    : "grid-cols-2 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4"
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-4">
@@ -1114,14 +1131,14 @@ export default function POSPage() {
           </div>
         </aside>
 
-      <main className="relative flex-1 overflow-y-auto bg-[#f5f1ea] p-4 lg:p-5">
+      <main className="relative min-w-0 flex-1 overflow-y-auto bg-[#f5f1ea] p-4 transition-[padding] duration-300 lg:p-5">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute left-0 top-10 h-72 w-72 rounded-full bg-[#d7c9b8]/18 blur-3xl" />
           <div className="absolute right-8 top-24 h-64 w-64 rounded-full bg-[#7d5a44]/10 blur-3xl" />
         </div>
-        <div className="relative z-10 mx-auto flex max-w-[1540px] flex-col gap-4 lg:gap-5">
-          <section className="rounded-[24px] border border-[#7d5a44]/35 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] px-4 py-4 text-[#f5f1ea] shadow-[0_24px_48px_rgba(74,52,42,0.22)] lg:px-5">
-            <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+        <div className="relative z-10 flex w-full min-w-0 flex-col gap-4 lg:gap-5">
+          <section className="rounded-[24px] border border-[#7d5a44]/35 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] px-4 py-4 text-[#f5f1ea] shadow-[0_24px_48px_rgba(74,52,42,0.22)] transition-all duration-300 lg:px-5">
+            <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.88fr)_minmax(0,1.7fr)] xl:items-start 2xl:items-center">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f5f1ea]/15 bg-[#f5f1ea]/10">
                   <ReceiptText className="h-5 w-5" />
@@ -1132,8 +1149,8 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <div className="grid flex-1 gap-3 2xl:mx-4 2xl:max-w-4xl xl:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
-                <div className="relative">
+              <div className={`grid min-w-0 gap-3 transition-[grid-template-columns] duration-300 ${headerCardsGridClass}`}>
+                <div className="relative min-w-0">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d7c9b8]" />
                   <input
                     type="text"
@@ -1159,14 +1176,8 @@ export default function POSPage() {
             </div>
           </section>
 
-          <div className={`grid gap-4 xl:items-start 2xl:gap-5 ${
-            isOrderSummaryCollapsed
-              ? "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_72px]"
-              : isAdminPos
-              ? "xl:grid-cols-[minmax(250px,0.3fr)_minmax(0,1fr)_minmax(292px,0.3fr)] 2xl:grid-cols-[minmax(280px,0.32fr)_minmax(0,1fr)_minmax(320px,0.28fr)]"
-              : "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_minmax(292px,0.32fr)] 2xl:grid-cols-[minmax(188px,0.2fr)_minmax(0,1fr)_minmax(316px,0.28fr)]"
-          }`}>
-            <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)]">
+          <div className={`grid gap-4 transition-[grid-template-columns] duration-300 xl:items-start 2xl:gap-5 ${workspaceGridClass}`}>
+            <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] transition-all duration-300">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#d7c9b8] text-[#4a342a]">
                   <LayoutGrid className="h-4 w-4" />
@@ -1309,13 +1320,13 @@ export default function POSPage() {
               )}
             </section>
 
-            <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/94 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
-              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/94 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] transition-all duration-300 lg:p-5">
+              <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[#8c6c58]">All Products</p>
                   <h2 className="mt-1 text-xl font-semibold text-[#352419]">New Order Workspace</h2>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-3 gap-2 text-center xl:min-w-[280px]">
                   <div className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-[#8a6a57]">Cart</p>
                     <p className="mt-1 text-sm font-semibold text-[#3d2a1f]">{cartItemCount}</p>
@@ -1331,7 +1342,7 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+              <div className={`grid gap-3 transition-[grid-template-columns] duration-300 ${productGridClass}`}>
               {/* Show combo meals when Combos category is selected */}
               {(selectedCategory === "Combos" || selectedCategory === "All Items") && comboMeals
                 .filter(combo => combo.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1455,7 +1466,7 @@ export default function POSPage() {
               </div>
             </section>
 
-            <aside className={`min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 shadow-[0_16px_32px_rgba(74,52,42,0.08)] xl:sticky xl:top-4 ${
+            <aside className={`min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 shadow-[0_16px_32px_rgba(74,52,42,0.08)] transition-all duration-300 xl:sticky xl:top-4 ${
               isOrderSummaryCollapsed ? "p-2" : "p-4 lg:p-5"
             }`}>
             <div className={`mb-4 flex items-center justify-between ${isOrderSummaryCollapsed ? "min-h-[420px] flex-col py-2" : ""}`}>

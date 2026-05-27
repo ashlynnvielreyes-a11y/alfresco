@@ -299,47 +299,47 @@ export function LiveQueueBoard({
 
   if (embedded) {
     return (
-      <section className="rounded-[22px] border border-[#d7c9b8]/16 bg-[#f5f1ea]/6 p-3 shadow-[0_20px_60px_rgba(74,52,42,0.28)]">
-        <div className="mb-3 flex flex-col gap-3 rounded-[18px] border border-[#d7c9b8]/12 bg-[linear-gradient(180deg,rgba(74,52,42,0.96),rgba(93,68,55,0.92))] p-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-[24px] border border-[#ddd2c7] bg-[rgba(255,250,245,0.9)] p-4 shadow-[0_18px_38px_rgba(109,84,66,0.1)] lg:p-5">
+        <div className="mb-4 flex flex-col gap-4 rounded-[22px] border border-[#e3d8cd] bg-[linear-gradient(180deg,#fffdf9_0%,#f4e9df_100%)] p-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[0.72rem] font-bold uppercase tracking-[0.22em] text-[#d7c9b8]">Live Queue Monitor</p>
-            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">Queue Display</h2>
-            <p className="mt-1 text-sm text-[#f0e6db]">Now Serving, Preparing, and Ready for Pickup in one live view.</p>
+            <p className="text-[0.72rem] font-bold uppercase tracking-[0.22em] text-[#8d6f5b]">Live Queue Monitor</p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[#4a342a]">Queue Display</h2>
+            <p className="mt-1 text-sm text-[#7d5a44]">Now Serving, Preparing, and Ready for Pickup in one live view.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-[#d7c9b8]/18 bg-[#f5f1ea]/8 px-4 py-3 text-white">
-              <p className="text-xs uppercase tracking-[0.16em] text-[#d7c9b8]">Time</p>
+            <div className="rounded-2xl border border-[#ddd0c5] bg-white/88 px-4 py-3 text-[#4a342a] shadow-[0_12px_24px_rgba(109,84,66,0.06)]">
+              <p className="text-xs uppercase tracking-[0.16em] text-[#8d6f5b]">Time</p>
               <p className="mt-1 text-2xl font-black tracking-[-0.04em]">{displayTime}</p>
             </div>
-            <div className="rounded-2xl border border-[#d7c9b8]/18 bg-[#f5f1ea]/8 px-4 py-3 text-white">
-              <p className="text-xs uppercase tracking-[0.16em] text-[#d7c9b8]">Date</p>
+            <div className="rounded-2xl border border-[#ddd0c5] bg-white/88 px-4 py-3 text-[#4a342a] shadow-[0_12px_24px_rgba(109,84,66,0.06)]">
+              <p className="text-xs uppercase tracking-[0.16em] text-[#8d6f5b]">Date</p>
               <p className="mt-1 text-sm font-semibold">{displayWeekday}</p>
-              <p className="text-sm text-[#f0e6db]">{displayDate}</p>
+              <p className="text-sm text-[#7d5a44]">{displayDate}</p>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)_minmax(0,1.05fr)]">
-          <section className="rounded-[1.6rem] bg-[radial-gradient(circle_at_center,#4a342a_0%,#5a4134_100%)] p-4 text-white shadow-[inset_0_0_0_1px_rgba(245,241,234,0.08)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <section className="rounded-[1.6rem] border border-[#dccdbe] bg-[linear-gradient(180deg,#fbf7f2_0%,#f1e4d7_100%)] p-5 text-[#4a342a] shadow-[0_16px_30px_rgba(109,84,66,0.08)]">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xl font-black uppercase tracking-[-0.04em] text-white">Now Serving</h3>
-              <Tv2 className="h-5 w-5 text-[#d7c9b8]" />
+              <h3 className="text-xl font-black uppercase tracking-[-0.04em] text-[#4a342a]">Now Serving</h3>
+              <Tv2 className="h-5 w-5 text-[#8d6f5b]" />
             </div>
             <div className="mt-4">
               {loading ? (
-                <div className="rounded-[1.35rem] bg-white/8 p-4">
-                  <div className="h-4 w-24 rounded-full bg-white/10" />
-                  <div className="mt-4 h-14 w-36 rounded-3xl bg-white/10" />
-                  <div className="mt-4 h-4 w-28 rounded-full bg-white/10" />
+                <div className="rounded-[1.35rem] bg-white/80 p-4">
+                  <div className="h-4 w-24 rounded-full bg-[#ead8c7]" />
+                  <div className="mt-4 h-14 w-36 rounded-3xl bg-[#f1e3d5]" />
+                  <div className="mt-4 h-4 w-28 rounded-full bg-[#ead8c7]" />
                 </div>
               ) : nowServing ? (
-                <div className="rounded-[1.35rem] bg-white/8 p-4 text-center animate-in fade-in zoom-in-95">
-                  <p className="truncate text-[clamp(2.8rem,5vw,4.4rem)] font-black leading-none tracking-[-0.08em] text-white">{nowServing.queueNumber}</p>
-                  <p className="mt-3 text-lg font-bold uppercase tracking-[0.1em] text-[#d7c9b8]">{nowServing.orderTypeLabel}</p>
-                  <p className="mt-2 text-sm text-[#f0e6db]">Updated {nowServing.timestampLabel}</p>
+                <div className="rounded-[1.35rem] bg-white/88 p-5 text-center animate-in fade-in zoom-in-95 shadow-[0_12px_24px_rgba(109,84,66,0.06)]">
+                  <p className="truncate text-[clamp(2.8rem,5vw,4.4rem)] font-black leading-none tracking-[-0.08em] text-[#4a342a]">{nowServing.queueNumber}</p>
+                  <p className="mt-3 text-lg font-bold uppercase tracking-[0.1em] text-[#8d6f5b]">{nowServing.orderTypeLabel}</p>
+                  <p className="mt-2 text-sm text-[#7d5a44]">Updated {nowServing.timestampLabel}</p>
                 </div>
               ) : (
-                <div className="rounded-[1.35rem] bg-white/8 p-6 text-center text-sm text-[#f0e6db]">
+                <div className="rounded-[1.35rem] bg-white/88 p-6 text-center text-sm text-[#7d5a44]">
                   No queue is being served right now.
                 </div>
               )}
