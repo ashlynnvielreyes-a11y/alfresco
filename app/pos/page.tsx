@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, Settings, FileText, LayoutGrid, ShoppingCart, ChevronLeft, LogOut, PanelRightClose, PanelRightOpen } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById, logout, subscribeToTransactionSync } from "@/lib/store"
+import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, FileText, LayoutGrid, ShoppingCart, ChevronLeft, LogOut, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById, logout, subscribeToTransactionSync } from "@/lib/store"
 import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getLocalDateKey, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
@@ -19,9 +19,7 @@ const POS_ORDER_SUMMARY_COLLAPSE_KEY = "alfresco_pos_order_summary_collapsed"
 
 const posWorkspaceLinks = [
   { href: "/pos", label: "POS", description: "New Order", icon: ShoppingCart },
-  { href: "/queue-display", label: "Queue Display", description: "Live Queue", icon: MonitorPlay },
-  { href: "/sales-history", label: "Reports", description: "Sales Records", icon: FileText },
-  { href: "/settings", label: "Settings", description: "System Controls", icon: Settings },
+  { href: "/sales-history", label: "Sales History", description: "Sales Records", icon: FileText },
 ] as const
 
 function getAddOnKey(addOns?: AddOn[]) {
@@ -770,21 +768,16 @@ export default function POSPage() {
         assignedStaffRole: null,
         placedAt: now.toISOString(),
       }),
-      orderStatus: "preparing",
+      orderStatus: "pending",
       date: transactionDate,
       time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase(),
       voided: false,
     }
-
-    const updatedIngredients = deductCartIngredients(cart, ingredients)
-
-    saveIngredients(updatedIngredients)
     await saveTransaction(transaction)
     if (activeOrderId) {
       await clearActiveOrderSnapshot(activeOrderId)
       setActiveOrderId("")
     }
-    setIngredients(updatedIngredients)
     setLastTransaction(transaction)
     setShowReceipt(true)
     setOrderStartedAt(null)
@@ -995,13 +988,14 @@ export default function POSPage() {
     }
   }
 
-  const visibleWorkspaceLinks = useMemo(
-    () => posWorkspaceLinks.filter((item) => item.href !== "/settings" || currentUser?.role !== "cashier"),
-    [currentUser?.role]
-  )
-  const primaryWorkspaceLinks = useMemo(() => visibleWorkspaceLinks.filter((item) => item.href !== "/settings"), [visibleWorkspaceLinks])
-  const settingsWorkspaceLink = useMemo(() => visibleWorkspaceLinks.find((item) => item.href === "/settings"), [visibleWorkspaceLinks])
   const isAdminPos = currentUser?.role === "admin"
+  const primaryWorkspaceLinks = useMemo(() => {
+    if (isAdminPos) {
+      return posWorkspaceLinks.filter((item) => item.href === "/pos")
+    }
+
+    return posWorkspaceLinks
+  }, [isAdminPos])
   const headerCardsGridClass = isSidebarCollapsed
     ? "sm:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(140px,0.72fr))]"
     : "sm:grid-cols-2 2xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(140px,0.72fr))]"
@@ -1105,29 +1099,6 @@ export default function POSPage() {
               {!isSidebarCollapsed && <span className="text-sm font-semibold">Logout</span>}
             </button>
 
-            {settingsWorkspaceLink && (
-              <Link
-                href={settingsWorkspaceLink.href}
-                title={isSidebarCollapsed ? settingsWorkspaceLink.label : undefined}
-                className={`mt-2 flex items-center rounded-2xl transition-colors ${
-                  pathname === settingsWorkspaceLink.href
-                    ? "bg-[#f5f1ea] text-[#4a342a] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
-                    : "text-[#f7ede4]/78 hover:bg-white/8 hover:text-white"
-                } ${isSidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"}`}
-              >
-                <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${
-                  pathname === settingsWorkspaceLink.href ? "bg-[#d7c9b8]" : "bg-white/8"
-                }`}>
-                  <Settings className="h-[0.95rem] w-[0.95rem]" />
-                </span>
-                <span className={`min-w-0 ${isSidebarCollapsed ? "hidden" : "block"}`}>
-                  <span className="block text-[0.92rem] font-semibold">{settingsWorkspaceLink.label}</span>
-                  <span className={`block text-[11px] ${pathname === settingsWorkspaceLink.href ? "text-[#7d5a44]" : "text-[#f5f1ea]/65"}`}>
-                    {settingsWorkspaceLink.description}
-                  </span>
-                </span>
-              </Link>
-            )}
           </div>
         </aside>
 
@@ -1139,14 +1110,23 @@ export default function POSPage() {
         <div className="relative z-10 flex w-full min-w-0 flex-col gap-4 lg:gap-5">
           <section className="rounded-[24px] border border-[#7d5a44]/35 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] px-4 py-4 text-[#f5f1ea] shadow-[0_24px_48px_rgba(74,52,42,0.22)] transition-all duration-300 lg:px-5">
             <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.88fr)_minmax(0,1.7fr)] xl:items-start 2xl:items-center">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f5f1ea]/15 bg-[#f5f1ea]/10">
                   <ReceiptText className="h-5 w-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-semibold tracking-[0.16em] text-[#d7c9b8]">POS TERMINAL</p>
                   <h1 className="text-xl font-semibold text-white">Al Fresco Coffee Shop</h1>
                 </div>
+                {isAdminPos && (
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-[#f5f1ea]/15 bg-[#f5f1ea]/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#f5f1ea]/16"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Return to Admin Dashboard
+                  </Link>
+                )}
               </div>
 
               <div className={`grid min-w-0 gap-3 transition-[grid-template-columns] duration-300 ${headerCardsGridClass}`}>

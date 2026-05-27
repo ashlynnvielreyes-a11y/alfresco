@@ -10,6 +10,7 @@ export interface QueueMetadata {
   orderType: QueueOrderType
   assignedStaffName: string | null
   assignedStaffRole: AppUserRole | null
+  inventoryDeductedAt: string | null
   readyAt: string | null
   completedAt: string | null
   cancelledAt: string | null
@@ -25,6 +26,7 @@ const defaultQueueMetadata: QueueMetadata = {
   orderType: "to-serve",
   assignedStaffName: null,
   assignedStaffRole: null,
+  inventoryDeductedAt: null,
   readyAt: null,
   completedAt: null,
   cancelledAt: null,

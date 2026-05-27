@@ -25,7 +25,7 @@ import {
   refreshOfflineSyncStatus,
   restoreLocalStorageFromSnapshot,
 } from "./offline-sync"
-import { normalizeQueueNumber } from "./queue"
+import { buildQueueMetadataNote, getTransactionQueueMetadata, normalizeQueueNumber } from "./queue"
 
 const PRODUCTS_KEY = "alfresco_products"
 const TRANSACTIONS_KEY = "alfresco_transactions"
@@ -1830,6 +1830,67 @@ export function deductCartIngredients(cartItems: CartItem[], ingredientsList: In
   return updatedIngredients.map(normalizeIngredient)
 }
 
+function validateCartInventory(cartItems: CartItem[], ingredients: Ingredient[]) {
+  for (const cartItem of cartItems) {
+    const { available, missingIngredients } = checkIngredientAvailability(cartItem.product, cartItem.quantity, ingredients)
+    if (!available) {
+      return {
+        available: false,
+        reason: `${cartItem.product.name} uses unavailable ingredients: ${missingIngredients.join(", ")}`,
+      }
+    }
+
+    for (const addOn of cartItem.addOns || []) {
+      const selectedQuantity = (addOn.selectedQuantity || 1) * cartItem.quantity
+      const availability = checkAddOnAvailability(addOn, selectedQuantity, ingredients)
+      if (!availability.available) {
+        return {
+          available: false,
+          reason: `${cartItem.product.name} add-on "${addOn.name}" is unavailable: ${availability.reason}`,
+        }
+      }
+    }
+  }
+
+  return { available: true as const }
+}
+
+function applyInventoryDeductionForPreparing(transaction: Transaction) {
+  const queueMeta = getTransactionQueueMetadata(transaction)
+  if (queueMeta.inventoryDeductedAt) {
+    return {
+      transaction,
+      inventoryUpdated: false,
+    }
+  }
+
+  const ingredients = getIngredients()
+  const availability = validateCartInventory(transaction.items, ingredients)
+  if (!availability.available) {
+    throw new Error(availability.reason)
+  }
+
+  const updatedIngredients = deductCartIngredients(transaction.items, ingredients)
+  const deductedAt = new Date().toISOString()
+  const updatedTransaction = {
+    ...transaction,
+    notes: buildQueueMetadataNote(
+      {
+        ...queueMeta,
+        inventoryDeductedAt: deductedAt,
+      },
+      transaction.notes
+    ),
+  }
+
+  saveIngredients(updatedIngredients)
+
+  return {
+    transaction: updatedTransaction,
+    inventoryUpdated: true,
+  }
+}
+
 export function archiveIngredient(id: number): boolean {
   const ingredients = getAllIngredients()
   const index = ingredients.findIndex((ingredient) => ingredient.id === id)
@@ -2568,7 +2629,7 @@ export async function updateTransaction(
   const index = transactions.findIndex((transaction) => transaction.id === transactionId)
   if (index === -1) return null
 
-  const nextTransaction: Transaction = {
+  let nextTransaction: Transaction = {
     ...transactions[index],
     ...updates,
     queueNumber: updates.queueNumber ?? transactions[index].queueNumber ?? null,
@@ -2583,6 +2644,17 @@ export async function updateTransaction(
     notes: updates.notes ?? transactions[index].notes ?? null,
     orderStatus: updates.voided ? "voided" : updates.orderStatus ?? transactions[index].orderStatus ?? "completed",
     voided: updates.voided ?? transactions[index].voided ?? false,
+  }
+
+  const previousStatus = transactions[index].orderStatus ?? "completed"
+  const nextStatus = nextTransaction.orderStatus ?? "completed"
+  const shouldDeductInventory =
+    previousStatus !== "preparing" &&
+    nextStatus === "preparing"
+
+  if (shouldDeductInventory) {
+    const deductionResult = applyInventoryDeductionForPreparing(nextTransaction)
+    nextTransaction = deductionResult.transaction
   }
 
   transactions[index] = nextTransaction

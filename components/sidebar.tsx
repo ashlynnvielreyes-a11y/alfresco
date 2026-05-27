@@ -53,7 +53,7 @@ const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
 
 const allNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Role-tailored overview", section: "Core", permission: "dashboard" },
-  { href: "/pos", label: "Checkout", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
+  { href: "/pos", label: "POS", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
   { href: "/queue-management", label: "Kitchen Dashboard", icon: ReceiptText, description: "Update preparing and ready orders", section: "Core", permission: "kitchen_queue" },
   { href: "/queue-display", label: "Queue Display", icon: MonitorPlay, description: "Show the live customer board", section: "Core", permission: "queue" },
   { href: "/sales-history", label: "Sales History", icon: FileText, description: "Search receipts and export records", section: "Core", permission: "sales" },
