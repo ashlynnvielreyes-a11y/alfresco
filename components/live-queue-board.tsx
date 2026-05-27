@@ -300,10 +300,10 @@ export function LiveQueueBoard({
   if (embedded) {
     return (
       <section className="rounded-[24px] border border-[#ddd2c7] bg-[rgba(255,250,245,0.9)] p-4 shadow-[0_18px_38px_rgba(109,84,66,0.1)] lg:p-5">
-        <div className="mb-4 flex flex-col gap-4 rounded-[22px] border border-[#e3d8cd] bg-[linear-gradient(180deg,#fffdf9_0%,#f4e9df_100%)] p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-4 grid gap-4 rounded-[22px] border border-[#e3d8cd] bg-[linear-gradient(180deg,#fffdf9_0%,#f4e9df_100%)] p-5 xl:grid-cols-[minmax(0,1.2fr)_auto] xl:items-center">
           <div>
             <p className="text-[0.72rem] font-bold uppercase tracking-[0.22em] text-[#8d6f5b]">Live Queue Monitor</p>
-            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[#4a342a]">Queue Display</h2>
+            <h2 className="mt-2 text-[clamp(2rem,2.4vw,2.8rem)] font-black tracking-[-0.04em] text-[#4a342a]">Queue Display</h2>
             <p className="mt-1 text-sm text-[#7d5a44]">Now Serving, Preparing, and Ready for Pickup in one live view.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -319,13 +319,13 @@ export function LiveQueueBoard({
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1.16fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <section className="rounded-[1.6rem] border border-[#dccdbe] bg-[linear-gradient(180deg,#fbf7f2_0%,#f1e4d7_100%)] p-5 text-[#4a342a] shadow-[0_16px_30px_rgba(109,84,66,0.08)]">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-xl font-black uppercase tracking-[-0.04em] text-[#4a342a]">Now Serving</h3>
               <Tv2 className="h-5 w-5 text-[#8d6f5b]" />
             </div>
-            <div className="mt-4">
+            <div className="mt-4 min-h-[15rem]">
               {loading ? (
                 <div className="rounded-[1.35rem] bg-white/80 p-4">
                   <div className="h-4 w-24 rounded-full bg-[#ead8c7]" />
@@ -334,7 +334,7 @@ export function LiveQueueBoard({
                 </div>
               ) : nowServing ? (
                 <div className="rounded-[1.35rem] bg-white/88 p-5 text-center animate-in fade-in zoom-in-95 shadow-[0_12px_24px_rgba(109,84,66,0.06)]">
-                  <p className="truncate text-[clamp(2.8rem,5vw,4.4rem)] font-black leading-none tracking-[-0.08em] text-[#4a342a]">{nowServing.queueNumber}</p>
+                  <p className="truncate text-[clamp(3.4rem,6vw,5.2rem)] font-black leading-none tracking-[-0.08em] text-[#4a342a]">{nowServing.queueNumber}</p>
                   <p className="mt-3 text-lg font-bold uppercase tracking-[0.1em] text-[#8d6f5b]">{nowServing.orderTypeLabel}</p>
                   <p className="mt-2 text-sm text-[#7d5a44]">Updated {nowServing.timestampLabel}</p>
                 </div>

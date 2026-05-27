@@ -775,67 +775,67 @@ function KitchenDashboardContent() {
   return (
     <div className="min-h-screen bg-[#f7f1e8] text-[#4a342a]">
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(223,205,190,0.55),transparent_24%),radial-gradient(circle_at_top_right,rgba(239,225,212,0.72),transparent_22%),linear-gradient(180deg,#f7f1e8_0%,#efe3d8_46%,#f6eee5_100%)]">
-        <div className="mx-auto flex min-h-screen max-w-[1880px] flex-col px-4 py-4 lg:px-5 lg:py-5">
-          <header className="rounded-[28px] border border-[#ddcfc1] bg-[linear-gradient(180deg,rgba(255,252,247,0.96),rgba(243,232,220,0.94))] px-5 py-5 shadow-[0_24px_52px_rgba(109,84,66,0.12)]">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(320px,0.9fr)] xl:items-start">
-              <div className="flex items-center gap-4 xl:border-r xl:border-[#e4d8cc] xl:pr-7">
+        <div className="mx-auto flex min-h-screen max-w-[1920px] flex-col px-4 py-4 lg:px-5 lg:py-5">
+          <header className="rounded-[28px] border border-[#ddcfc1] bg-[linear-gradient(180deg,rgba(255,252,247,0.96),rgba(243,232,220,0.94))] px-5 py-4 shadow-[0_20px_42px_rgba(109,84,66,0.1)]">
+            <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.95fr)_minmax(0,1.45fr)_minmax(360px,0.95fr)] xl:items-center">
+              <div className="flex items-center gap-4 xl:border-r xl:border-[#e4d8cc] xl:pr-6">
                 <div className="rounded-[18px] border border-[#dfd1c4] bg-white/90 p-3 shadow-[0_12px_28px_rgba(109,84,66,0.08)]">
                   <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={140} height={44} className="h-10 w-auto object-contain" priority />
                 </div>
                 <div>
                   <h1 className="text-[2rem] font-black leading-none tracking-[-0.05em] text-[#4a342a]">KITCHEN QUEUE</h1>
-                  <p className="mt-1 text-lg text-[#7d5a44]">Work with speed. Serve with pride.</p>
+                  <p className="mt-1 text-base text-[#7d5a44]">Work with speed. Serve with pride.</p>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-[20px] border border-[#e2d7cc] bg-white/82 px-4 py-4 shadow-[0_16px_30px_rgba(109,84,66,0.08)]">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[20px] border border-[#e2d7cc] bg-white/82 px-4 py-3.5 shadow-[0_14px_26px_rgba(109,84,66,0.07)]">
                   <div className="flex items-center gap-3">
                     <LayoutGrid className="h-8 w-8 rounded-xl bg-[#f1e2d4] p-1.5 text-[#7d5a44]" />
                     <div>
                       <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[#8d6f5b]">Total Orders</p>
-                      <p className="mt-1 text-[2rem] font-black leading-none text-[#4a342a]">{totalOrders}</p>
+                      <p className="mt-1 text-[2.2rem] font-black leading-none text-[#4a342a]">{totalOrders}</p>
                     </div>
                   </div>
                 </div>
-                <div className="rounded-[20px] border border-[#e2d7cc] bg-white/82 px-4 py-4 shadow-[0_16px_30px_rgba(109,84,66,0.08)]">
+                <div className="rounded-[20px] border border-[#e2d7cc] bg-white/82 px-4 py-3.5 shadow-[0_14px_26px_rgba(109,84,66,0.07)]">
                   <div className="flex items-center gap-3">
                     <ChefHat className="h-8 w-8 rounded-xl bg-[#ead8c7] p-1.5 text-[#7d5a44]" />
                     <div>
                       <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[#8d6f5b]">Preparing</p>
-                      <p className="mt-1 text-[2rem] font-black leading-none text-[#4a342a]">{recordsByStage.preparing.length}</p>
+                      <p className="mt-1 text-[2.2rem] font-black leading-none text-[#4a342a]">{recordsByStage.preparing.length}</p>
                     </div>
                   </div>
                 </div>
-                <div className="rounded-[20px] border border-[#e2d7cc] bg-white/82 px-4 py-4 shadow-[0_16px_30px_rgba(109,84,66,0.08)] sm:col-span-2 xl:col-span-1">
+                <div className="rounded-[20px] border border-[#e2d7cc] bg-white/82 px-4 py-3.5 shadow-[0_14px_26px_rgba(109,84,66,0.07)]">
                   <div className="flex items-center gap-3">
                     <PackageCheck className="h-8 w-8 rounded-xl bg-[#f1e2d4] p-1.5 text-[#6d4f40]" />
                     <div>
                       <p className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[#8d6f5b]">Ready</p>
-                      <p className="mt-1 text-[2rem] font-black leading-none text-[#4a342a]">{recordsByStage.ready.length}</p>
+                      <p className="mt-1 text-[2.2rem] font-black leading-none text-[#4a342a]">{recordsByStage.ready.length}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_88px]">
                 <Button
                   type="button"
                   onClick={() => void loadKitchenOrders({ showLoading: true })}
                   disabled={isRefreshingOrders}
-                  className="h-[4.75rem] justify-center rounded-[18px] border border-[#e0d5ca] bg-white/82 px-4 text-base font-bold text-[#4a342a] shadow-[0_14px_30px_rgba(109,84,66,0.08)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
+                  className="h-[4.4rem] justify-center rounded-[18px] border border-[#e0d5ca] bg-white/82 px-4 text-base font-bold text-[#4a342a] shadow-[0_14px_30px_rgba(109,84,66,0.08)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isRefreshingOrders ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                   Refresh Queue
                 </Button>
-                <div className="flex items-center gap-3 rounded-[18px] border border-[#e0d5ca] bg-white/82 px-4 py-3 shadow-[0_14px_30px_rgba(109,84,66,0.08)]">
+                <div className="flex items-center gap-3 rounded-[18px] border border-[#e0d5ca] bg-white/82 px-4 py-3 shadow-[0_14px_30px_rgba(109,84,66,0.08)] sm:col-span-2 2xl:col-span-1">
                   <Clock3 className="h-7 w-7 text-[#7d5a44]" />
                   <div>
-                    <p className="text-[1.9rem] font-black leading-none tracking-[-0.04em] text-[#4a342a]">{formatClock(clockNow)}</p>
-                    <p className="mt-1 text-sm text-[#8b7568]">{formatCalendar(clockNow)}</p>
+                    <p className="text-[1.8rem] font-black leading-none tracking-[-0.04em] text-[#4a342a]">{formatClock(clockNow)}</p>
+                    <p className="mt-0.5 text-sm text-[#8b7568]">{formatCalendar(clockNow)}</p>
                   </div>
                 </div>
-                <div className="flex h-[4.75rem] items-center justify-center rounded-[18px] border border-[#e0d5ca] bg-white/82 px-4 shadow-[0_14px_30px_rgba(109,84,66,0.08)]">
+                <div className="flex h-[4.4rem] items-center justify-center rounded-[18px] border border-[#e0d5ca] bg-white/82 px-4 shadow-[0_14px_30px_rgba(109,84,66,0.08)]">
                   <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f4e8dc]">
                     <Bell className="h-5 w-5 text-[#7d5a44]" />
                     <span className="absolute right-0 top-0 flex h-5 min-w-5 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full bg-[#e11d48] px-1 text-[10px] font-bold text-white">
@@ -846,7 +846,7 @@ function KitchenDashboardContent() {
                 <Button
                   type="button"
                   onClick={handleLogout}
-                  className="h-[4.75rem] justify-center rounded-[18px] border border-[#d8c3b4] bg-[#f3e3d6] px-4 text-base font-bold text-[#7d5a44] shadow-[0_14px_30px_rgba(109,84,66,0.08)] hover:bg-[#efdccd]"
+                  className="h-[4.4rem] justify-center rounded-[18px] border border-[#d8c3b4] bg-[#f3e3d6] px-4 text-base font-bold text-[#7d5a44] shadow-[0_14px_30px_rgba(109,84,66,0.08)] hover:bg-[#efdccd]"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
@@ -855,7 +855,7 @@ function KitchenDashboardContent() {
             </div>
           </header>
 
-          <main className="mt-5 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+          <main className="mt-4 grid flex-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_320px] 2xl:grid-cols-[minmax(0,1.5fr)_360px]">
             <div className="space-y-5">
               <LiveQueueBoard
                 transactions={transactions}
@@ -866,7 +866,7 @@ function KitchenDashboardContent() {
               />
 
               <section className="min-h-0 rounded-[26px] border border-[#ddd2c6] bg-[rgba(255,250,245,0.92)] p-4 shadow-[0_22px_46px_rgba(109,84,66,0.1)] lg:p-5">
-                <div className="grid min-h-[42rem] auto-rows-fr items-stretch gap-4 xl:grid-cols-2 2xl:grid-cols-4">
+                <div className="grid min-h-[48rem] auto-rows-fr items-stretch gap-4 xl:grid-cols-3 2xl:grid-cols-4">
                 <StageColumn
                   stage="new"
                   records={recordsByStage.new}
