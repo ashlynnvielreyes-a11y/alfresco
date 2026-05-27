@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 
 import { AuthGuard } from "@/components/auth-guard"
 import { LiveQueueBoard } from "@/components/live-queue-board"
-import { getTransactions, initializeSupabaseStore } from "@/lib/store"
+import { getTransactions, initializeSupabaseStore, subscribeToTransactionSync } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import type { Transaction } from "@/lib/types"
 
@@ -42,8 +42,12 @@ function QueueDisplayContent() {
         void loadQueueBoard()
       })
       .subscribe()
+    const unsubscribeTransactionSync = subscribeToTransactionSync(() => {
+      void loadQueueBoard()
+    })
 
     return () => {
+      unsubscribeTransactionSync()
       void supabase.removeChannel(channel)
     }
   }, [loadQueueBoard])

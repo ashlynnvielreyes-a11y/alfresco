@@ -40,6 +40,15 @@ const PRODUCT_EXPIRATION_LOGS_KEY = "alfresco_product_expiration_logs"
 const AUDIT_LOGS_KEY = "alfresco_audit_logs"
 const SUPABASE_SYNC_LOCK_KEY = "alfresco_supabase_sync_running"
 const SUPABASE_SYNC_ERROR_EVENT = "alfresco:supabase-sync-error"
+const TRANSACTION_SYNC_EVENT = "alfresco:transactions-synced"
+const TRANSACTION_SYNC_CHANNEL = "alfresco-transactions"
+
+type TransactionSyncAction = "created" | "updated" | "deleted" | "refreshed"
+
+type TransactionSyncDetail = {
+  action: TransactionSyncAction
+  transactionId?: string
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message
@@ -65,6 +74,43 @@ function notifySupabaseSyncError(scope: string, error: unknown) {
       },
     })
   )
+}
+
+function broadcastTransactionSync(detail: TransactionSyncDetail) {
+  if (typeof window === "undefined") return
+
+  window.dispatchEvent(new CustomEvent<TransactionSyncDetail>(TRANSACTION_SYNC_EVENT, { detail }))
+
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(TRANSACTION_SYNC_CHANNEL)
+    channel.postMessage(detail)
+    channel.close()
+  }
+}
+
+export function subscribeToTransactionSync(onSync: (detail: TransactionSyncDetail) => void) {
+  if (typeof window === "undefined") return () => {}
+
+  const handleWindowSync = (event: Event) => {
+    const customEvent = event as CustomEvent<TransactionSyncDetail>
+    onSync(customEvent.detail)
+  }
+
+  window.addEventListener(TRANSACTION_SYNC_EVENT, handleWindowSync as EventListener)
+
+  let channel: BroadcastChannel | null = null
+
+  if (typeof BroadcastChannel !== "undefined") {
+    channel = new BroadcastChannel(TRANSACTION_SYNC_CHANNEL)
+    channel.addEventListener("message", (event: MessageEvent<TransactionSyncDetail>) => {
+      onSync(event.data)
+    })
+  }
+
+  return () => {
+    window.removeEventListener(TRANSACTION_SYNC_EVENT, handleWindowSync as EventListener)
+    channel?.close()
+  }
 }
 
 function isSupabaseMissingColumnError(error: unknown, columnName: string, tableName: string) {
@@ -2488,6 +2534,7 @@ export async function saveTransaction(transaction: Transaction): Promise<void> {
   }
 
   saveToLocalStorage(normalizedTransaction)
+  broadcastTransactionSync({ action: "created", transactionId: normalizedTransaction.id })
 
   try {
     const currentUser = getCurrentUser()
@@ -2541,6 +2588,7 @@ export async function updateTransaction(
   transactions[index] = nextTransaction
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(getNormalizedTransactions(transactions)))
   void cacheOfflineSnapshot("transactions", getNormalizedTransactions(transactions))
+  broadcastTransactionSync({ action: "updated", transactionId: nextTransaction.id })
 
   try {
     if (!navigator.onLine) {

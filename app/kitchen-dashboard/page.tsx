@@ -36,7 +36,7 @@ import {
   normalizeQueueNumber,
   type QueueMetadata,
 } from "@/lib/queue"
-import { getCurrentUser, getTransactions, initializeSupabaseStore, logout, updateTransaction } from "@/lib/store"
+import { getCurrentUser, getTransactions, initializeSupabaseStore, logout, subscribeToTransactionSync, updateTransaction } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import type { CartItem, Transaction } from "@/lib/types"
 
@@ -490,8 +490,13 @@ function KitchenDashboardContent() {
         void loadKitchenOrders()
       })
       .subscribe()
+    const unsubscribeTransactionSync = subscribeToTransactionSync(() => {
+      setControlMessage("Realtime order sync received. Kitchen board updated.")
+      void loadKitchenOrders()
+    })
 
     return () => {
+      unsubscribeTransactionSync()
       void supabase.removeChannel(channel)
     }
   }, [loadKitchenOrders])

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, Settings, FileText, LayoutGrid, ShoppingCart, ChevronLeft, LogOut, PanelRightClose, PanelRightOpen } from "lucide-react"
-import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById, logout } from "@/lib/store"
+import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, deductCartIngredients, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById, logout, subscribeToTransactionSync } from "@/lib/store"
 import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getLocalDateKey, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
@@ -197,6 +197,9 @@ export default function POSPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "combo_meal_items" }, () => void refreshData())
       .on("postgres_changes", { event: "*", schema: "public", table: "addons" }, () => void refreshData())
       .subscribe()
+    const unsubscribeTransactionSync = subscribeToTransactionSync(() => {
+      void loadRecentTransactions()
+    })
 
     const intervalId = window.setInterval(() => {
       void refreshData()
@@ -204,9 +207,10 @@ export default function POSPage() {
 
     return () => {
       window.clearInterval(intervalId)
+      unsubscribeTransactionSync()
       void supabase.removeChannel(channel)
     }
-  }, [refreshData])
+  }, [loadRecentTransactions, refreshData])
 
   // Check ingredient availability for all products
   useEffect(() => {
@@ -995,6 +999,9 @@ export default function POSPage() {
     () => posWorkspaceLinks.filter((item) => item.href !== "/settings" || currentUser?.role !== "cashier"),
     [currentUser?.role]
   )
+  const primaryWorkspaceLinks = useMemo(() => visibleWorkspaceLinks.filter((item) => item.href !== "/settings"), [visibleWorkspaceLinks])
+  const settingsWorkspaceLink = useMemo(() => visibleWorkspaceLinks.find((item) => item.href === "/settings"), [visibleWorkspaceLinks])
+  const isAdminPos = currentUser?.role === "admin"
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-4">
@@ -1018,7 +1025,7 @@ export default function POSPage() {
           </div>
 
           <div className="space-y-2">
-            {visibleWorkspaceLinks.map((item) => {
+            {primaryWorkspaceLinks.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
               return (
@@ -1080,6 +1087,30 @@ export default function POSPage() {
               </span>
               {!isSidebarCollapsed && <span className="text-sm font-semibold">Logout</span>}
             </button>
+
+            {settingsWorkspaceLink && (
+              <Link
+                href={settingsWorkspaceLink.href}
+                title={isSidebarCollapsed ? settingsWorkspaceLink.label : undefined}
+                className={`mt-2 flex items-center rounded-2xl transition-colors ${
+                  pathname === settingsWorkspaceLink.href
+                    ? "bg-[#f5f1ea] text-[#4a342a] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+                    : "text-[#f7ede4]/78 hover:bg-white/8 hover:text-white"
+                } ${isSidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"}`}
+              >
+                <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${
+                  pathname === settingsWorkspaceLink.href ? "bg-[#d7c9b8]" : "bg-white/8"
+                }`}>
+                  <Settings className="h-[0.95rem] w-[0.95rem]" />
+                </span>
+                <span className={`min-w-0 ${isSidebarCollapsed ? "hidden" : "block"}`}>
+                  <span className="block text-[0.92rem] font-semibold">{settingsWorkspaceLink.label}</span>
+                  <span className={`block text-[11px] ${pathname === settingsWorkspaceLink.href ? "text-[#7d5a44]" : "text-[#f5f1ea]/65"}`}>
+                    {settingsWorkspaceLink.description}
+                  </span>
+                </span>
+              </Link>
+            )}
           </div>
         </aside>
 
@@ -1131,6 +1162,8 @@ export default function POSPage() {
           <div className={`grid gap-4 xl:items-start 2xl:gap-5 ${
             isOrderSummaryCollapsed
               ? "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_72px]"
+              : isAdminPos
+              ? "xl:grid-cols-[minmax(250px,0.3fr)_minmax(0,1fr)_minmax(292px,0.3fr)] 2xl:grid-cols-[minmax(280px,0.32fr)_minmax(0,1fr)_minmax(320px,0.28fr)]"
               : "xl:grid-cols-[minmax(176px,0.22fr)_minmax(0,1fr)_minmax(292px,0.32fr)] 2xl:grid-cols-[minmax(188px,0.2fr)_minmax(0,1fr)_minmax(316px,0.28fr)]"
           }`}>
             <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)]">
@@ -1139,8 +1172,8 @@ export default function POSPage() {
                   <LayoutGrid className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#866754]">Select Category</p>
-                  <p className="text-sm font-semibold text-[#3d2a1f]">Browse Menu Groups</p>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#866754]">{isAdminPos ? "Admin POS Layout" : "Select Category"}</p>
+                  <p className="text-sm font-semibold text-[#3d2a1f]">{isAdminPos ? "Oversight + Menu Controls" : "Browse Menu Groups"}</p>
                 </div>
               </div>
 
@@ -1201,6 +1234,79 @@ export default function POSPage() {
                   <span className="text-xs text-[#866754]">Live</span>
                 </Link>
               </div>
+
+              {isAdminPos && (
+                <div className="mt-5 rounded-[20px] border border-[#d7c9b8] bg-[#f8f1e8] p-3">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-[#7d5a44]">Live POS Monitor</p>
+                      <p className="text-sm font-semibold text-foreground">Cashier Active Orders</p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-xl border border-[#d7c9b8] bg-[#ede3d8] px-2.5 py-2">
+                      <Activity className="h-4 w-4 text-[#4a342a]" />
+                      <span className="text-sm font-semibold text-[#4a342a]">{activeOrders.length}</span>
+                    </div>
+                  </div>
+
+                  {activeOrders.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[#d7c9b8] bg-[#fdf7f1] px-3 py-4 text-center text-xs text-muted-foreground">
+                      No active cashier orders right now.
+                    </p>
+                  ) : (
+                    <div className="cafe-scrollbar max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {activeOrders.map((order) => (
+                        <button
+                          key={order.id}
+                          type="button"
+                          onClick={() => void handleTakeOverActiveOrder(order)}
+                          disabled={!isAdminPos}
+                          className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] p-3 text-left transition-colors hover:bg-[#ede3d8] disabled:cursor-default disabled:hover:bg-[#f5f1ea]"
+                        >
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#4a342a]">{order.cashierName}</p>
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7d5a44]">{order.stationId}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-[#4a342a]">P{order.total.toFixed(2)}</p>
+                              <p className="text-[10px] text-muted-foreground">Updated {formatMonitorTime(order.lastUpdatedAt)}</p>
+                            </div>
+                          </div>
+
+                          <div className="mb-2 flex items-center gap-2 text-[10px] text-[#7d5a44]">
+                            <span>{order.cartItemCount} item(s)</span>
+                            <span>&bull;</span>
+                            <span className="capitalize">{order.paymentMethod}</span>
+                            <span>&bull;</span>
+                            <span>Started {formatMonitorTime(order.startedAt)}</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {order.items.slice(0, 3).map((item, index) => (
+                              <div key={`${order.id}-${item.product.id}-${index}`} className="flex items-center justify-between text-xs">
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium text-foreground">{item.product.name}</p>
+                                  <p className="truncate text-muted-foreground">
+                                    {[item.temperature, item.addOns?.length ? `${item.addOns.length} add-on(s)` : null].filter(Boolean).join(" • ") || "Standard"}
+                                  </p>
+                                </div>
+                                <span className="ml-2 font-semibold text-[#4a342a]">x{item.quantity}</span>
+                              </div>
+                            ))}
+                            {order.items.length > 3 && (
+                              <p className="text-[10px] text-[#7d5a44]">+{order.items.length - 3} more line item(s)</p>
+                            )}
+                          </div>
+
+                          <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-[#7d5a44]">
+                            {order.cashierUserId === currentUser?.id ? "Currently on your station" : "Click to take over"}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
 
             <section className="min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/94 p-4 shadow-[0_16px_32px_rgba(74,52,42,0.08)] lg:p-5">
@@ -1488,7 +1594,7 @@ export default function POSPage() {
             </div>
 
             <div className="space-y-4 border-t border-[#efe2d8] pt-4">
-              {currentUser?.role === "admin" && (
+              {false && currentUser?.role === "admin" && (
                 <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea] p-3">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>

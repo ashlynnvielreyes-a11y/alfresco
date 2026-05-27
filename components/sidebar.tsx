@@ -222,6 +222,29 @@ const SidebarSection = memo(function SidebarSection({
   )
 })
 
+const LogoutButton = memo(function LogoutButton({
+  collapsed,
+  onClick,
+}: {
+  collapsed: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={collapsed ? "Logout" : undefined}
+      className={`flex w-full items-center rounded-2xl text-left font-semibold text-[#4a342a] transition-colors hover:bg-white/70 ${
+        collapsed ? "justify-center px-0 py-3.5" : "gap-3 px-4 py-3.5"
+      }`}
+    >
+      <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#ddd0c4] bg-[#fbf8f3] text-[#715d50]">
+        <LogOut className="h-4 w-4" />
+      </span>
+      {!collapsed && <span>Logout</span>}
+    </button>
+  )
+})
+
 export const Sidebar = memo(function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -347,19 +370,14 @@ export const Sidebar = memo(function Sidebar() {
 
             <nav className="mt-5">{mobileSections}</nav>
 
-            <div className="mt-6 border-t border-[#ece3db] pt-4">
-              <button
+            <div className="mt-4 border-t border-[#ece3db] pt-4">
+              <LogoutButton
+                collapsed={false}
                 onClick={() => {
                   closeMobileMenu()
                   handleLogout()
                 }}
-                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold text-[#4a342a] transition-colors hover:bg-white/70"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#ddd0c4] bg-[#fbf8f3] text-[#715d50]">
-                  <LogOut className="h-4 w-4" />
-                </span>
-                <span>Logout</span>
-              </button>
+              />
             </div>
           </aside>
         </div>
@@ -427,21 +445,12 @@ export const Sidebar = memo(function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex-1 px-4">{desktopSections}</nav>
+        <nav className="px-4">{desktopSections}</nav>
 
-        <div className="border-t border-white/35 p-4">
-          <button
-            onClick={handleLogout}
-            title={isCollapsed ? "Logout" : undefined}
-            className={`flex w-full items-center rounded-2xl text-left font-semibold text-[#4a342a] transition-colors hover:bg-white/70 ${
-              isCollapsed ? "justify-center px-0 py-3.5" : "gap-3 px-4 py-3.5"
-            }`}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#ddd0c4] bg-[#fbf8f3] text-[#715d50]">
-              <LogOut className="h-4 w-4" />
-            </span>
-            {!isCollapsed && <span>Logout</span>}
-          </button>
+        <div className="px-4 pb-4 pt-4">
+          <div className="border-t border-white/35 pt-4">
+            <LogoutButton collapsed={isCollapsed} onClick={handleLogout} />
+          </div>
         </div>
       </aside>
     </>

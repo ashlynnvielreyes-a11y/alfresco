@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Clock3, Expand, Loader2, Minimize, PackageCheck, RefreshCw, Store, Tv2, Users } from "lucide-react"
+import { ArrowLeft, ChefHat, Clock3, Expand, LayoutDashboard, Loader2, Minimize, RefreshCw, ShoppingCart, Store, Tv2, Users } from "lucide-react"
 
 import { getQueueOrderTypeLabel, getTransactionQueueMetadata, normalizeQueueNumber } from "@/lib/queue"
 import type { Transaction } from "@/lib/types"
@@ -227,6 +228,12 @@ type LiveQueueBoardProps = {
   embedded?: boolean
 }
 
+const queueReturnLinks = [
+  { href: "/pos", label: "POS", icon: ShoppingCart },
+  { href: "/dashboard", label: "Admin Dashboard", icon: LayoutDashboard },
+  { href: "/kitchen-dashboard", label: "Kitchen Dashboard", icon: ChefHat },
+] as const
+
 export function LiveQueueBoard({
   transactions,
   loading = false,
@@ -367,33 +374,33 @@ export function LiveQueueBoard({
   }
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-[#4a342a] text-white">
-      <div className={`flex h-full w-full flex-col bg-[linear-gradient(180deg,#4a342a_0%,#4a342a_14%,#f7f4ef_14.2%,#f4f0ea_82%,#4a342a_82.2%,#4a342a_100%)] ${
+    <main className="h-screen w-screen overflow-hidden bg-[#2a211c] text-[#3d2a1f]">
+      <div className={`flex h-full w-full flex-col bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.35),transparent_22%),linear-gradient(180deg,#2a211c_0%,#3d2a1f_10%,#f7f2eb_10.2%,#f5efe6_86%,#362821_86.2%,#2a211c_100%)] ${
         fullscreenActive ? "p-[clamp(0.25rem,0.5vw,0.55rem)]" : "p-[clamp(0.45rem,0.75vw,0.85rem)]"
       }`}>
-        <div className="flex h-full w-full flex-col overflow-hidden rounded-[clamp(1rem,1.2vw,1.4rem)] border border-[#d7c9b8]/18 shadow-[0_0_0_2px_rgba(215,201,184,0.08),0_24px_90px_rgba(74,52,42,0.35)]">
-          <header className="grid min-h-[clamp(7.5rem,12vh,9.5rem)] grid-cols-1 gap-4 bg-[#4a342a] px-[clamp(1rem,1.8vw,2rem)] py-[clamp(0.85rem,1vw,1.1rem)] xl:grid-cols-[1fr_auto_1fr] xl:items-center">
+        <div className="flex h-full w-full flex-col overflow-hidden rounded-[clamp(1rem,1.2vw,1.4rem)] border border-[#d7c9b8]/60 shadow-[0_0_0_2px_rgba(255,250,244,0.2),0_24px_90px_rgba(42,33,28,0.28)]">
+          <header className="grid min-h-[clamp(7.5rem,12vh,9.5rem)] grid-cols-1 gap-4 bg-[linear-gradient(180deg,#f9f5ef_0%,#efe2d4_100%)] px-[clamp(1rem,1.8vw,2rem)] py-[clamp(0.85rem,1vw,1.1rem)] xl:grid-cols-[1fr_auto_1fr] xl:items-center">
             <div className="flex items-center justify-center gap-4 xl:justify-start">
-              <div className="rounded-[1rem] bg-[#f5f1ea]/6 p-2">
+              <div className="rounded-[1.35rem] border border-[#d7c9b8] bg-white px-4 py-3 shadow-[0_18px_36px_rgba(74,52,42,0.12)]">
                 <Image src="/alfresco-logo.png" alt="Al Fresco Cafe" width={220} height={74} className="h-[clamp(3rem,4.5vw,4.2rem)] w-auto object-contain" priority />
               </div>
               <div className="text-center xl:text-left">
-                <p className="text-[clamp(1.6rem,2.4vw,2.6rem)] font-black tracking-[-0.04em] text-white">AL FRESCO</p>
-                <p className="text-[clamp(0.85rem,1.1vw,1.15rem)] uppercase tracking-[0.28em] text-[#d7c9b8]">Coffee Shop Queue</p>
+                <p className="text-[clamp(1.6rem,2.4vw,2.6rem)] font-black tracking-[-0.04em] text-[#3d2a1f]">AL FRESCO</p>
+                <p className="text-[clamp(0.85rem,1.1vw,1.15rem)] uppercase tracking-[0.28em] text-[#8a6a57]">Coffee Shop Queue</p>
               </div>
             </div>
 
             <div className="text-center">
-              <p className="text-[0.82rem] font-bold uppercase tracking-[0.28em] text-[#d7c9b8]">Queue Status</p>
-              <h1 className="mt-2 text-[clamp(2.3rem,4vw,4.3rem)] font-black uppercase tracking-[-0.06em] text-white">Now Serving Board</h1>
+              <p className="text-[0.82rem] font-bold uppercase tracking-[0.28em] text-[#8a6a57]">Queue Status</p>
+              <h1 className="mt-2 text-[clamp(2.3rem,4vw,4.3rem)] font-black uppercase tracking-[-0.06em] text-[#3d2a1f]">Now Serving Board</h1>
             </div>
 
-            <div className="flex flex-col items-center justify-center gap-2 text-center xl:items-end xl:text-right">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-[1.35rem] border border-[#d7c9b8] bg-white/70 px-4 py-3 text-center shadow-[0_16px_32px_rgba(74,52,42,0.08)] xl:items-end xl:text-right">
               <div className="flex items-center gap-3">
-                <Clock3 className="h-[clamp(1.8rem,2.4vw,2.5rem)] w-[clamp(1.8rem,2.4vw,2.5rem)] text-white" />
-                <p className="text-[clamp(2rem,3vw,3.2rem)] font-black leading-none tracking-[-0.05em] text-white">{displayTime}</p>
+                <Clock3 className="h-[clamp(1.8rem,2.4vw,2.5rem)] w-[clamp(1.8rem,2.4vw,2.5rem)] text-[#4a342a]" />
+                <p className="text-[clamp(2rem,3vw,3.2rem)] font-black leading-none tracking-[-0.05em] text-[#3d2a1f]">{displayTime}</p>
               </div>
-              <div className="text-[clamp(0.95rem,1.25vw,1.35rem)] font-medium text-[#f0e6db]">
+              <div className="text-[clamp(0.95rem,1.25vw,1.35rem)] font-medium text-[#6a4e3d]">
                 <p>{displayWeekday}</p>
                 <p>{displayDate}</p>
               </div>
@@ -465,14 +472,33 @@ export function LiveQueueBoard({
             />
           </section>
 
-          <footer className="grid min-h-[5.25rem] grid-cols-1 items-center gap-3 bg-[#4a342a] px-[clamp(1rem,1.8vw,2rem)] py-3 xl:grid-cols-[1fr_auto]">
-            <div className="flex items-center justify-center gap-3 text-center xl:justify-start xl:text-left">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white">
-                <Users className="h-6 w-6 text-white" />
+          <footer className="grid min-h-[5.25rem] grid-cols-1 items-center gap-4 bg-[linear-gradient(180deg,#3d2a1f_0%,#2a211c_100%)] px-[clamp(1rem,1.8vw,2rem)] py-3 xl:grid-cols-[1.2fr_1fr]">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-start">
+              <div className="flex items-center justify-center gap-3 text-center xl:justify-start xl:text-left">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#f5f1ea]">
+                  <Users className="h-6 w-6 text-[#f5f1ea]" />
+                </div>
+                <div>
+                  <p className="text-xl italic text-[#d7c9b8]">Thank you for your patience</p>
+                  <p className="text-sm text-white">All queue updates are synchronized in real time.</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xl italic text-[#d7c9b8]">Thank you for your patience</p>
-                <p className="text-sm text-white">All queue updates are synchronized in real time.</p>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 xl:justify-start">
+                {queueReturnLinks.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#d7c9b8]/35 bg-[#f5f1ea]/10 px-4 py-2 text-sm font-medium text-[#f5f1ea] transition-colors hover:bg-[#f5f1ea]/18"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5 text-[#d7c9b8]" />
+                      <Icon className="h-3.5 w-3.5 text-[#d7c9b8]" />
+                      {item.label}
+                    </Link>
+                  )
+                })}
               </div>
             </div>
 
