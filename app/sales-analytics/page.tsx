@@ -283,6 +283,37 @@ function Panel({
   )
 }
 
+function TrendLegend() {
+  const items = [
+    {
+      label: "Revenue",
+      swatchClass: "bg-[#4a342a]",
+      accentClass: "before:absolute before:left-0 before:top-1/2 before:h-[3px] before:w-full before:-translate-y-1/2 before:rounded-full before:bg-[#4a342a]",
+    },
+    {
+      label: "Orders",
+      swatchClass: "bg-[#b2967d]",
+      accentClass: "before:absolute before:left-0 before:top-1/2 before:h-3 before:w-full before:-translate-y-1/2 before:rounded-[4px] before:bg-[#b2967d]",
+    },
+  ] as const
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="inline-flex items-center gap-2 rounded-full border border-[#d7c9b8] bg-[#f5f1ea]/78 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6f584a] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
+        >
+          <span className={`relative block h-3 w-6 ${item.accentClass}`}>
+            <span className={`absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f5f1ea] ${item.swatchClass}`} />
+          </span>
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function SalesAnalyticsContent() {
   const defaults = getDefaultRange()
   const [fromDate, setFromDate] = useState(defaults.fromDate)
@@ -791,6 +822,7 @@ function SalesAnalyticsContent() {
                 </button>
               ))}
             </div>
+            <TrendLegend />
             <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={analytics.trendSeries[trendView]}>
                 <defs>
@@ -803,10 +835,39 @@ function SalesAnalyticsContent() {
                 <XAxis dataKey="label" axisLine={false} tickLine={false} />
                 <YAxis yAxisId="left" axisLine={false} tickLine={false} />
                 <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} />
-                <Tooltip formatter={(value: number, name: string) => (name === "Revenue" ? formatCurrency(value) : value)} />
-                <Legend />
-                <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="#4a342a" fill="url(#analytics-revenue-fill)" strokeWidth={3} name="Revenue" />
-                <Bar yAxisId="right" dataKey="orders" fill="#b2967d" radius={[8, 8, 0, 0]} name="Orders" />
+                <Tooltip
+                  cursor={{ stroke: "#b2967d", strokeDasharray: "4 4", strokeWidth: 1 }}
+                  formatter={(value: number, name: string) => (name === "Revenue" ? formatCurrency(value) : value)}
+                  contentStyle={{
+                    borderRadius: "16px",
+                    border: "1px solid #d7c9b8",
+                    backgroundColor: "rgba(245, 241, 234, 0.96)",
+                    boxShadow: "0 16px 32px rgba(74,52,42,0.12)",
+                  }}
+                  labelStyle={{ color: "#4a342a", fontWeight: 700 }}
+                  itemStyle={{ color: "#7d5a44", fontSize: 12 }}
+                />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#4a342a"
+                  fill="url(#analytics-revenue-fill)"
+                  strokeWidth={3}
+                  name="Revenue"
+                  isAnimationActive
+                  animationDuration={420}
+                  activeDot={{ r: 5, fill: "#4a342a", stroke: "#f5f1ea", strokeWidth: 2 }}
+                />
+                <Bar
+                  yAxisId="right"
+                  dataKey="orders"
+                  fill="#b2967d"
+                  radius={[8, 8, 0, 0]}
+                  name="Orders"
+                  isAnimationActive
+                  animationDuration={420}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </Panel>
