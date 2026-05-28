@@ -333,9 +333,6 @@ export default function UserManagementPage() {
               <div>
                 <p className="mb-2 text-xs uppercase tracking-[0.32em] text-[#7d5a44]">ADMIN CONTROLS</p>
                 <h1 className="text-2xl font-bold text-[#4a342a] lg:text-4xl">User Management</h1>
-                <p className="mt-2 max-w-3xl text-sm text-muted-foreground lg:text-base">
-                  Review every account, create new users, update roles, reset passwords, and restore or revoke access from one place.
-                </p>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -363,9 +360,6 @@ export default function UserManagementPage() {
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-foreground lg:text-xl">Registered Users</h2>
-                <p className="text-xs text-muted-foreground lg:text-sm">
-                  Accounts created through registration remain available here for admin review and access control.
-                </p>
               </div>
 
               <label className="flex items-center gap-2 rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-3 py-2 backdrop-blur-sm lg:min-w-[320px]">

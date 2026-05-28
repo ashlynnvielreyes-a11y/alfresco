@@ -133,17 +133,14 @@ function getTransactionItemTotal(item: Transaction["items"][number]) {
 function MetricCard({
   label,
   value,
-  detail,
 }: {
   label: string
   value: string
-  detail: string
 }) {
   return (
-    <article className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl">
+    <article className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-4 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl lg:p-5">
       <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-[#7d5a44]">{detail}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{value}</p>
     </article>
   )
 }
@@ -153,7 +150,6 @@ function MetricCardSkeleton() {
     <article className="rounded-[28px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.72)] backdrop-blur-xl">
       <Skeleton className="h-3 w-24 rounded-full bg-[#e8dbd1]" />
       <Skeleton className="mt-3 h-10 w-28 rounded-2xl bg-[#e5d8cc]" />
-      <Skeleton className="mt-3 h-4 w-full rounded-full bg-[#f0e7df]" />
     </article>
   )
 }
@@ -300,7 +296,6 @@ export default function DashboardPage() {
     todayTransactions,
     lowStockCount,
     atRiskProducts,
-    queueDetail,
     recentTransactions,
     inventoryPressure,
     salesTrendData,
@@ -386,10 +381,6 @@ export default function DashboardPage() {
         todayTransactions: todaysTransactions.length,
         lowStockCount: alerts.lowStockIngredients.length + alerts.expiringSoonIngredients.length + alerts.expiredIngredients.length,
         atRiskProducts: riskyProducts.length,
-        queueDetail:
-          syncStatus.pendingCount === 0
-            ? "All local changes are already mirrored to the secured server."
-            : `${syncStatus.pendingCount} cached update${syncStatus.pendingCount === 1 ? "" : "s"} waiting for upload.`,
         recentTransactions: filteredTransactions.slice(0, 6),
         inventoryPressure: pressure,
         salesTrendData: salesTrend,
@@ -427,24 +418,16 @@ export default function DashboardPage() {
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.08em] text-[#4a342a] lg:text-[3.6rem]">
                   Dashboard
                 </h1>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-[#7d5a44]">
-                  {username}, this dashboard keeps sales and stock work moving locally, caches every mutation in IndexedDB,
-                  and pushes queued updates to the secured server the moment connectivity returns.
-                </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[24px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 p-4">
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Pending uploads</p>
                   <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{syncStatus.pendingCount}</p>
-                  <p className="mt-2 text-sm leading-6 text-[#7d5a44]">{queueDetail}</p>
                 </div>
                 <div className="rounded-[24px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 p-4">
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Last server sync</p>
                   <p className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[#4a342a]">{formatSyncTime(syncStatus.lastSyncedAt)}</p>
-                  <p className="mt-2 text-sm leading-6 text-[#7d5a44]">
-                    {syncStatus.lastError ? syncStatus.lastError : refreshing ? "Refreshing in background." : "Connection state is being watched live."}
-                  </p>
                 </div>
               </div>
             </div>
@@ -499,10 +482,10 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
-                <MetricCard label="Today sales" value={formatCurrency(todaySales)} detail={`${todayTransactions} completed transactions cached locally and mirrored when possible.`} />
-                <MetricCard label="Queue depth" value={String(syncStatus.pendingCount)} detail={syncStatus.isOnline ? "Queued writes will flush immediately." : "Writes are safely held until the network returns."} />
-                <MetricCard label="Best seller" value={bestProductLabel} detail="Top product by quantity sold across cached and synced transactions." />
-                <MetricCard label="Avg ticket" value={formatCurrency(averageTicket)} detail={`${lowStockCount} inventory alerts and ${atRiskProducts} products currently at risk.`} />
+                <MetricCard label="Today sales" value={formatCurrency(todaySales)} />
+                <MetricCard label="Queue depth" value={String(syncStatus.pendingCount)} />
+                <MetricCard label="Best seller" value={bestProductLabel} />
+                <MetricCard label="Avg ticket" value={formatCurrency(averageTicket)} />
               </>
             )}
           </section>
@@ -519,7 +502,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Business chart</p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">7-day sales and order performance</h2>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">7-day sales</h2>
                     </div>
                     <LineChart className="h-5 w-5 text-[#6f5d53]" />
                   </div>
@@ -557,16 +540,14 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Revenue mix</p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Cash vs GCash sales share</h2>
+                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Payment mix</h2>
                     </div>
                     <PieChartIcon className="h-5 w-5 text-[#6f5d53]" />
                   </div>
 
                   <div className="mt-5 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-3">
                     {paymentMixData.length === 0 ? (
-                      <div className="flex h-[320px] items-center justify-center text-sm text-[#7a6c62]">
-                        Payment mix will appear after transactions are processed.
-                      </div>
+                      <div className="flex h-[320px] items-center justify-center text-sm text-[#7a6c62]">No data</div>
                     ) : (
                       <ChartContainer config={paymentMixChartConfig} className="h-[320px] w-full">
                         <PieChart>
@@ -612,36 +593,22 @@ export default function DashboardPage() {
                 <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Transport</p>
                   <p className="mt-2 text-lg font-semibold text-[#4a342a]">{syncStatus.isOnline ? "Online" : "Offline"}</p>
-                  <p className="mt-2 text-sm text-[#7d5a44]">The dashboard watches browser connectivity continuously.</p>
-                </div>
-                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Queue state</p>
-                  <p className="mt-2 text-lg font-semibold text-[#4a342a]">{syncStatus.isSyncing ? "Flushing" : "Stable"}</p>
-                  <p className="mt-2 text-sm text-[#7d5a44]">Products, ingredients, and transactions are persisted before upload attempts.</p>
-                </div>
-                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Snapshot loaded</p>
-                  <p className="mt-2 text-lg font-semibold text-[#4a342a]">{lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "--:--:--"}</p>
-                  <p className="mt-2 text-sm text-[#7d5a44]">Warm starts come from IndexedDB even when the network is unavailable.</p>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-[24px] border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
-                <div className="flex items-center gap-3">
-                  <Activity className="h-4 w-4 text-[#7d5a44]" />
-                  <p className="text-sm font-medium text-[#4a342a]">
-                    {syncStatus.pendingCount === 0
-                      ? "Local cache and server are aligned."
-                      : `${syncStatus.pendingCount} update${syncStatus.pendingCount === 1 ? "" : "s"} are still pending upload.`}
-                  </p>
-                </div>
-              </div>
+                    </div>
+                    <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Queue state</p>
+                      <p className="mt-2 text-lg font-semibold text-[#4a342a]">{syncStatus.isSyncing ? "Flushing" : "Stable"}</p>
+                    </div>
+                    <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Snapshot loaded</p>
+                      <p className="mt-2 text-lg font-semibold text-[#4a342a]">{lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "--:--:--"}</p>
+                    </div>
+                  </div>
             </div>
 
             <div className="rounded-[30px] border border-[#f5f1ea]/55 bg-[#f5f1ea]/40 p-5 shadow-[0_24px_48px_rgba(123,111,25,0.08),inset_0_1px_0_rgba(245,241,234,0.7)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Performance monitoring</p>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Performance</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Peak-hour throughput</h2>
                 </div>
                 <TimerReset className="h-5 w-5 text-[#6f5d53]" />
@@ -687,7 +654,7 @@ export default function DashboardPage() {
                   </>
                 ) : recentTransactions.length === 0 ? (
                   <div className="rounded-[24px] border border-dashed border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-10 text-center text-sm text-[#7d5a44]">
-                    No transactions have been recorded yet.
+                    No transactions
                   </div>
                 ) : (
                   recentTransactions.map((transaction) => (

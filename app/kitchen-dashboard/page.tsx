@@ -32,6 +32,7 @@ import { toast } from "@/hooks/use-toast"
 import {
   buildQueueMetadataNote,
   getQueueUserNote,
+  isTransactionInQueueDate,
   getTransactionQueueMetadata,
   normalizeQueueNumber,
   type QueueMetadata,
@@ -206,7 +207,12 @@ function resolveOrderTypeLabel(transaction: Transaction, queueMeta: QueueMetadat
 }
 
 function shouldShowOnKitchenBoard(transaction: Transaction) {
-  return !transaction.voided && transaction.orderStatus !== "voided" && transaction.orderStatus !== "cancelled"
+  return (
+    !transaction.voided &&
+    transaction.orderStatus !== "voided" &&
+    transaction.orderStatus !== "cancelled" &&
+    isTransactionInQueueDate(transaction)
+  )
 }
 
 function buildKitchenRecord(transaction: Transaction, now: Date): KitchenRecord {

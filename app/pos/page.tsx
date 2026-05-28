@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Search, Trash2, Minus, Plus, AlertTriangle, Ban, Eye, EyeOff, Loader2, Pencil, Activity, ChefHat, MonitorPlay, ReceiptText, FileText, LayoutGrid, ShoppingCart, ChevronLeft, LogOut, PanelRightClose, PanelRightOpen } from "lucide-react"
 import { initializeSupabaseStore, getProducts, saveTransaction, getTransactions, getIngredients, saveIngredients, checkIngredientAvailability, getProductAvailableStock, voidTransaction, getCurrentUser, getComboMeals, getAddOns, checkAddOnAvailability, upsertActiveOrderSnapshot, clearActiveOrderSnapshot, getActiveOrders, getActiveOrderById, logout, subscribeToTransactionSync } from "@/lib/store"
-import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getLocalDateKey, getNextDailyQueueNumber, isQueueDailyResetEnabled } from "@/lib/queue"
+import { buildQueueMetadataNote, getCurrentDailyQueueNumber, getLocalDateKey, getNextDailyQueueNumber, isQueueDailyResetEnabled, isTransactionInQueueDate } from "@/lib/queue"
 import { useDebounce } from "@/hooks/useDebounce"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
@@ -619,7 +619,7 @@ export default function POSPage() {
         !transaction.voided &&
         transaction.orderStatus !== "voided" &&
         transaction.orderStatus !== "cancelled" &&
-        (isQueueDailyResetEnabled() ? transaction.date === todayKey : true)
+        (isQueueDailyResetEnabled() ? isTransactionInQueueDate(transaction, todayKey) : true)
     )
 
     const preparing = queueTransactions.filter(
@@ -1013,22 +1013,30 @@ export default function POSPage() {
   const productGridClass = isSidebarCollapsed
     ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
     : "grid-cols-2 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4"
+  const sidebarStatusItems = [
+    { label: "Queue Status", value: currentQueueNumber, icon: ReceiptText },
+    { label: "Preparing Count", value: queueSnapshot.preparing.length, icon: ChefHat },
+    { label: "Pickup Count", value: queueSnapshot.ready.length, icon: MonitorPlay },
+    { label: "Low Stock", value: lowStockIngredientsCount, icon: AlertTriangle },
+  ] as const
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(215,201,184,0.28),transparent_28%),linear-gradient(180deg,#f5f1ea_0%,#efe3d8_100%)] p-3 text-[#4a342a] lg:p-4">
       <div className={`mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1680px] overflow-hidden rounded-[28px] border border-[#d7c9b8] bg-[#f5f1ea] shadow-[0_28px_80px_rgba(74,52,42,0.14)] transition-[grid-template-columns] duration-300 ${
-        isSidebarCollapsed ? "lg:grid-cols-[88px_minmax(0,1fr)]" : "lg:grid-cols-[204px_minmax(0,1fr)]"
+        isSidebarCollapsed ? "lg:grid-cols-[96px_minmax(0,1fr)]" : "lg:grid-cols-[248px_minmax(0,1fr)]"
       }`}>
-        <aside className="flex h-full flex-col border-r border-[#7d5a44]/25 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] p-3 text-[#f5f1ea] lg:p-4">
+        <aside className="sidebar-scrollbar flex h-full min-h-0 flex-col overflow-y-auto border-r border-[#7d5a44]/25 bg-[linear-gradient(180deg,#4a342a_0%,#7d5a44_100%)] p-3 text-[#f5f1ea] lg:p-4">
           <div className={`mb-5 flex ${isSidebarCollapsed ? "flex-col items-center gap-3" : "items-start justify-between gap-3"}`}>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-              <p className={`font-semibold tracking-[0.18em] text-[#d6bfaa] ${isSidebarCollapsed ? "text-center text-xs" : "text-sm"}`}>AL FRESCO</p>
-              {!isSidebarCollapsed && <p className="text-[0.68rem] uppercase tracking-[0.2em] text-[#f8f1e8]/70">POS Terminal</p>}
+            <div className={`rounded-[22px] border border-white/10 bg-white/5 transition-all duration-300 ${isSidebarCollapsed ? "flex h-14 w-14 items-center justify-center px-0 py-0" : "w-full max-w-[11rem] px-4 py-3"}`}>
+              <div className="min-w-0">
+                <p className={`font-semibold uppercase leading-tight tracking-[0.2em] text-[#d6bfaa] ${isSidebarCollapsed ? "text-center text-[0.7rem]" : "text-sm"}`}>AL FRESCO</p>
+                {!isSidebarCollapsed && <p className="mt-1 text-[0.68rem] uppercase tracking-[0.24em] text-[#f8f1e8]/70">POS Terminal</p>}
+              </div>
             </div>
             <button
               type="button"
               onClick={() => setIsSidebarCollapsed((current) => !current)}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-[#f5f1ea] transition hover:bg-white/16"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-[#f5f1ea] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/16 hover:shadow-[0_12px_24px_rgba(0,0,0,0.16)]"
               aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               <ChevronLeft className={`h-4 w-4 transition-transform ${isSidebarCollapsed ? "rotate-180" : ""}`} />
@@ -1044,43 +1052,58 @@ export default function POSPage() {
                   key={item.href}
                   href={item.href}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`flex items-center rounded-2xl transition-colors ${
+                  className={`group flex min-h-[4.25rem] w-full items-center rounded-[22px] border transition-all duration-300 ${
                     isActive
-                      ? "bg-[#f5f1ea] text-[#4a342a] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
-                      : "text-[#f7ede4]/78 hover:bg-white/8 hover:text-white"
-                  } ${isSidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"}`}
+                      ? "border-transparent bg-[#f5f1ea] text-[#4a342a] shadow-[0_14px_28px_rgba(0,0,0,0.14)]"
+                      : "border-white/8 text-[#f7ede4]/82 hover:-translate-y-0.5 hover:border-white/12 hover:bg-white/10 hover:text-white hover:shadow-[0_14px_26px_rgba(0,0,0,0.14)]"
+                  } ${isSidebarCollapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"}`}
                 >
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${isActive ? "bg-[#d7c9b8]" : "bg-white/8"}`}>
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border transition-all duration-300 ${
+                    isActive
+                      ? "border-[#c7b29f] bg-[#d7c9b8] text-[#4a342a]"
+                      : "border-white/10 bg-white/8 text-[#f5f1ea] group-hover:border-white/15 group-hover:bg-white/12"
+                  }`}>
                     <Icon className="h-[0.95rem] w-[0.95rem]" />
                   </span>
-                  <span className={`min-w-0 ${isSidebarCollapsed ? "hidden" : "block"}`}>
-                    <span className="block text-[0.92rem] font-semibold">{item.label}</span>
-                    <span className={`block text-[11px] ${isActive ? "text-[#7d5a44]" : "text-[#f5f1ea]/65"}`}>{item.description}</span>
+                  <span className={`min-w-0 flex-1 ${isSidebarCollapsed ? "hidden" : "block"}`}>
+                    <span className="block break-words text-[0.95rem] font-semibold leading-5 tracking-[0.01em]">{item.label}</span>
+                    <span className={`mt-0.5 block break-words text-[11px] leading-4 ${isActive ? "text-[#7d5a44]" : "text-[#f5f1ea]/68"}`}>{item.description}</span>
                   </span>
                 </Link>
               )
             })}
           </div>
 
-          <div className={`mt-6 rounded-2xl border border-white/10 bg-white/5 ${isSidebarCollapsed ? "p-3" : "p-4"}`}>
-            <p className={`uppercase tracking-[0.22em] text-[#d8c8ba] ${isSidebarCollapsed ? "text-center text-[10px]" : "text-[11px]"}`}>POS Status</p>
-            <div className={`mt-3 space-y-3 text-sm ${isSidebarCollapsed ? "text-center" : ""}`}>
-              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
-                <span className="text-[#d8c8ba]">Current Queue</span>
-                <span className="font-bold">{currentQueueNumber}</span>
-              </div>
-              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
-                <span className="text-[#d8c8ba]">Preparing</span>
-                <span className="font-bold">{queueSnapshot.preparing.length}</span>
-              </div>
-              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
-                <span className="text-[#d8c8ba]">Ready Pickup</span>
-                <span className="font-bold">{queueSnapshot.ready.length}</span>
-              </div>
-              <div className={`flex ${isSidebarCollapsed ? "flex-col gap-1" : "items-center justify-between"}`}>
-                <span className="text-[#d8c8ba]">Low Stock</span>
-                <span className="font-bold">{lowStockIngredientsCount}</span>
-              </div>
+          <div className={`mt-6 rounded-[24px] border border-white/10 bg-white/5 ${isSidebarCollapsed ? "p-3" : "p-4"}`}>
+            <div className={`${isSidebarCollapsed ? "text-center" : ""}`}>
+              <p className={`uppercase text-[#d8c8ba] ${isSidebarCollapsed ? "text-[10px] tracking-[0.2em]" : "text-[11px] tracking-[0.24em]"}`}>POS Status</p>
+              {!isSidebarCollapsed && <p className="mt-1 text-xs leading-5 text-[#f5f1ea]/68">Live queue and stock snapshot for the current shift.</p>}
+            </div>
+            <div className={`mt-4 grid gap-2.5 ${isSidebarCollapsed ? "grid-cols-1" : "grid-cols-1"}`}>
+              {sidebarStatusItems.map((statusItem) => {
+                const StatusIcon = statusItem.icon
+
+                return (
+                  <div
+                    key={statusItem.label}
+                    className={`rounded-2xl border border-white/10 bg-black/10 transition-all duration-300 ${
+                      isSidebarCollapsed ? "flex min-h-[4.1rem] items-center justify-center px-2 py-3" : "flex min-h-[4.3rem] items-center gap-3 px-3.5 py-3"
+                    }`}
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-[#f5f1ea]">
+                      <StatusIcon className="h-4 w-4" />
+                    </span>
+                    {!isSidebarCollapsed ? (
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                        <span className="min-w-0 break-words text-sm leading-5 text-[#f0dfd1]">{statusItem.label}</span>
+                        <span className="shrink-0 text-base font-semibold tracking-[0.01em] text-white">{statusItem.value}</span>
+                      </div>
+                    ) : (
+                      <span className="sr-only">{statusItem.label}: {statusItem.value}</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -1089,14 +1112,14 @@ export default function POSPage() {
               type="button"
               onClick={handlePosLogout}
               title={isSidebarCollapsed ? "Logout" : undefined}
-              className={`flex w-full items-center rounded-2xl border transition-colors ${
-                isSidebarCollapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"
-              } border-[#d9b2a7]/35 bg-[#8c5a4c]/18 text-[#f5dfd7] hover:bg-[#9a6758]/24`}
+              className={`flex min-h-[4.25rem] w-full items-center rounded-[22px] border border-[#d9b2a7]/35 bg-[#8c5a4c]/18 text-[#f5dfd7] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#9a6758]/24 hover:shadow-[0_14px_26px_rgba(0,0,0,0.14)] ${
+                isSidebarCollapsed ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3"
+              }`}
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#d9b2a7]/35 bg-white/10">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#d9b2a7]/35 bg-white/10">
                 <LogOut className="h-[0.95rem] w-[0.95rem]" />
               </span>
-              {!isSidebarCollapsed && <span className="text-sm font-semibold">Logout</span>}
+              {!isSidebarCollapsed && <span className="text-sm font-semibold tracking-[0.01em]">Logout</span>}
             </button>
 
           </div>
@@ -1447,37 +1470,37 @@ export default function POSPage() {
             </section>
 
             <aside className={`min-w-0 rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/92 shadow-[0_16px_32px_rgba(74,52,42,0.08)] transition-all duration-300 xl:sticky xl:top-4 ${
-              isOrderSummaryCollapsed ? "p-2" : "p-4 lg:p-5"
+              isOrderSummaryCollapsed ? "p-3" : "p-4 lg:p-5"
             }`}>
-            <div className={`mb-4 flex items-center justify-between ${isOrderSummaryCollapsed ? "min-h-[420px] flex-col py-2" : ""}`}>
+            <div className={`mb-4 flex items-center justify-between gap-3 ${isOrderSummaryCollapsed ? "min-h-[420px] flex-col rounded-[20px] bg-[#ede3d8]/65 px-2 py-4" : ""}`}>
               {isOrderSummaryCollapsed ? (
                 <>
                   <button
                     type="button"
                     onClick={() => setIsOrderSummaryCollapsed(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] text-[#7d5a44] transition hover:bg-[#ede3d8]"
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] text-[#7d5a44] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#ede3d8]"
                     aria-label="Expand order summary"
                   >
                     <PanelRightOpen className="h-4 w-4" />
                   </button>
-                  <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-                    <div>
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                    <div className="w-full rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-2 py-3">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-[#8c6c58]">Queue</p>
-                      <p className="mt-1 text-lg font-semibold text-[#352419]">#{nextQueueNumberPreview}</p>
+                      <p className="mt-1 break-words text-lg font-semibold text-[#352419]">#{nextQueueNumberPreview}</p>
                     </div>
-                    <div>
+                    <div className="w-full rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-2 py-3">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-[#8c6c58]">Items</p>
                       <p className="mt-1 text-lg font-semibold text-[#352419]">{cartItemCount}</p>
                     </div>
-                    <div>
+                    <div className="w-full rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-2 py-3">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-[#8c6c58]">Total</p>
-                      <p className="mt-1 text-lg font-semibold text-[#352419]">P{total.toFixed(2)}</p>
+                      <p className="mt-1 break-words text-lg font-semibold text-[#352419]">P{total.toFixed(2)}</p>
                     </div>
                   </div>
                   <button
                     onClick={confirmSale}
                     disabled={cart.length === 0 || (isCashPayment && cash < total)}
-                    className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#4a342a] text-[#f5f1ea] transition hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#4a342a] text-[#f5f1ea] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Pay now"
                   >
                     <ReceiptText className="h-4 w-4" />
@@ -1493,12 +1516,12 @@ export default function POSPage() {
                 <button
                   type="button"
                   onClick={() => setIsOrderSummaryCollapsed(true)}
-                  className="hidden h-10 w-10 items-center justify-center rounded-xl border border-[#d7c9b8] text-[#7d5a44] transition hover:bg-[#ede3d8] xl:flex"
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl border border-[#d7c9b8] text-[#7d5a44] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#ede3d8] xl:flex"
                   aria-label="Collapse order summary"
                 >
                   <PanelRightClose className="h-4 w-4" />
                 </button>
-                <button onClick={clearCart} className="rounded-xl border border-[#d7c9b8] p-2 text-[#7d5a44] transition hover:bg-[#ede3d8]">
+                <button onClick={clearCart} className="rounded-xl border border-[#d7c9b8] p-2 text-[#7d5a44] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#ede3d8]">
                   <Trash2 className="h-5 w-5" />
                 </button>
               </div>

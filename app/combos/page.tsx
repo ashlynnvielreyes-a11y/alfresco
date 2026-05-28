@@ -398,9 +398,6 @@ function ComboMealsPageContent() {
           <div className="mb-6 flex flex-col items-start justify-between gap-4 lg:mb-8 sm:flex-row">
             <div>
               <h1 className="text-2xl font-bold text-[#4a342a] lg:text-3xl">Combo Meals</h1>
-              <p className="mt-1 text-sm text-[#7d5a44] lg:mt-2 lg:text-base">
-                Build combos from ingredient records and quantities.
-              </p>
             </div>
 
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">

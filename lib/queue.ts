@@ -149,9 +149,29 @@ export function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+function normalizeStoredDateKey(value: string | null | undefined) {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return null
+  return getLocalDateKey(parsed)
+}
+
+export function getTransactionQueueDateKey(transaction: Transaction) {
+  const queueMeta = getTransactionQueueMetadata(transaction)
+  return normalizeStoredDateKey(queueMeta.placedAt) || normalizeStoredDateKey(transaction.date)
+}
+
+export function isTransactionInQueueDate(transaction: Transaction, dateKey = getLocalDateKey()) {
+  const transactionDateKey = getTransactionQueueDateKey(transaction)
+  return transactionDateKey === dateKey
+}
+
 function getHighestDailyQueueNumber(transactions: Transaction[], date: string) {
   return transactions.reduce((highest, transaction) => {
-    if (isQueueDailyResetEnabled() && transaction.date !== date) return highest
+    if (isQueueDailyResetEnabled() && !isTransactionInQueueDate(transaction, date)) return highest
 
     const normalizedQueueNumber = normalizeQueueNumber(transaction.queueNumber)
     if (!normalizedQueueNumber || normalizedQueueNumber.length > 6) return highest

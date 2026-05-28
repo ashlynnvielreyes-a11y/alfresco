@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ChefHat, Clock3, Expand, LayoutDashboard, Loader2, Minimize, RefreshCw, ShoppingCart, Store, Tv2, Users } from "lucide-react"
 
-import { getQueueOrderTypeLabel, getTransactionQueueMetadata, normalizeQueueNumber } from "@/lib/queue"
+import { getLocalDateKey, getQueueOrderTypeLabel, getTransactionQueueMetadata, isTransactionInQueueDate, normalizeQueueNumber } from "@/lib/queue"
 import type { Transaction } from "@/lib/types"
 
 type DisplayStage = "preparing" | "ready" | "serving"
@@ -259,7 +259,9 @@ export function LiveQueueBoard({
   }, [embedded])
 
   const displayRecords = useMemo(() => {
+    const currentQueueDateKey = getLocalDateKey(new Date(now))
     const records = transactions
+      .filter((transaction) => isTransactionInQueueDate(transaction, currentQueueDateKey))
       .map((transaction) => buildDisplayRecord(transaction, now))
       .filter((record): record is QueueDisplayRecord => Boolean(record))
 

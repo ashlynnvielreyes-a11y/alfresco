@@ -44,7 +44,6 @@ interface NavItem {
   href: string
   label: string
   icon: typeof LayoutDashboard
-  description: string
   section: "Core" | "Operations" | "Admin"
   permission?: "dashboard" | "pos" | "queue" | "inventory" | "sales" | "sales_analytics" | "admin" | "kitchen_queue"
 }
@@ -52,19 +51,19 @@ interface NavItem {
 const SIDEBAR_COLLAPSE_KEY = "alfresco_sidebar_collapsed"
 
 const allNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Role-tailored overview", section: "Core", permission: "dashboard" },
-  { href: "/pos", label: "POS", icon: ShoppingCart, description: "Process active orders", section: "Core", permission: "pos" },
-  { href: "/queue-management", label: "Kitchen Dashboard", icon: ReceiptText, description: "Update preparing and ready orders", section: "Core", permission: "kitchen_queue" },
-  { href: "/queue-display", label: "Queue Display", icon: MonitorPlay, description: "Show the live customer board", section: "Core", permission: "queue" },
-  { href: "/sales-history", label: "Sales History", icon: FileText, description: "Search receipts and export records", section: "Core", permission: "sales" },
-  { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, description: "Review KPIs and business insights", section: "Core", permission: "sales_analytics" },
-  { href: "/inventory", label: "Inventory", icon: Package, description: "Monitor stock levels", section: "Operations", permission: "inventory" },
-  { href: "/ingredients", label: "Ingredients", icon: Leaf, description: "Manage raw materials", section: "Operations", permission: "inventory" },
-  { href: "/expiration-logs", label: "Expiry Logs", icon: AlertTriangle, description: "Review expiring items", section: "Operations", permission: "inventory" },
-  { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, description: "Adjust bundled offers", section: "Operations", permission: "inventory" },
-  { href: "/addons", label: "Add-ons", icon: Plus, description: "Refine upsell options", section: "Operations", permission: "inventory" },
-  { href: "/user-management", label: "Team Access", icon: Users, description: "Control account permissions", section: "Admin", permission: "admin" },
-  { href: "/settings", label: "Settings", icon: Settings, description: "Preferences and controls", section: "Admin" },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, section: "Core", permission: "dashboard" },
+  { href: "/pos", label: "POS", icon: ShoppingCart, section: "Core", permission: "pos" },
+  { href: "/queue-management", label: "Kitchen Dashboard", icon: ReceiptText, section: "Core", permission: "kitchen_queue" },
+  { href: "/queue-display", label: "Queue Display", icon: MonitorPlay, section: "Core", permission: "queue" },
+  { href: "/sales-history", label: "Sales History", icon: FileText, section: "Core", permission: "sales" },
+  { href: "/sales-analytics", label: "Sales Analytics", icon: TrendingUp, section: "Core", permission: "sales_analytics" },
+  { href: "/inventory", label: "Inventory", icon: Package, section: "Operations", permission: "inventory" },
+  { href: "/ingredients", label: "Ingredients", icon: Leaf, section: "Operations", permission: "inventory" },
+  { href: "/expiration-logs", label: "Expiry Logs", icon: AlertTriangle, section: "Operations", permission: "inventory" },
+  { href: "/combos", label: "Combo Meals", icon: UtensilsCrossed, section: "Operations", permission: "inventory" },
+  { href: "/addons", label: "Add-ons", icon: Plus, section: "Operations", permission: "inventory" },
+  { href: "/user-management", label: "Team Access", icon: Users, section: "Admin", permission: "admin" },
+  { href: "/settings", label: "Settings", icon: Settings, section: "Admin" },
 ]
 
 const getNavItemsForRole = (role: UserRole): NavItem[] => {
@@ -121,27 +120,23 @@ function getRoleAccent(role: UserRole) {
       return {
         icon: ShieldCheck,
         gradient: "from-[#4a342a] via-[#7d5a44] to-[#b2967d]",
-        summary: "Full platform visibility and control",
       }
     case "inventory_staff":
     case "manager":
       return {
         icon: BriefcaseBusiness,
         gradient: "from-[#5a4134] via-[#8a6a55] to-[#d7c9b8]",
-        summary: "Operations, stock health, and planning",
       }
     case "barista":
     case "kitchen":
       return {
         icon: ReceiptText,
         gradient: "from-[#4d3f34] via-[#8d6b55] to-[#d7c4ae]",
-        summary: "Queue flow, preparation speed, and handoff readiness",
       }
     default:
       return {
         icon: ArrowUpRight,
         gradient: "from-[#6a4b3a] via-[#9a7258] to-[#d7c4ae]",
-        summary: "Frontline transactions and daily momentum",
       }
   }
 }
@@ -183,7 +178,6 @@ const NavItemComponent = memo(function NavItemComponent({
 
       <span className={`min-w-0 flex-1 overflow-hidden transition-all duration-300 ${collapsed ? "max-w-0 opacity-0" : "max-w-[180px] opacity-100"}`}>
         <span className={`block truncate font-semibold tracking-[-0.02em] ${isActive ? "text-[#f8f4ef]" : ""}`}>{item.label}</span>
-        <span className={`mt-0.5 block truncate text-xs ${isActive ? "text-[#d8cec3]" : "text-[#918176]"}`}>{item.description}</span>
       </span>
     </Link>
   )
@@ -364,7 +358,6 @@ export const Sidebar = memo(function Sidebar() {
                     <p className="text-xs uppercase tracking-[0.22em] text-[#87776b]">{formatRoleLabel(userRole)}</p>
                   </div>
                 </div>
-                <p className="mt-4 text-sm text-[#6f6157]">{roleAccent.summary}</p>
               </div>
             </div>
 
@@ -440,7 +433,6 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
                 )}
               </div>
-              {!isCollapsed && <p className="mt-4 text-sm text-[#6f6157]">{roleAccent.summary}</p>}
             </div>
           </div>
         </div>
