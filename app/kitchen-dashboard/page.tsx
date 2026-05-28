@@ -4,6 +4,7 @@ import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
+  ArrowLeft,
   Bell,
   Check,
   ChefHat,
@@ -37,7 +38,7 @@ import {
   normalizeQueueNumber,
   type QueueMetadata,
 } from "@/lib/queue"
-import { getCurrentUser, getTransactions, initializeSupabaseStore, logout, subscribeToTransactionSync, updateTransaction } from "@/lib/store"
+import { getCurrentUser, getDefaultRouteForRole, getTransactions, initializeSupabaseStore, logout, subscribeToTransactionSync, updateTransaction } from "@/lib/store"
 import { createClient } from "@/lib/supabase/client"
 import type { CartItem, Transaction } from "@/lib/types"
 
@@ -420,11 +421,21 @@ function KitchenDashboardContent() {
   const [processingAction, setProcessingAction] = useState<{ transactionId: string; nextStatus: Transaction["orderStatus"] } | null>(null)
 
   const currentUser = getCurrentUser()
+  const isAdminUser = currentUser?.role === "admin"
 
   const handleLogout = useCallback(() => {
     logout()
     router.push("/")
   }, [router])
+
+  const handlePrimaryNavigation = useCallback(() => {
+    if (isAdminUser) {
+      router.push(getDefaultRouteForRole("admin"))
+      return
+    }
+
+    handleLogout()
+  }, [handleLogout, isAdminUser, router])
 
   const loadKitchenOrders = useCallback(async (options?: { showLoading?: boolean }) => {
     const shouldShowLoading = options?.showLoading ?? false
@@ -851,11 +862,11 @@ function KitchenDashboardContent() {
                 </div>
                 <Button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={handlePrimaryNavigation}
                   className="h-[4.4rem] justify-center rounded-[18px] border border-[#d8c3b4] bg-[#f3e3d6] px-4 text-base font-bold text-[#7d5a44] shadow-[0_14px_30px_rgba(109,84,66,0.08)] hover:bg-[#efdccd]"
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
+                  {isAdminUser ? <ArrowLeft className="mr-2 h-4 w-4" /> : <LogOut className="mr-2 h-4 w-4" />}
+                  {isAdminUser ? "Return to Dashboard" : "Logout"}
                 </Button>
               </div>
             </div>
@@ -960,18 +971,17 @@ function KitchenDashboardContent() {
                             <span className="min-w-6 text-lg font-medium text-[#8d6f5b]">{item.quantity}</span>
                             <div className="min-w-0">
                               <p className="text-[1.05rem] font-semibold text-[#4a342a]">{item.product.name}</p>
-                              {getItemDescriptor(item) ? (
-                                <p className="mt-1 text-sm leading-6 text-[#8b7568]">{getItemDescriptor(item)}</p>
-                              ) : null}
                             </div>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    <div className="mt-4 border-t border-[#e5d9cf] pt-4">
-                      <p className="text-sm text-[#6f5c50]">Note: {selectedRecord.userNote || "No special instructions."}</p>
-                    </div>
+                    {selectedRecord.userNote ? (
+                      <div className="mt-4 border-t border-[#e5d9cf] pt-4">
+                        <p className="text-sm text-[#6f5c50]">{selectedRecord.userNote}</p>
+                      </div>
+                    ) : null}
 
                     <div className="mt-5 grid grid-cols-2 gap-3">
                       <Button

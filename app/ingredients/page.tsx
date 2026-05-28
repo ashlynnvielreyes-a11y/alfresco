@@ -399,7 +399,7 @@ function IngredientsPageContent() {
                     {restockingIngredient?.unit}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Current stock: {restockingIngredient?.stock}</p>
+                <p className="text-xs text-muted-foreground mt-2">Stock: {restockingIngredient?.stock}</p>
               </div>
 
               <div>
@@ -411,7 +411,6 @@ function IngredientsPageContent() {
                   className="w-full px-4 py-3 rounded-lg bg-[#f5f1ea] border-0 focus:ring-2 focus:ring-[#4a342a] outline-none"
                   required
                 />
-                <p className="text-xs text-muted-foreground mt-2">Required for each batch. FIFO uses the oldest usable batch first.</p>
               </div>
 
               <button type="submit" className="w-full py-4 bg-[#7d5a44] hover:bg-[#4a342a] text-[#f5f1ea] font-semibold rounded-lg transition-colors">
@@ -756,9 +755,9 @@ function IngredientsPageContent() {
                   </span>
                 </div>
 
-                <p className="text-xs text-muted-foreground">Next batch: {summary.nextBatchId || "No active batch"}</p>
-                <p className="text-xs text-muted-foreground">Date added: {summary.nextDateAdded ? formatDate(summary.nextDateAdded) : "No active batch"}</p>
-                <p className="text-xs text-muted-foreground mb-3">Expiration: {formatDate(expiration.date)}</p>
+                <p className="text-xs text-muted-foreground">Batch: {summary.nextBatchId || "No active batch"}</p>
+                <p className="text-xs text-muted-foreground">Added: {summary.nextDateAdded ? formatDate(summary.nextDateAdded) : "No active batch"}</p>
+                <p className="text-xs text-muted-foreground mb-3">Expiry: {formatDate(expiration.date)}</p>
 
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">{ingredient.stockBatches?.length || 0} batch(es)</span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowDownUp,
   Calendar,
@@ -19,7 +19,7 @@ import {
 import { Sidebar } from "@/components/sidebar"
 import { TransactionDetailsModal } from "@/components/transaction-details-modal"
 import { createClient } from "@/lib/supabase/client"
-import { getTransactionsByDateRange, getSalesTotalByDateRange, initializeSupabaseStore } from "@/lib/store"
+import { getTransactionsByDateRange, getSalesTotalByDateRange, initializeSupabaseStore, subscribeToTransactionSync } from "@/lib/store"
 import type { CartItem, ProductCategory, Transaction } from "@/lib/types"
 
 type SortKey = "id" | "dateTime" | "cashier" | "paymentMethod" | "orderType" | "status" | "total"
@@ -133,8 +133,30 @@ function summarizeItems(items: CartItem[]) {
   return `${names[0]} +${names.length - 1} more`
 }
 
+function parseTransactionTimestamp(transaction: Transaction) {
+  const directDateTime = new Date(`${transaction.date} ${transaction.time}`)
+  if (!Number.isNaN(directDateTime.getTime())) return directDateTime.getTime()
+
+  const fallbackDate = new Date(`${transaction.date}T00:00:00`)
+  if (Number.isNaN(fallbackDate.getTime())) return 0
+
+  const match = transaction.time.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?/i)
+  if (!match) return fallbackDate.getTime()
+
+  let hours = Number(match[1])
+  const minutes = Number(match[2] || 0)
+  const seconds = Number(match[3] || 0)
+  const meridiem = match[4]?.toLowerCase()
+
+  if (meridiem === "pm" && hours < 12) hours += 12
+  if (meridiem === "am" && hours === 12) hours = 0
+
+  fallbackDate.setHours(hours, minutes, seconds, 0)
+  return fallbackDate.getTime()
+}
+
 function transactionTimestampValue(transaction: Transaction) {
-  return new Date(`${transaction.date}T${transaction.time}`).getTime()
+  return parseTransactionTimestamp(transaction)
 }
 
 function buildTransactionRecord(transaction: Transaction): TransactionRecord {
@@ -186,7 +208,11 @@ function compareRecords(left: TransactionRecord, right: TransactionRecord, sortK
     case "total":
       return left.transaction.total - right.transaction.total
     default:
-      return left.timestampValue - right.timestampValue
+      if (left.timestampValue !== right.timestampValue) {
+        return left.timestampValue - right.timestampValue
+      }
+
+      return left.transaction.id.localeCompare(right.transaction.id, undefined, { numeric: true, sensitivity: "base" })
   }
 }
 
@@ -318,6 +344,9 @@ export default function SalesHistoryPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [rangeTotal, setRangeTotal] = useState(0)
+  const [newlyPromotedTransactionId, setNewlyPromotedTransactionId] = useState<string | null>(null)
+  const previousTopTransactionIdRef = useRef<string | null>(null)
+  const hasLoadedInitialResultsRef = useRef(false)
 
   const loadData = useCallback(async () => {
     await initializeSupabaseStore()
@@ -331,7 +360,16 @@ export default function SalesHistoryPage() {
       getSalesTotalByDateRange(fromDate, toDate),
     ])
 
-    setTransactions(nextTransactions)
+    const dedupedTransactions = Array.from(
+      nextTransactions.reduce((map, transaction) => map.set(transaction.id, transaction), new Map<string, Transaction>()).values()
+    ).sort((left, right) => {
+      const timestampDifference = parseTransactionTimestamp(right) - parseTransactionTimestamp(left)
+      if (timestampDifference !== 0) return timestampDifference
+
+      return right.id.localeCompare(left.id, undefined, { numeric: true, sensitivity: "base" })
+    })
+
+    setTransactions(dedupedTransactions)
     setRangeTotal(nextRangeTotal)
     setLastSyncedAt(new Date())
   }, [fromDate, toDate])
@@ -348,8 +386,12 @@ export default function SalesHistoryPage() {
         void loadData()
       })
       .subscribe()
+    const unsubscribeTransactionSync = subscribeToTransactionSync(() => {
+      void loadData()
+    })
 
     return () => {
+      unsubscribeTransactionSync()
       void supabase.removeChannel(channel)
     }
   }, [loadData])
@@ -398,6 +440,25 @@ export default function SalesHistoryPage() {
     const start = (page - 1) * pageSize
     return sortedTransactions.slice(start, start + pageSize)
   }, [page, pageSize, sortedTransactions])
+
+  useEffect(() => {
+    const nextTopTransactionId = sortedTransactions[0]?.transaction.id || null
+
+    if (!hasLoadedInitialResultsRef.current) {
+      hasLoadedInitialResultsRef.current = true
+      previousTopTransactionIdRef.current = nextTopTransactionId
+      return
+    }
+
+    if (nextTopTransactionId && previousTopTransactionIdRef.current && nextTopTransactionId !== previousTopTransactionIdRef.current) {
+      setNewlyPromotedTransactionId(nextTopTransactionId)
+      const timeoutId = window.setTimeout(() => setNewlyPromotedTransactionId(null), 1600)
+      previousTopTransactionIdRef.current = nextTopTransactionId
+      return () => window.clearTimeout(timeoutId)
+    }
+
+    previousTopTransactionIdRef.current = nextTopTransactionId
+  }, [sortedTransactions])
 
   const filteredRevenue = useMemo(
     () => filteredTransactions.reduce((sum, record) => sum + record.transaction.total, 0),
@@ -547,9 +608,7 @@ export default function SalesHistoryPage() {
                       <span>Export PDF</span>
                       <FileDown className="h-4 w-4" />
                     </button>
-                    <p className="text-xs uppercase tracking-[0.16em] text-[#7d5a44]/80">
-                      {lastSyncedAt ? `Live sync active • Updated ${lastSyncedAt.toLocaleTimeString()}` : "Connecting live sync..."}
-                    </p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-[#7d5a44]/80">{lastSyncedAt ? lastSyncedAt.toLocaleTimeString() : ""}</p>
                   </div>
                 </div>
               </div>
@@ -562,7 +621,6 @@ export default function SalesHistoryPage() {
                 <div className={`rounded-[29px] p-5 backdrop-blur-xl ${card.light ? "bg-[rgba(248,244,239,0.92)] text-[#4a342a]" : "bg-[rgba(74,52,42,0.88)] text-[#f5f1ea]"}`}>
                   <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.22em] ${card.light ? "text-[#7d5a44]" : "text-[#f5f1ea]/72"}`}>{card.label}</p>
                   <p className="mt-3 text-3xl font-semibold tracking-[-0.06em]">{card.value}</p>
-                  <p className={`mt-3 text-sm leading-6 ${card.light ? "text-[#7d5a44]" : "text-[#f5f1ea]/78"}`}>{card.detail}</p>
                 </div>
               </article>
             ))}
@@ -572,7 +630,6 @@ export default function SalesHistoryPage() {
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#7d5a44]">Search, filter, and sort</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-[#4a342a]">Transaction register</h2>
                 </div>
 
@@ -672,13 +729,17 @@ export default function SalesHistoryPage() {
               {paginatedTransactions.length === 0 ? (
                 <div className="px-5 py-12 text-center text-sm text-[#7d5a44]">No transactions match this range or filter set.</div>
               ) : (
-                <div className="divide-y divide-[#eadfd5]">
+                <div className="divide-y divide-[#eadfd5] scroll-smooth">
                   {paginatedTransactions.map((record) => (
                     <button
                       key={record.transaction.id}
                       type="button"
                       onClick={() => setSelectedTransaction(record.transaction)}
-                      className="block w-full px-5 py-4 text-left transition-colors hover:bg-white/35"
+                      className={`block min-h-[11.25rem] w-full px-5 py-4 text-left transition-all duration-500 hover:bg-white/35 ${
+                        record.transaction.id === newlyPromotedTransactionId
+                          ? "animate-[pulse_0.7s_ease-out_1] bg-[#fffaf4] shadow-[inset_0_0_0_1px_rgba(178,150,125,0.38)]"
+                          : ""
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -706,7 +767,7 @@ export default function SalesHistoryPage() {
               )}
             </div>
 
-            <div className="hidden overflow-x-auto lg:block">
+            <div className="hidden overflow-x-auto scroll-smooth lg:block">
               <table className="min-w-full">
                 <thead className="bg-white/35">
                   <tr className="border-b border-[#eadfd5]">
@@ -749,7 +810,11 @@ export default function SalesHistoryPage() {
                           }
                         }}
                         tabIndex={0}
-                        className="cursor-pointer border-b border-[#eadfd5] transition-colors hover:bg-white/35 focus:bg-white/40 focus:outline-none last:border-0"
+                        className={`cursor-pointer border-b border-[#eadfd5] transition-all duration-500 hover:bg-white/35 focus:bg-white/40 focus:outline-none last:border-0 ${
+                          record.transaction.id === newlyPromotedTransactionId
+                            ? "animate-[pulse_0.7s_ease-out_1] bg-[#fffaf4]"
+                            : ""
+                        }`}
                       >
                         <td className="px-6 py-4 align-top">
                           <p className="font-semibold text-[#4a342a]">{record.transaction.id}</p>
@@ -831,9 +896,7 @@ export default function SalesHistoryPage() {
                 <ShieldAlert className="mt-0.5 h-5 w-5 text-rose-700" />
                 <div>
                   <h3 className="text-base font-semibold text-rose-900">Void activity is visible in this range</h3>
-                  <p className="mt-1 text-sm leading-6 text-rose-800">
-                    {voidedTransactions} voided transaction{voidedTransactions === 1 ? "" : "s"} are included in the current results. Refund-specific records are not stored separately in the current dataset, so this module surfaces void tracking and clearly labels missing refund data.
-                  </p>
+                  <p className="mt-1 text-sm leading-6 text-rose-800">{voidedTransactions} voided transaction{voidedTransactions === 1 ? "" : "s"}</p>
                 </div>
               </div>
             </section>

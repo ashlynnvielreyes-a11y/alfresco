@@ -21,8 +21,10 @@ import {
   Calendar,
   Clock3,
   Layers3,
+  Loader2,
   PackageSearch,
   PieChart as PieChartIcon,
+  RefreshCw,
   TrendingUp,
   Wallet,
 } from "lucide-react"
@@ -261,12 +263,10 @@ function renderPieLabel({
 
 function Panel({
   title,
-  description,
   icon: Icon,
   children,
 }: {
   title: string
-  description: string
   icon: typeof TrendingUp
   children: React.ReactNode
 }) {
@@ -275,7 +275,6 @@ function Panel({
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-foreground lg:text-xl">{title}</h2>
-          <p className="text-xs text-muted-foreground lg:text-sm">{description}</p>
         </div>
         <Icon className="h-5 w-5 text-[#4a342a]" />
       </div>
@@ -290,6 +289,7 @@ function SalesAnalyticsContent() {
   const [toDate, setToDate] = useState(defaults.toDate)
   const [trendView, setTrendView] = useState<TrendView>("daily")
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
@@ -337,113 +337,119 @@ function SalesAnalyticsContent() {
   })
 
   const loadData = useCallback(async () => {
-    await initializeSupabaseStore()
+    setIsRefreshing(true)
 
-    const startDate = new Date(fromDate)
-    const endDate = new Date(toDate)
-    const today = new Date()
+    try {
+      await initializeSupabaseStore()
 
-    if (startDate > endDate) return
+      const startDate = new Date(fromDate)
+      const endDate = new Date(toDate)
+      const today = new Date()
 
-    const todayKey = today.toISOString().split("T")[0]
-    const previousDay = addDays(today, -1)
-    const previousWeekDate = addDays(today, -7)
-    const previousWeekStart = startOfWeek(previousWeekDate)
-    const previousWeekEnd = endOfWeek(previousWeekDate)
-    const previousMonthDate = addMonths(today, -1)
-    const previousYear = today.getFullYear() - 1
+      if (startDate > endDate) return
 
-    const [
-      nextTransactions,
-      nextDailySales,
-      nextWeeklySales,
-      nextMonthlySales,
-      nextYearlySales,
-      previousDailySales,
-      previousWeeklySales,
-      previousMonthlySales,
-      previousYearlySales,
-      dailySparkline,
-      weeklySparkline,
-      monthlySparkline,
-      yearlySparkline,
-    ] = await Promise.all([
-      getTransactionsByDateRange(fromDate, toDate),
-      getDailySales(todayKey),
-      getWeeklySales(today.getFullYear(), Math.ceil((((today.getTime() - new Date(today.getFullYear(), 0, 1).getTime()) / 86400000) + 1) / 7)),
-      getMonthlySales(today.getFullYear(), today.getMonth()),
-      getYearlySales(today.getFullYear()),
-      getDailySales(previousDay.toISOString().split("T")[0]),
-      getTransactionsByDateRange(previousWeekStart.toISOString().split("T")[0], previousWeekEnd.toISOString().split("T")[0]).then(
-        (rows) => rows.reduce((sum, row) => sum + row.total, 0)
-      ),
-      getMonthlySales(previousMonthDate.getFullYear(), previousMonthDate.getMonth()),
-      getYearlySales(previousYear),
-      Promise.all(
-        Array.from({ length: 7 }, (_, index) =>
-          getDailySales(addDays(today, index - 6).toISOString().split("T")[0])
-        )
-      ),
-      Promise.all(
-        Array.from({ length: 8 }, (_, index) => {
-          const weekAnchor = addDays(today, (index - 7) * 7)
-          const weekStart = startOfWeek(weekAnchor)
-          const weekEnd = endOfWeek(weekAnchor)
-          return getTransactionsByDateRange(
-            weekStart.toISOString().split("T")[0],
-            weekEnd.toISOString().split("T")[0]
-          ).then((rows) => rows.reduce((sum, row) => sum + row.total, 0))
-        })
-      ),
-      Promise.all(
-        Array.from({ length: 6 }, (_, index) => {
-          const monthDate = addMonths(today, index - 5)
-          return getMonthlySales(monthDate.getFullYear(), monthDate.getMonth())
-        })
-      ),
-      Promise.all(
-        Array.from({ length: 5 }, (_, index) => getYearlySales(today.getFullYear() + index - 4))
-      ),
-    ])
+      const todayKey = today.toISOString().split("T")[0]
+      const previousDay = addDays(today, -1)
+      const previousWeekDate = addDays(today, -7)
+      const previousWeekStart = startOfWeek(previousWeekDate)
+      const previousWeekEnd = endOfWeek(previousWeekDate)
+      const previousMonthDate = addMonths(today, -1)
+      const previousYear = today.getFullYear() - 1
 
-    setTransactions(nextTransactions)
-    setProducts(getProducts())
-    setIngredients(getIngredients())
-    setSalesSnapshotData({
-      daily: {
-        label: "Daily Sales",
-        value: nextDailySales,
-        comparisonLabel: "Compared with yesterday",
-        sparkline: dailySparkline,
-        sparklineLabel: "Last 7 days",
-        ...buildTrendLabel(nextDailySales, previousDailySales),
-      },
-      weekly: {
-        label: "Weekly Sales",
-        value: nextWeeklySales,
-        comparisonLabel: "Compared with last week",
-        sparkline: weeklySparkline,
-        sparklineLabel: "Last 8 weeks",
-        ...buildTrendLabel(nextWeeklySales, previousWeeklySales),
-      },
-      monthly: {
-        label: "Monthly Sales",
-        value: nextMonthlySales,
-        comparisonLabel: "Compared with last month",
-        sparkline: monthlySparkline,
-        sparklineLabel: "Last 6 months",
-        ...buildTrendLabel(nextMonthlySales, previousMonthlySales),
-      },
-      yearly: {
-        label: "Yearly Sales",
-        value: nextYearlySales,
-        comparisonLabel: "Compared with last year",
-        sparkline: yearlySparkline,
-        sparklineLabel: "Last 5 years",
-        ...buildTrendLabel(nextYearlySales, previousYearlySales),
-      },
-    })
-    setLastSyncedAt(new Date())
+      const [
+        nextTransactions,
+        nextDailySales,
+        nextWeeklySales,
+        nextMonthlySales,
+        nextYearlySales,
+        previousDailySales,
+        previousWeeklySales,
+        previousMonthlySales,
+        previousYearlySales,
+        dailySparkline,
+        weeklySparkline,
+        monthlySparkline,
+        yearlySparkline,
+      ] = await Promise.all([
+        getTransactionsByDateRange(fromDate, toDate),
+        getDailySales(todayKey),
+        getWeeklySales(today.getFullYear(), Math.ceil((((today.getTime() - new Date(today.getFullYear(), 0, 1).getTime()) / 86400000) + 1) / 7)),
+        getMonthlySales(today.getFullYear(), today.getMonth()),
+        getYearlySales(today.getFullYear()),
+        getDailySales(previousDay.toISOString().split("T")[0]),
+        getTransactionsByDateRange(previousWeekStart.toISOString().split("T")[0], previousWeekEnd.toISOString().split("T")[0]).then(
+          (rows) => rows.reduce((sum, row) => sum + row.total, 0)
+        ),
+        getMonthlySales(previousMonthDate.getFullYear(), previousMonthDate.getMonth()),
+        getYearlySales(previousYear),
+        Promise.all(
+          Array.from({ length: 7 }, (_, index) =>
+            getDailySales(addDays(today, index - 6).toISOString().split("T")[0])
+          )
+        ),
+        Promise.all(
+          Array.from({ length: 8 }, (_, index) => {
+            const weekAnchor = addDays(today, (index - 7) * 7)
+            const weekStart = startOfWeek(weekAnchor)
+            const weekEnd = endOfWeek(weekAnchor)
+            return getTransactionsByDateRange(
+              weekStart.toISOString().split("T")[0],
+              weekEnd.toISOString().split("T")[0]
+            ).then((rows) => rows.reduce((sum, row) => sum + row.total, 0))
+          })
+        ),
+        Promise.all(
+          Array.from({ length: 6 }, (_, index) => {
+            const monthDate = addMonths(today, index - 5)
+            return getMonthlySales(monthDate.getFullYear(), monthDate.getMonth())
+          })
+        ),
+        Promise.all(
+          Array.from({ length: 5 }, (_, index) => getYearlySales(today.getFullYear() + index - 4))
+        ),
+      ])
+
+      setTransactions(nextTransactions)
+      setProducts(getProducts())
+      setIngredients(getIngredients())
+      setSalesSnapshotData({
+        daily: {
+          label: "Daily Sales",
+          value: nextDailySales,
+          comparisonLabel: "Compared with yesterday",
+          sparkline: dailySparkline,
+          sparklineLabel: "Last 7 days",
+          ...buildTrendLabel(nextDailySales, previousDailySales),
+        },
+        weekly: {
+          label: "Weekly Sales",
+          value: nextWeeklySales,
+          comparisonLabel: "Compared with last week",
+          sparkline: weeklySparkline,
+          sparklineLabel: "Last 8 weeks",
+          ...buildTrendLabel(nextWeeklySales, previousWeeklySales),
+        },
+        monthly: {
+          label: "Monthly Sales",
+          value: nextMonthlySales,
+          comparisonLabel: "Compared with last month",
+          sparkline: monthlySparkline,
+          sparklineLabel: "Last 6 months",
+          ...buildTrendLabel(nextMonthlySales, previousMonthlySales),
+        },
+        yearly: {
+          label: "Yearly Sales",
+          value: nextYearlySales,
+          comparisonLabel: "Compared with last year",
+          sparkline: yearlySparkline,
+          sparklineLabel: "Last 5 years",
+          ...buildTrendLabel(nextYearlySales, previousYearlySales),
+        },
+      })
+      setLastSyncedAt(new Date())
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [fromDate, toDate])
 
   useEffect(() => {
@@ -676,15 +682,19 @@ function SalesAnalyticsContent() {
             <div>
               <p className="mb-2 text-xs uppercase tracking-[0.32em] text-[#7d5a44]">BUSINESS INTELLIGENCE</p>
               <h1 className="mb-2 text-2xl font-bold text-[#4a342a] lg:text-4xl">Sales Analytics</h1>
-              <p className="max-w-3xl text-sm text-muted-foreground lg:text-base">
-                A focused insight dashboard for trends, mix, throughput, revenue quality, and inventory pressure across the selected period.
-              </p>
-              <p className="mt-3 text-xs font-medium uppercase tracking-[0.24em] text-[#7d5a44]/75">
-                {lastSyncedAt ? `Live sync active • Updated ${lastSyncedAt.toLocaleTimeString()}` : "Connecting live sync..."}
-              </p>
+              {lastSyncedAt ? <p className="mt-3 text-xs font-medium uppercase tracking-[0.24em] text-[#7d5a44]/75">Last Updated {lastSyncedAt.toLocaleTimeString()}</p> : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 lg:max-w-[36rem]">
+              <button
+                type="button"
+                onClick={() => void loadData()}
+                disabled={isRefreshing}
+                className="group inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#b2967d] bg-[#4a342a] px-4 text-sm font-semibold text-[#f5f1ea] shadow-[0_12px_26px_rgba(74,52,42,0.16)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#7d5a44] hover:shadow-[0_16px_32px_rgba(74,52,42,0.2)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />}
+                {isRefreshing ? "Refreshing..." : "Refresh"}
+              </button>
               <div className="flex items-center gap-2 rounded-2xl border border-[#f5f1ea]/55 bg-[#f5f1ea]/60 px-3 py-2 backdrop-blur-sm">
                 <Calendar className="h-4 w-4 text-[#4a342a]" />
                 <div className="flex items-center gap-2 text-sm">
@@ -726,7 +736,6 @@ function SalesAnalyticsContent() {
                 <div className="relative">
                   <p className={`mb-1 text-sm ${card.light ? "text-[#7d5a44]" : "text-[#f5f1ea]/75"}`}>{card.label}</p>
                   <p className={`text-2xl font-bold ${card.label === "Top-Selling Product" ? "lg:text-[2rem]" : "lg:text-3xl"}`}>{card.value}</p>
-                  <p className={`mt-3 text-xs leading-5 ${card.light ? "text-[#7d5a44]" : "text-[#f5f1ea]/70"}`}>{card.detail}</p>
                 </div>
               </div>
             </div>
@@ -738,11 +747,7 @@ function SalesAnalyticsContent() {
             <SalesSnapshotCard data={salesSnapshotData} />
           </div>
 
-          <Panel
-            title="Revenue Comparison"
-            description="Compare current period performance against the previous equivalent window."
-            icon={Layers3}
-          >
+          <Panel title="Revenue Comparison" icon={Layers3}>
             <div className="mb-4 grid grid-cols-2 gap-3">
               <div className="rounded-[20px] border border-[#d7c9b8] bg-[#f5f1ea]/70 p-4">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Low-stock ingredients</p>
@@ -769,11 +774,7 @@ function SalesAnalyticsContent() {
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-6 lg:mb-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-8">
-          <Panel
-            title="Trend Explorer"
-            description="Interactive sales trends across daily, weekly, monthly, and yearly perspectives."
-            icon={TrendingUp}
-          >
+          <Panel title="Trend Explorer" icon={TrendingUp}>
             <div className="mb-4 flex flex-wrap gap-2">
               {(["daily", "weekly", "monthly", "yearly"] as TrendView[]).map((view) => (
                 <button
@@ -810,11 +811,7 @@ function SalesAnalyticsContent() {
             </ResponsiveContainer>
           </Panel>
 
-          <Panel
-            title="Payment Distribution"
-            description="Revenue split across checkout methods."
-            icon={Wallet}
-          >
+          <Panel title="Payment Distribution" icon={Wallet}>
             <ResponsiveContainer width="100%" height={320}>
               <PieChart>
                 <Pie
@@ -838,11 +835,7 @@ function SalesAnalyticsContent() {
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-6 lg:mb-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-8">
-          <Panel
-            title="Order Type Analytics"
-            description="Order composition derived from what customers actually bought."
-            icon={PieChartIcon}
-          >
+          <Panel title="Order Type Analytics" icon={PieChartIcon}>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={analytics.orderTypeData} layout="vertical" margin={{ left: 10, right: 10 }}>
                 <CartesianGrid horizontal={false} stroke="#d7c9b8" strokeDasharray="3 3" />
@@ -858,11 +851,7 @@ function SalesAnalyticsContent() {
             </ResponsiveContainer>
           </Panel>
 
-          <Panel
-            title="Peak Business Hours"
-            description="Service pressure across the hours represented in the selected range."
-            icon={Clock3}
-          >
+          <Panel title="Peak Business Hours" icon={Clock3}>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={analytics.peakHoursData}>
                 <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
@@ -876,11 +865,7 @@ function SalesAnalyticsContent() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8">
-          <Panel
-            title="Top-Selling Products"
-            description="Fastest-moving products by quantity sold in the selected period."
-            icon={Activity}
-          >
+          <Panel title="Top-Selling Products" icon={Activity}>
             <div className="space-y-4">
               {analytics.topProducts.slice(0, 6).map((product) => (
                 <div key={product.name}>
@@ -899,25 +884,17 @@ function SalesAnalyticsContent() {
             </div>
           </Panel>
 
-          <Panel
-            title="Inventory-Related Insights"
-            description="Fast-moving items that may need attention from stock or prep planning."
-            icon={PackageSearch}
-          >
+          <Panel title="Inventory-Related Insights" icon={PackageSearch}>
             <div className="space-y-3">
               {analytics.fastMovingLowStock.length === 0 ? (
-                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-4 text-sm leading-7 text-[#7d5a44]">
-                  No fast-moving low-stock products are currently flagged in this date range.
-                </div>
+                <div className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-4 text-sm leading-7 text-[#7d5a44]">No flagged products</div>
               ) : (
                 analytics.fastMovingLowStock.map((item) => (
                   <div key={item.name} className="rounded-[22px] border border-[#d7c9b8] bg-[#f5f1ea]/70 px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-[#4a342a]">{item.name}</p>
-                        <p className="mt-1 text-sm text-[#7d5a44]">
-                          {item.quantitySold} sold • {item.availableStock} available
-                        </p>
+                        <p className="mt-1 text-sm text-[#7d5a44]">{item.quantitySold} sold / {item.availableStock} available</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
                         item.urgency === "critical"

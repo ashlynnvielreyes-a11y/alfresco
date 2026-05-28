@@ -18,8 +18,8 @@ const POS_SIDEBAR_COLLAPSE_KEY = "alfresco_pos_sidebar_collapsed"
 const POS_ORDER_SUMMARY_COLLAPSE_KEY = "alfresco_pos_order_summary_collapsed"
 
 const posWorkspaceLinks = [
-  { href: "/pos", label: "POS", description: "New Order", icon: ShoppingCart },
-  { href: "/sales-history", label: "Sales History", description: "Sales Records", icon: FileText },
+  { href: "/pos", label: "POS", icon: ShoppingCart },
+  { href: "/sales-history", label: "Sales History", icon: FileText },
 ] as const
 
 function getAddOnKey(addOns?: AddOn[]) {
@@ -1067,7 +1067,6 @@ export default function POSPage() {
                   </span>
                   <span className={`min-w-0 flex-1 ${isSidebarCollapsed ? "hidden" : "block"}`}>
                     <span className="block break-words text-[0.95rem] font-semibold leading-5 tracking-[0.01em]">{item.label}</span>
-                    <span className={`mt-0.5 block break-words text-[11px] leading-4 ${isActive ? "text-[#7d5a44]" : "text-[#f5f1ea]/68"}`}>{item.description}</span>
                   </span>
                 </Link>
               )
@@ -1077,7 +1076,6 @@ export default function POSPage() {
           <div className={`mt-6 rounded-[24px] border border-white/10 bg-white/5 ${isSidebarCollapsed ? "p-3" : "p-4"}`}>
             <div className={`${isSidebarCollapsed ? "text-center" : ""}`}>
               <p className={`uppercase text-[#d8c8ba] ${isSidebarCollapsed ? "text-[10px] tracking-[0.2em]" : "text-[11px] tracking-[0.24em]"}`}>POS Status</p>
-              {!isSidebarCollapsed && <p className="mt-1 text-xs leading-5 text-[#f5f1ea]/68">Live queue and stock snapshot for the current shift.</p>}
             </div>
             <div className={`mt-4 grid gap-2.5 ${isSidebarCollapsed ? "grid-cols-1" : "grid-cols-1"}`}>
               {sidebarStatusItems.map((statusItem) => {
@@ -1187,7 +1185,6 @@ export default function POSPage() {
                 </span>
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.2em] text-[#866754]">{isAdminPos ? "Admin POS Layout" : "Select Category"}</p>
-                  <p className="text-sm font-semibold text-[#3d2a1f]">{isAdminPos ? "Oversight + Menu Controls" : "Browse Menu Groups"}</p>
                 </div>
               </div>
 
@@ -1327,7 +1324,7 @@ export default function POSPage() {
               <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.22em] text-[#8c6c58]">All Products</p>
-                  <h2 className="mt-1 text-xl font-semibold text-[#352419]">New Order Workspace</h2>
+                  <h2 className="mt-1 text-xl font-semibold text-[#352419]">New Order</h2>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center xl:min-w-[280px]">
                   <div className="rounded-2xl border border-[#d7c9b8] bg-[#ede3d8] px-3 py-2">
@@ -1882,13 +1879,12 @@ export default function POSPage() {
                 </div>
               </>
             ) : (
-              <p className="text-muted-foreground mb-4">No add-ons available for this item.</p>
+              <p className="text-muted-foreground mb-4">No add-ons</p>
             )}
             
             {/* Selected Add-Ons Summary */}
             {selectedAddOns.length > 0 && (
               <div className="bg-muted rounded-lg p-3 mb-4">
-                <p className="text-sm font-medium text-muted-foreground mb-1">Selected Add-ons:</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedAddOns.map((addon) => (
                     <span key={addon.id} className="text-xs bg-[#4a342a] text-[#f5f1ea] px-2 py-1 rounded-full">
@@ -1905,11 +1901,7 @@ export default function POSPage() {
               </div>
             )}
 
-            {productSupportsTemperature(selectedProductForAddOns) && (
-              <p className="text-sm text-muted-foreground mb-4">
-                Temperature: <span className="font-medium text-foreground">{formatCoffeeTemperature(selectedTemperature)}</span>
-              </p>
-            )}
+            {productSupportsTemperature(selectedProductForAddOns) && <p className="mb-4 text-sm text-muted-foreground">{formatCoffeeTemperature(selectedTemperature)}</p>}
             
             <div className="flex gap-3">
               <button
@@ -1942,7 +1934,6 @@ export default function POSPage() {
             <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-sm flex-col rounded-[28px] border border-[#f5f1ea]/60 bg-[rgba(245,241,234,0.96)] p-6 text-[#4a342a] shadow-[0_24px_56px_rgba(74,52,42,0.16)] backdrop-blur-xl lg:max-w-md lg:p-8">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-2">
               <h2 className="text-2xl font-bold text-center mb-1">AL FRESCO CAFE</h2>
-              <p className="text-center text-muted-foreground mb-1">Official Receipt</p>
               <p className="text-center text-sm font-medium mb-1">
                 Order No: {lastTransaction.id}
               </p>

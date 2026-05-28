@@ -83,7 +83,6 @@ type DashboardInsights = {
   todayTransactions: number
   lowStockCount: number
   atRiskProducts: number
-  queueDetail: string
   recentTransactions: Transaction[]
   inventoryPressure: InventoryPressurePoint[]
   salesTrendData: SalesTrendPoint[]
