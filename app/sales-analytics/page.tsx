@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -280,37 +278,6 @@ function Panel({
       </div>
       {children}
     </section>
-  )
-}
-
-function TrendLegend() {
-  const items = [
-    {
-      label: "Revenue",
-      swatchClass: "bg-[#4a342a]",
-      accentClass: "before:absolute before:left-0 before:top-1/2 before:h-[3px] before:w-full before:-translate-y-1/2 before:rounded-full before:bg-[#4a342a]",
-    },
-    {
-      label: "Orders",
-      swatchClass: "bg-[#b2967d]",
-      accentClass: "before:absolute before:left-0 before:top-1/2 before:h-3 before:w-full before:-translate-y-1/2 before:rounded-[4px] before:bg-[#b2967d]",
-    },
-  ] as const
-
-  return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className="inline-flex items-center gap-2 rounded-full border border-[#d7c9b8] bg-[#f5f1ea]/78 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6f584a] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
-        >
-          <span className={`relative block h-3 w-6 ${item.accentClass}`}>
-            <span className={`absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f5f1ea] ${item.swatchClass}`} />
-          </span>
-          <span>{item.label}</span>
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -698,6 +665,23 @@ function SalesAnalyticsContent() {
     },
   ]
 
+  const selectedTrendSeries = analytics.trendSeries[trendView]
+  const selectedTrendRevenue = selectedTrendSeries.reduce((sum, point) => sum + point.revenue, 0)
+  const selectedTrendOrders = selectedTrendSeries.reduce((sum, point) => sum + point.orders, 0)
+  const selectedTrendAverageTicket = selectedTrendOrders > 0 ? selectedTrendRevenue / selectedTrendOrders : 0
+  const activeTrendPeriods = selectedTrendSeries.filter((point) => point.revenue > 0 || point.orders > 0)
+  const strongestTrendPeriod = selectedTrendSeries.reduce<TrendPoint | null>((strongest, point) => {
+    if (!strongest || point.revenue > strongest.revenue) return point
+    return strongest
+  }, null)
+  const rankedTrendPeriods = [...selectedTrendSeries]
+    .sort((left, right) => {
+      if (right.revenue !== left.revenue) return right.revenue - left.revenue
+      return right.orders - left.orders
+    })
+    .slice(0, 4)
+  const trendViewLabel = trendView.charAt(0).toUpperCase() + trendView.slice(1)
+
   return (
     <div className="flex min-h-screen bg-transparent">
       <Sidebar />
@@ -822,54 +806,58 @@ function SalesAnalyticsContent() {
                 </button>
               ))}
             </div>
-            <TrendLegend />
-            <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={analytics.trendSeries[trendView]}>
-                <defs>
-                  <linearGradient id="analytics-revenue-fill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#4a342a" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="#4a342a" stopOpacity={0.04} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} stroke="#d7c9b8" strokeDasharray="3 3" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} />
-                <Tooltip
-                  cursor={{ stroke: "#b2967d", strokeDasharray: "4 4", strokeWidth: 1 }}
-                  formatter={(value: number, name: string) => (name === "Revenue" ? formatCurrency(value) : value)}
-                  contentStyle={{
-                    borderRadius: "16px",
-                    border: "1px solid #d7c9b8",
-                    backgroundColor: "rgba(245, 241, 234, 0.96)",
-                    boxShadow: "0 16px 32px rgba(74,52,42,0.12)",
-                  }}
-                  labelStyle={{ color: "#4a342a", fontWeight: 700 }}
-                  itemStyle={{ color: "#7d5a44", fontSize: 12 }}
-                />
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#4a342a"
-                  fill="url(#analytics-revenue-fill)"
-                  strokeWidth={3}
-                  name="Revenue"
-                  isAnimationActive
-                  animationDuration={420}
-                  activeDot={{ r: 5, fill: "#4a342a", stroke: "#f5f1ea", strokeWidth: 2 }}
-                />
-                <Bar
-                  yAxisId="right"
-                  dataKey="orders"
-                  fill="#b2967d"
-                  radius={[8, 8, 0, 0]}
-                  name="Orders"
-                  isAnimationActive
-                  animationDuration={420}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/72 p-5">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">{trendViewLabel} performance</p>
+                <p className="mt-3 text-3xl font-bold tracking-[-0.05em] text-[#4a342a]">{formatCurrency(selectedTrendRevenue)}</p>
+                <p className="mt-2 text-sm leading-6 text-[#7d5a44]">
+                  {selectedTrendOrders} order{selectedTrendOrders === 1 ? "" : "s"} across {activeTrendPeriods.length} active period{activeTrendPeriods.length === 1 ? "" : "s"}.
+                </p>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-[18px] border border-[#d7c9b8] bg-white/62 p-4">
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#8a6a57]">Avg ticket</p>
+                    <p className="mt-2 text-xl font-bold text-[#4a342a]">{formatCurrency(selectedTrendAverageTicket)}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-[#d7c9b8] bg-white/62 p-4">
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#8a6a57]">Best period</p>
+                    <p className="mt-2 truncate text-xl font-bold text-[#4a342a]">{strongestTrendPeriod?.label || "No sales"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[#d7c9b8] bg-[#f5f1ea]/72 p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#7d5a44]">Top {trendView} periods</p>
+                  <span className="rounded-full border border-[#d7c9b8] bg-white/62 px-3 py-1 text-xs font-semibold text-[#7d5a44]">{rankedTrendPeriods.length}</span>
+                </div>
+
+                <div className="space-y-3">
+                  {rankedTrendPeriods.length === 0 ? (
+                    <div className="rounded-[18px] border border-dashed border-[#d7c9b8] bg-white/50 px-4 py-5 text-sm text-[#7d5a44]">No sales recorded for this view.</div>
+                  ) : (
+                    rankedTrendPeriods.map((point) => {
+                      const percentage = selectedTrendRevenue > 0 ? Math.round((point.revenue / selectedTrendRevenue) * 100) : 0
+
+                      return (
+                        <div key={point.label} className="rounded-[18px] border border-[#d7c9b8] bg-white/62 px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#4a342a]">{point.label}</p>
+                              <p className="mt-1 text-xs text-[#7d5a44]">{point.orders} order{point.orders === 1 ? "" : "s"} / {percentage}% of revenue</p>
+                            </div>
+                            <p className="shrink-0 text-sm font-bold text-[#4a342a]">{formatCurrency(point.revenue)}</p>
+                          </div>
+                          <div className="mt-3 h-2 rounded-full bg-[#d7c9b8]">
+                            <div className="h-2 rounded-full bg-[#4a342a]" style={{ width: `${percentage}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
           </Panel>
 
           <Panel title="Payment Distribution" icon={Wallet}>
