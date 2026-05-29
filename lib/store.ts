@@ -842,6 +842,7 @@ function mergeTransactionSnapshots(localTransactions: Transaction[], remoteTrans
 
     const localRank = getOrderStatusRank(localTransaction.orderStatus)
     const remoteRank = getOrderStatusRank(remoteTransaction.orderStatus)
+    const queueNumber = remoteTransaction.queueNumber || localTransaction.queueNumber || null
 
     merged.set(
       localTransaction.id,
@@ -849,8 +850,12 @@ function mergeTransactionSnapshots(localTransactions: Transaction[], remoteTrans
         ? {
             ...remoteTransaction,
             ...localTransaction,
+            queueNumber,
           }
-        : remoteTransaction
+        : {
+            ...remoteTransaction,
+            queueNumber,
+          }
     )
   }
 
@@ -1882,6 +1887,57 @@ export function deductCartIngredients(cartItems: CartItem[], ingredientsList: In
   return updatedIngredients.map(normalizeIngredient)
 }
 
+export function restoreCartIngredients(cartItems: CartItem[], ingredientsList: Ingredient[]): Ingredient[] {
+  let updatedIngredients = ingredientsList.map(normalizeIngredient)
+
+  cartItems.forEach((cartItem) => {
+    cartItem.product.ingredients.forEach((pi) => {
+      const ingredientIndex = updatedIngredients.findIndex((ingredient) => ingredient.id === pi.ingredientId)
+      if (ingredientIndex === -1) return
+
+      const restoredQuantity = pi.quantity * cartItem.quantity
+      updatedIngredients[ingredientIndex] = normalizeIngredient({
+        ...updatedIngredients[ingredientIndex],
+        stock: updatedIngredients[ingredientIndex].stock + restoredQuantity,
+        stockBatches: [
+          ...(updatedIngredients[ingredientIndex].stockBatches || []),
+          {
+            id: crypto.randomUUID(),
+            quantity: restoredQuantity,
+            dateAdded: new Date().toISOString(),
+            expirationDate: null,
+          },
+        ],
+      })
+    })
+
+    ;(cartItem.addOns || []).forEach((addOn) => {
+      if (!addOn.ingredientId || !addOn.quantity) return
+
+      const ingredientIndex = updatedIngredients.findIndex((ingredient) => ingredient.id === addOn.ingredientId)
+      if (ingredientIndex === -1) return
+
+      const selectedQuantity = addOn.selectedQuantity || 1
+      const restoredQuantity = addOn.quantity * selectedQuantity * cartItem.quantity
+      updatedIngredients[ingredientIndex] = normalizeIngredient({
+        ...updatedIngredients[ingredientIndex],
+        stock: updatedIngredients[ingredientIndex].stock + restoredQuantity,
+        stockBatches: [
+          ...(updatedIngredients[ingredientIndex].stockBatches || []),
+          {
+            id: crypto.randomUUID(),
+            quantity: restoredQuantity,
+            dateAdded: new Date().toISOString(),
+            expirationDate: null,
+          },
+        ],
+      })
+    })
+  })
+
+  return updatedIngredients.map(normalizeIngredient)
+}
+
 function validateCartInventory(cartItems: CartItem[], ingredients: Ingredient[]) {
   for (const cartItem of cartItems) {
     const { available, missingIngredients } = checkIngredientAvailability(cartItem.product, cartItem.quantity, ingredients)
@@ -2519,6 +2575,10 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
       .eq("transaction_number", transaction.id)
 
     if (error) {
+      if (isSupabaseMissingColumnError(error, "queue_number", "transactions")) {
+        throw new Error("The transactions.queue_number column is required to persist queue numbers. Run the latest transaction details migration.")
+      }
+
       if (isSupabaseMissingColumnError(error, "updated_at", "transactions")) {
         const retryResult = await supabase
           .from("transactions")
@@ -2542,12 +2602,17 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
   }
 
   if (error) {
+    if (isSupabaseMissingColumnError(error, "queue_number", "transactions")) {
+      throw new Error("The transactions.queue_number column is required to persist queue numbers. Run the latest transaction details migration.")
+    }
+
     if (isSupabaseMissingColumnError(error, "order_status", "transactions")) {
       throw new Error("The transactions.order_status column is required to persist kitchen order status. Run the latest transaction details migration.")
     }
 
     const fallbackData = {
       transaction_number: transaction.id,
+      queue_number: transaction.queueNumber || null,
       date: transaction.date,
       time: transaction.time,
       items: JSON.stringify(transaction.items),
@@ -2763,6 +2828,50 @@ export async function updateTransaction(
   }
 
   return nextTransaction
+}
+
+export async function updateOrderDetails(
+  transactionId: string,
+  updates: Pick<Transaction, "items" | "subtotal" | "discountAmount" | "taxAmount" | "total"> &
+    Partial<Pick<Transaction, "customerName" | "notes">>
+): Promise<Transaction | null> {
+  if (typeof window === "undefined") return null
+
+  const transactions = await getTransactions()
+  const existingTransaction = transactions.find((transaction) => transaction.id === transactionId)
+  if (!existingTransaction) return null
+
+  if (existingTransaction.voided || existingTransaction.orderStatus === "completed" || existingTransaction.orderStatus === "cancelled") {
+    throw new Error("Completed or cancelled orders cannot be edited.")
+  }
+
+  if (updates.items.length === 0) {
+    throw new Error("An order must contain at least one item.")
+  }
+
+  if (updates.items.some((item) => !Number.isFinite(item.quantity) || item.quantity < 1)) {
+    throw new Error("Item quantities must be at least 1.")
+  }
+
+  const queueMeta = getTransactionQueueMetadata(existingTransaction)
+  const shouldRebalanceInventory = Boolean(queueMeta.inventoryDeductedAt)
+
+  if (shouldRebalanceInventory) {
+    const restoredIngredients = restoreCartIngredients(existingTransaction.items, getIngredients())
+    const availability = validateCartInventory(updates.items, restoredIngredients)
+    if (!availability.available) {
+      throw new Error(availability.reason)
+    }
+
+    saveIngredients(deductCartIngredients(updates.items, restoredIngredients))
+  }
+
+  const updatedTransaction = await updateTransaction(transactionId, updates)
+  if (updatedTransaction) {
+    void logAuditEvent("order_updated", "transaction", transactionId, "Order details edited")
+  }
+
+  return updatedTransaction
 }
 
 function saveToLocalStorage(transaction: Transaction): void {

@@ -47,7 +47,7 @@ function parseTransactionDateTime(transaction: Transaction) {
 function formatQueueNumberDisplay(value: string | null | undefined) {
   const normalized = normalizeQueueNumber(value)
   if (!normalized) return "----"
-  return normalized.padStart(4, "0")
+  return normalized
 }
 
 function getQueueStage(transaction: Transaction, now: number): DisplayStage | null {
@@ -80,7 +80,7 @@ function buildDisplayRecord(transaction: Transaction, now: number): QueueDisplay
   return {
     transaction,
     stage,
-    queueNumber: formatQueueNumberDisplay(transaction.queueNumber) || String(transaction.id).replace(/\D/g, ""),
+    queueNumber: formatQueueNumberDisplay(transaction.queueNumber),
     orderTypeLabel: getQueueOrderTypeLabel(queueMeta.orderType),
     placedAtValue: placedAt.getTime(),
     timestampLabel: placedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),

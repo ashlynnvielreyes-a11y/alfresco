@@ -9,18 +9,24 @@ import {
   Download,
   FileDown,
   FileSearch,
+  Pencil,
+  Plus,
   Receipt,
   RotateCcw,
   Search,
   ShieldAlert,
   SlidersHorizontal,
+  Trash2,
+  X,
 } from "lucide-react"
 
 import { Sidebar } from "@/components/sidebar"
 import { TransactionDetailsModal } from "@/components/transaction-details-modal"
+import { toast } from "@/hooks/use-toast"
+import { buildQueueMetadataNote, getQueueUserNote, getTransactionQueueMetadata } from "@/lib/queue"
 import { createClient } from "@/lib/supabase/client"
-import { getTransactionsByDateRange, getSalesTotalByDateRange, initializeSupabaseStore, subscribeToTransactionSync } from "@/lib/store"
-import type { CartItem, ProductCategory, Transaction } from "@/lib/types"
+import { getCurrentUser, getProducts, getTransactionsByDateRange, getSalesTotalByDateRange, initializeSupabaseStore, subscribeToTransactionSync, updateOrderDetails } from "@/lib/store"
+import type { CartItem, Product, ProductCategory, Transaction } from "@/lib/types"
 
 type SortKey = "id" | "dateTime" | "cashier" | "paymentMethod" | "orderType" | "status" | "total"
 type SortDirection = "asc" | "desc"
@@ -43,6 +49,15 @@ type TransactionRecord = {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
 
+type EditableOrderType = "dine-in" | "take-out"
+
+type OrderEditForm = {
+  customerName: string
+  orderType: EditableOrderType
+  notes: string
+  items: CartItem[]
+}
+
 function getDefaultRange() {
   const endDate = new Date()
   const startDate = new Date()
@@ -60,6 +75,51 @@ function formatCurrency(value: number) {
     currency: "PHP",
     maximumFractionDigits: 2,
   }).format(value)
+}
+
+function getCartItemUnitPrice(item: CartItem) {
+  const addOnsTotal = (item.addOns || []).reduce((sum, addOn) => sum + addOn.price * (addOn.selectedQuantity || 1), 0)
+  if (item.comboMeal) return item.comboMeal.price + addOnsTotal
+  return item.product.price + addOnsTotal
+}
+
+function calculateOrderTotals(items: CartItem[], transaction: Transaction) {
+  const subtotal = items.reduce((sum, item) => sum + getCartItemUnitPrice(item) * item.quantity, 0)
+  const discountPercent = transaction.discountType === "senior" || transaction.discountType === "pwd"
+    ? transaction.discountPercent || 20
+    : 0
+  const discountAmount = (subtotal * discountPercent) / 100
+  const taxAmount = transaction.taxAmount || 0
+  const total = Math.max(0, subtotal - discountAmount + taxAmount)
+
+  return {
+    subtotal,
+    discountAmount,
+    taxAmount,
+    total,
+  }
+}
+
+function cloneCartItems(items: CartItem[]) {
+  return items.map((item) => ({
+    ...item,
+    product: { ...item.product, ingredients: [...item.product.ingredients] },
+    addOns: item.addOns?.map((addOn) => ({ ...addOn })),
+    comboMeal: item.comboMeal
+      ? {
+          ...item.comboMeal,
+          items: item.comboMeal.items.map((comboItem) => ({ ...comboItem })),
+        }
+      : undefined,
+  }))
+}
+
+function canEditTransaction(transaction: Transaction) {
+  return !transaction.voided && transaction.orderStatus !== "completed" && transaction.orderStatus !== "cancelled"
+}
+
+function getEditableOrderType(transaction: Transaction): EditableOrderType {
+  return getTransactionQueueMetadata(transaction).orderType === "pickup" ? "take-out" : "dine-in"
 }
 
 function paymentMethodLabel(paymentMethod: Transaction["paymentMethod"]) {
@@ -331,6 +391,177 @@ function exportTransactionsToPdf(records: TransactionRecord[], fromDate: string,
   printWindow.print()
 }
 
+function EditOrderModal({
+  open,
+  transaction,
+  products,
+  form,
+  saving,
+  error,
+  onClose,
+  onChange,
+  onSave,
+}: {
+  open: boolean
+  transaction: Transaction | null
+  products: Product[]
+  form: OrderEditForm | null
+  saving: boolean
+  error: string | null
+  onClose: () => void
+  onChange: (nextForm: OrderEditForm) => void
+  onSave: () => void
+}) {
+  const totals = transaction && form ? calculateOrderTotals(form.items, transaction) : null
+
+  if (!open || !transaction || !form) return null
+
+  const updateItem = (index: number, nextItem: CartItem) => {
+    onChange({
+      ...form,
+      items: form.items.map((item, itemIndex) => (itemIndex === index ? nextItem : item)),
+    })
+  }
+
+  const removeItem = (index: number) => {
+    onChange({
+      ...form,
+      items: form.items.filter((_, itemIndex) => itemIndex !== index),
+    })
+  }
+
+  const addItem = () => {
+    const product = products[0]
+    if (!product) return
+
+    onChange({
+      ...form,
+      items: [...form.items, { product, quantity: 1 }],
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2f241d]/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-[#eadfd5] bg-[#fffaf4] shadow-[0_28px_70px_rgba(47,36,29,0.22)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#eadfd5] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8d6f5b]">Edit Order</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-[#4a342a]">{transaction.id}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full border border-[#ded1c5] bg-white/80 p-2 text-[#4a342a] transition hover:bg-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="block">
+              <span className="text-sm font-semibold text-[#4a342a]">Customer name</span>
+              <input
+                value={form.customerName}
+                onChange={(event) => onChange({ ...form, customerName: event.target.value })}
+                className="mt-2 w-full rounded-2xl border border-[#ded1c5] bg-white/85 px-4 py-3 text-sm text-[#4a342a] outline-none transition focus:border-[#b2967d]"
+                placeholder="Walk-in"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-[#4a342a]">Order type</span>
+              <select
+                value={form.orderType}
+                onChange={(event) => onChange({ ...form, orderType: event.target.value as EditableOrderType })}
+                className="mt-2 w-full rounded-2xl border border-[#ded1c5] bg-white/85 px-4 py-3 text-sm text-[#4a342a] outline-none transition focus:border-[#b2967d]"
+              >
+                <option value="dine-in">Dine In</option>
+                <option value="take-out">Take Out</option>
+              </select>
+            </label>
+            <div className="rounded-2xl border border-[#ded1c5] bg-white/70 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8d6f5b]">Updated total</p>
+              <p className="mt-2 text-2xl font-semibold text-[#4a342a]">{formatCurrency(totals?.total || 0)}</p>
+            </div>
+          </div>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-semibold text-[#4a342a]">Notes or special instructions</span>
+            <textarea
+              value={form.notes}
+              onChange={(event) => onChange({ ...form, notes: event.target.value })}
+              className="mt-2 min-h-24 w-full rounded-2xl border border-[#ded1c5] bg-white/85 px-4 py-3 text-sm text-[#4a342a] outline-none transition focus:border-[#b2967d]"
+              placeholder="No special instructions"
+            />
+          </label>
+
+          <div className="mt-5 overflow-hidden rounded-2xl border border-[#eadfd5] bg-white/70">
+            <div className="flex items-center justify-between gap-3 border-b border-[#eadfd5] px-4 py-3">
+              <p className="text-sm font-semibold text-[#4a342a]">Order items</p>
+              <button
+                type="button"
+                onClick={addItem}
+                disabled={products.length === 0}
+                className="inline-flex items-center gap-2 rounded-full border border-[#ded1c5] bg-[#fbf8f3] px-3 py-2 text-sm font-semibold text-[#4a342a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Add item
+              </button>
+            </div>
+            <div className="divide-y divide-[#eadfd5]">
+              {form.items.map((item, index) => (
+                <div key={`${item.product.id}-${index}`} className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_8rem_7rem_2.5rem] md:items-center">
+                  <select
+                    value={item.product.id}
+                    onChange={(event) => {
+                      const nextProduct = products.find((product) => product.id === Number(event.target.value))
+                      if (!nextProduct) return
+                      updateItem(index, { product: nextProduct, quantity: item.quantity, notes: item.notes || null })
+                    }}
+                    className="w-full rounded-xl border border-[#ded1c5] bg-white px-3 py-2 text-sm text-[#4a342a] outline-none focus:border-[#b2967d]"
+                  >
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={item.quantity}
+                    onChange={(event) => updateItem(index, { ...item, quantity: Math.max(1, Number(event.target.value) || 1) })}
+                    className="w-full rounded-xl border border-[#ded1c5] bg-white px-3 py-2 text-sm text-[#4a342a] outline-none focus:border-[#b2967d]"
+                    aria-label={`Quantity for ${item.product.name}`}
+                  />
+                  <p className="text-sm font-semibold text-[#4a342a]">{formatCurrency(getCartItemUnitPrice(item) * item.quantity)}</p>
+                  <button type="button" onClick={() => removeItem(index)} className="rounded-xl border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {error ? <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#eadfd5] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-[#7d5a44]">
+            <span>Subtotal {formatCurrency(totals?.subtotal || 0)}</span>
+            {totals && totals.discountAmount > 0 ? <span className="ml-3">Discount -{formatCurrency(totals.discountAmount)}</span> : null}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-[#ded1c5] bg-white/80 px-4 py-2 text-sm font-semibold text-[#4a342a] transition hover:bg-white disabled:opacity-50">
+              Cancel
+            </button>
+            <button type="button" onClick={onSave} disabled={saving} className="rounded-full bg-[#4a342a] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#6b5141] disabled:cursor-not-allowed disabled:opacity-60">
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SalesHistoryPage() {
   const defaults = getDefaultRange()
   const [fromDate, setFromDate] = useState(defaults.fromDate)
@@ -347,10 +578,17 @@ export default function SalesHistoryPage() {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [editForm, setEditForm] = useState<OrderEditForm | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [products, setProducts] = useState<Product[]>([])
   const [rangeTotal, setRangeTotal] = useState(0)
   const [newlyPromotedTransactionId, setNewlyPromotedTransactionId] = useState<string | null>(null)
   const previousTopTransactionIdRef = useRef<string | null>(null)
   const hasLoadedInitialResultsRef = useRef(false)
+  const currentUser = getCurrentUser()
+  const canEditOrders = currentUser ? ["admin", "cashier", "manager", "kitchen"].includes(currentUser.role) : false
 
   const loadData = useCallback(async () => {
     await initializeSupabaseStore()
@@ -381,6 +619,10 @@ export default function SalesHistoryPage() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    setProducts(getProducts())
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -444,6 +686,84 @@ export default function SalesHistoryPage() {
     const start = (page - 1) * pageSize
     return sortedTransactions.slice(start, start + pageSize)
   }, [page, pageSize, sortedTransactions])
+
+  const openEditOrder = useCallback((transaction: Transaction) => {
+    if (!canEditOrders || !canEditTransaction(transaction)) return
+
+    setEditingTransaction(transaction)
+    setEditForm({
+      customerName: transaction.customerName || "",
+      orderType: getEditableOrderType(transaction),
+      notes: getQueueUserNote(transaction.notes) || "",
+      items: cloneCartItems(transaction.items),
+    })
+    setEditError(null)
+  }, [canEditOrders])
+
+  const closeEditOrder = useCallback(() => {
+    if (isSavingEdit) return
+    setEditingTransaction(null)
+    setEditForm(null)
+    setEditError(null)
+  }, [isSavingEdit])
+
+  const saveEditedOrder = useCallback(async () => {
+    if (!editingTransaction || !editForm) return
+
+    if (editForm.items.length === 0) {
+      setEditError("Add at least one item before saving.")
+      return
+    }
+
+    if (editForm.items.some((item) => !Number.isFinite(item.quantity) || item.quantity < 1)) {
+      setEditError("Item quantities must be at least 1.")
+      return
+    }
+
+    const totals = calculateOrderTotals(editForm.items, editingTransaction)
+    const queueMeta = getTransactionQueueMetadata(editingTransaction)
+    const notes = buildQueueMetadataNote(
+      {
+        ...queueMeta,
+        orderType: editForm.orderType === "take-out" ? "pickup" : "to-serve",
+      },
+      editForm.notes
+    )
+
+    setIsSavingEdit(true)
+    setEditError(null)
+
+    try {
+      const updatedTransaction = await updateOrderDetails(editingTransaction.id, {
+        items: editForm.items,
+        customerName: editForm.customerName.trim() || null,
+        notes,
+        subtotal: totals.subtotal,
+        discountAmount: totals.discountAmount,
+        taxAmount: totals.taxAmount,
+        total: totals.total,
+      })
+
+      if (!updatedTransaction) {
+        throw new Error("The order could not be found.")
+      }
+
+      setTransactions((currentTransactions) =>
+        currentTransactions.map((transaction) => (transaction.id === updatedTransaction.id ? updatedTransaction : transaction))
+      )
+      setEditingTransaction(null)
+      setEditForm(null)
+      toast({
+        title: "Order updated",
+        description: `${editingTransaction.id} was updated successfully.`,
+      })
+      await loadData()
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "The order could not be updated.")
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }, [editForm, editingTransaction, loadData])
 
   useEffect(() => {
     const nextTopTransactionId = sortedTransactions[0]?.transaction.id || null
@@ -734,11 +1054,21 @@ export default function SalesHistoryPage() {
                 <div className="px-5 py-12 text-center text-sm text-[#7d5a44]">No transactions match this range or filter set.</div>
               ) : (
                 <div className="divide-y divide-[#eadfd5] scroll-smooth">
-                  {paginatedTransactions.map((record) => (
-                    <button
+                  {paginatedTransactions.map((record) => {
+                    const editDisabled = !canEditOrders || !canEditTransaction(record.transaction)
+
+                    return (
+                    <div
                       key={record.transaction.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedTransaction(record.transaction)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          setSelectedTransaction(record.transaction)
+                        }
+                      }}
                       className={`block min-h-[11.25rem] w-full px-5 py-4 text-left transition-all duration-500 hover:bg-white/35 ${
                         record.transaction.id === newlyPromotedTransactionId
                           ? "animate-[pulse_0.7s_ease-out_1] bg-[#fffaf4] shadow-[inset_0_0_0_1px_rgba(178,150,125,0.38)]"
@@ -765,8 +1095,22 @@ export default function SalesHistoryPage() {
                         </span>
                       </div>
                       <p className="mt-3 text-xs text-[#7d5a44]">{record.transaction.processedBy} • {record.adjustmentLabel}</p>
-                    </button>
-                  ))}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openEditOrder(record.transaction)
+                        }}
+                        disabled={editDisabled}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#ded1c5] bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#4a342a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                        title={editDisabled ? "Completed or cancelled orders cannot be edited" : "Edit order"}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                    </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -793,17 +1137,21 @@ export default function SalesHistoryPage() {
                     ))}
                     <th className="px-6 py-4 text-left text-sm font-semibold text-[#4a342a]">Ordered Items</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-[#4a342a]">Refund / Void Tracking</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-[#4a342a]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-16 text-center text-sm text-[#7d5a44]">
+                      <td colSpan={10} className="px-6 py-16 text-center text-sm text-[#7d5a44]">
                         No transactions match this range or filter set.
                       </td>
                     </tr>
                   ) : (
-                    paginatedTransactions.map((record) => (
+                    paginatedTransactions.map((record) => {
+                      const editDisabled = !canEditOrders || !canEditTransaction(record.transaction)
+
+                      return (
                       <tr
                         key={record.transaction.id}
                         onClick={() => setSelectedTransaction(record.transaction)}
@@ -854,8 +1202,24 @@ export default function SalesHistoryPage() {
                             </p>
                           </div>
                         </td>
+                        <td className="px-6 py-4 align-top">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openEditOrder(record.transaction)
+                            }}
+                            disabled={editDisabled}
+                            className="inline-flex items-center gap-2 rounded-full border border-[#ded1c5] bg-white/80 px-3 py-2 text-sm font-semibold text-[#4a342a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                            title={editDisabled ? "Completed or cancelled orders cannot be edited" : "Edit order"}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </button>
+                        </td>
                       </tr>
-                    ))
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -914,6 +1278,17 @@ export default function SalesHistoryPage() {
           }}
           transactionId={selectedTransaction?.id || null}
           fallbackTransaction={selectedTransaction}
+        />
+        <EditOrderModal
+          open={Boolean(editingTransaction)}
+          transaction={editingTransaction}
+          products={products}
+          form={editForm}
+          saving={isSavingEdit}
+          error={editError}
+          onClose={closeEditOrder}
+          onChange={setEditForm}
+          onSave={saveEditedOrder}
         />
       </main>
     </div>
