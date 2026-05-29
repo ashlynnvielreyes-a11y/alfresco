@@ -16,6 +16,7 @@ const coffeeTemperatures: CoffeeTemperature[] = ["hot", "cold"]
 const comboProductIdOffset = 100000
 const POS_SIDEBAR_COLLAPSE_KEY = "alfresco_pos_sidebar_collapsed"
 const POS_ORDER_SUMMARY_COLLAPSE_KEY = "alfresco_pos_order_summary_collapsed"
+const CASH_LEADING_ZEROS_MESSAGE = "Cash received cannot start with leading zeros."
 
 const posWorkspaceLinks = [
   { href: "/pos", label: "POS", icon: ShoppingCart },
@@ -49,6 +50,32 @@ function getCartItemUnitPrice(item: CartItem) {
   const addOnsTotal = (item.addOns || []).reduce((acc, addon) => acc + addon.price * (addon.selectedQuantity || 1), 0)
   if (item.comboMeal) return item.comboMeal.price + addOnsTotal
   return item.product.price + addOnsTotal
+}
+
+function sanitizeCashReceivedInput(value: string) {
+  const numericValue = value.replace(/[^\d.]/g, "")
+  const decimalIndex = numericValue.indexOf(".")
+  const hasDecimal = decimalIndex !== -1
+  const wholeInput = hasDecimal ? numericValue.slice(0, decimalIndex) : numericValue
+  const decimalInput = hasDecimal ? numericValue.slice(decimalIndex + 1).replace(/\./g, "") : ""
+  const hasLeadingZeros = wholeInput.length > 1 && wholeInput.startsWith("0")
+  let wholeValue = wholeInput.replace(/^0+(?=\d)/, "")
+
+  if (wholeInput.length > 0 && /^0+$/.test(wholeInput)) {
+    wholeValue = "0"
+  }
+
+  if (!hasDecimal) {
+    return {
+      value: wholeValue,
+      hasLeadingZeros,
+    }
+  }
+
+  return {
+    value: `${wholeValue || "0"}.${decimalInput}`,
+    hasLeadingZeros,
+  }
 }
 
 function buildComboProduct(combo: ComboMeal, products: Product[]): Product | null {
@@ -99,6 +126,7 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All Items")
   const [searchQuery, setSearchQuery] = useState("")
   const [cashReceived, setCashReceived] = useState<string>("")
+  const [cashReceivedError, setCashReceivedError] = useState("")
   const [showReceipt, setShowReceipt] = useState(false)
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null)
   const [unavailableProducts, setUnavailableProducts] = useState<Map<number, string[]>>(new Map())
@@ -452,10 +480,21 @@ export default function POSPage() {
     )
   }, [ingredients])
 
+  const resetCashReceived = useCallback((value = "") => {
+    setCashReceived(value)
+    setCashReceivedError("")
+  }, [])
+
+  const handleCashReceivedChange = useCallback((value: string) => {
+    const sanitizedCash = sanitizeCashReceivedInput(value)
+    setCashReceived(sanitizedCash.value)
+    setCashReceivedError(sanitizedCash.hasLeadingZeros ? CASH_LEADING_ZEROS_MESSAGE : "")
+  }, [])
+
   const clearCart = useCallback(() => {
     setCart([])
-    setCashReceived("")
-  }, [])
+    resetCashReceived()
+  }, [resetCashReceived])
 
   // Edit add-ons for an existing cart item
   const handleEditAddOns = useCallback((cartIndex: number) => {
@@ -600,7 +639,16 @@ export default function POSPage() {
 
   const total = subtotal - discountAmount
   const isCashPayment = paymentMethod === "cash"
-  const cash = parseFloat(cashReceived) || 0
+  const sanitizedCashReceived = sanitizeCashReceivedInput(cashReceived)
+  const cashReceivedHasLeadingZeros = sanitizedCashReceived.hasLeadingZeros
+  const cash = Number.parseFloat(sanitizedCashReceived.value) || 0
+  const isCashAmountValid = !isCashPayment || (
+    sanitizedCashReceived.value.trim() !== "" &&
+    Number.isFinite(cash) &&
+    cash > 0 &&
+    cash >= total &&
+    !cashReceivedHasLeadingZeros
+  )
   const change = isCashPayment && cash > total ? cash - total : 0
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const lowStockIngredientsCount = ingredients.filter((ingredient) => ingredient.stock <= 10).length
@@ -638,8 +686,8 @@ export default function POSPage() {
 
   useEffect(() => {
     if (isCashPayment) return
-    setCashReceived(total > 0 ? total.toFixed(2) : "")
-  }, [isCashPayment, total])
+    resetCashReceived(total > 0 ? total.toFixed(2) : "")
+  }, [isCashPayment, resetCashReceived, total])
 
   useEffect(() => {
     if (cart.length > 0 && !orderStartedAt) {
@@ -708,7 +756,7 @@ export default function POSPage() {
     setCart([])
     setPaymentMethod("cash")
     setDiscountType("none")
-    setCashReceived("")
+    resetCashReceived()
     setActiveOrderId("")
     setOrderStartedAt(null)
 
@@ -716,11 +764,25 @@ export default function POSPage() {
       title: "Order taken over",
       description: `${matchingOrder.cashierName} is now handling this active order.`,
     })
-  }, [activeOrderId, activeOrders, currentUser, isTakingOverOrder])
+  }, [activeOrderId, activeOrders, currentUser, isTakingOverOrder, resetCashReceived])
 
   const confirmSale = async () => {
+    const submittedCash = sanitizeCashReceivedInput(cashReceived)
+    const submittedCashAmount = Number.parseFloat(submittedCash.value) || 0
+
+    if (isCashPayment) {
+      setCashReceived(submittedCash.value)
+      setCashReceivedError(submittedCash.hasLeadingZeros ? CASH_LEADING_ZEROS_MESSAGE : "")
+    }
+
     // For non-cash payments, we don't need cash received
-    const isValidPayment = isCashPayment ? cash >= total : true
+    const isValidPayment = isCashPayment
+      ? submittedCash.value.trim() !== "" &&
+        Number.isFinite(submittedCashAmount) &&
+        submittedCashAmount > 0 &&
+        submittedCashAmount >= total &&
+        !submittedCash.hasLeadingZeros
+      : true
     if (cart.length === 0 || !isValidPayment) return
 
     for (const cartItem of cart) {
@@ -758,8 +820,8 @@ export default function POSPage() {
       taxAmount: 0,
       total,
       paymentMethod,
-      cashReceived: isCashPayment ? cash : total,
-      change: isCashPayment ? change : 0,
+      cashReceived: isCashPayment ? submittedCashAmount : total,
+      change: isCashPayment ? Math.max(submittedCashAmount - total, 0) : 0,
       processedBy: currentUser?.username || "Unknown",
       notes: buildQueueMetadataNote({
         priority: "normal",
@@ -825,7 +887,7 @@ export default function POSPage() {
     setCart(latestOrder.items)
     setPaymentMethod(latestOrder.paymentMethod)
     setDiscountType(latestOrder.discountType || "none")
-    setCashReceived(latestOrder.paymentMethod === "gcash" ? latestOrder.total.toFixed(2) : "")
+    resetCashReceived(latestOrder.paymentMethod === "gcash" ? latestOrder.total.toFixed(2) : "")
     setOrderStartedAt(latestOrder.startedAt)
     setActiveOrderId(latestOrder.id)
 
@@ -850,7 +912,7 @@ export default function POSPage() {
       title: "Order transferred",
       description: `You are now processing ${latestOrder.cashierName}'s active order.`,
     })
-  }, [activeOrderId, cart.length, currentUser])
+  }, [activeOrderId, cart.length, currentUser, resetCashReceived])
 
   const closeReceipt = async () => {
     setShowReceipt(false)
@@ -900,7 +962,7 @@ export default function POSPage() {
       setCart(restoredCart)
       setPaymentMethod(lastTransaction.paymentMethod)
       setDiscountType(lastTransaction.discountType || "none")
-      setCashReceived(lastTransaction.cashReceived > 0 ? lastTransaction.cashReceived.toFixed(2) : "")
+      resetCashReceived(lastTransaction.cashReceived > 0 ? lastTransaction.cashReceived.toFixed(2) : "")
       setShowReceipt(false)
       setLastTransaction(null)
       await loadRecentTransactions()
@@ -1496,7 +1558,7 @@ export default function POSPage() {
                   </div>
                   <button
                     onClick={confirmSale}
-                    disabled={cart.length === 0 || (isCashPayment && cash < total)}
+                    disabled={cart.length === 0 || !isCashAmountValid}
                     className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#4a342a] text-[#f5f1ea] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Pay now"
                   >
@@ -1688,7 +1750,7 @@ export default function POSPage() {
                     const nextPaymentMethod = e.target.value as typeof paymentMethod
                     setPaymentMethod(nextPaymentMethod)
                     if (nextPaymentMethod === "cash") {
-                      setCashReceived("")
+                      resetCashReceived()
                     }
                   }}
                   className="w-full rounded-2xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-[#b2967d] focus:ring-2 focus:ring-[#4a342a]/15"
@@ -1740,13 +1802,22 @@ export default function POSPage() {
                   {isCashPayment ? "Cash Received" : "Amount Received"}
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
                   value={cashReceived}
-                  onChange={(e) => setCashReceived(e.target.value)}
+                  onChange={(e) => handleCashReceivedChange(e.target.value)}
                   placeholder="0.00"
                   disabled={!isCashPayment}
+                  aria-invalid={Boolean(cashReceivedError)}
+                  aria-describedby={cashReceivedError ? "cash-received-error" : undefined}
                   className="w-full rounded-xl border border-[#d7c9b8] bg-[#f5f1ea] px-3 py-2 text-right text-sm outline-none focus:ring-2 focus:ring-[#4a342a] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                 />
+                {cashReceivedError && (
+                  <p id="cash-received-error" className="mt-1 text-xs font-medium text-red-600">
+                    {cashReceivedError}
+                  </p>
+                )}
                 {!isCashPayment && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Auto-filled for GCash payments.
@@ -1762,7 +1833,7 @@ export default function POSPage() {
               <div className="grid gap-2 sm:grid-cols-2">
                 <button
                   onClick={confirmSale}
-                  disabled={cart.length === 0 || (isCashPayment && cash < total)}
+                  disabled={cart.length === 0 || !isCashAmountValid}
                   className="rounded-xl bg-[#4a342a] py-3 text-sm font-semibold text-[#f5f1ea] transition hover:bg-[#7d5a44] disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
                 >
                   Pay Now
