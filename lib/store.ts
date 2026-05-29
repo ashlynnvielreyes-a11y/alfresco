@@ -800,9 +800,61 @@ function getNormalizedTransactions(list: Transaction[]): Transaction[] {
     taxAmount: transaction.taxAmount || 0,
     change: transaction.change || 0,
     notes: transaction.notes || null,
-    orderStatus: transaction.voided ? "voided" : transaction.orderStatus || "completed",
+    orderStatus: normalizeTransactionOrderStatus(transaction.orderStatus, transaction.voided),
     paymentMethod: transaction.paymentMethod === "gcash" ? "gcash" : "cash",
   }))
+}
+
+function getOrderStatusRank(status: Transaction["orderStatus"]) {
+  switch (normalizeTransactionOrderStatus(status)) {
+    case "voided":
+    case "cancelled":
+      return 5
+    case "completed":
+      return 4
+    case "ready":
+    case "ready_for_pickup":
+      return 3
+    case "preparing":
+      return 2
+    case "pending":
+    case "new_order":
+      return 1
+    default:
+      return 0
+  }
+}
+
+function mergeTransactionSnapshots(localTransactions: Transaction[], remoteTransactions: Transaction[]) {
+  const merged = new Map<string, Transaction>()
+
+  for (const transaction of getNormalizedTransactions(remoteTransactions)) {
+    merged.set(transaction.id, transaction)
+  }
+
+  for (const localTransaction of getNormalizedTransactions(localTransactions)) {
+    const remoteTransaction = merged.get(localTransaction.id)
+
+    if (!remoteTransaction) {
+      merged.set(localTransaction.id, localTransaction)
+      continue
+    }
+
+    const localRank = getOrderStatusRank(localTransaction.orderStatus)
+    const remoteRank = getOrderStatusRank(remoteTransaction.orderStatus)
+
+    merged.set(
+      localTransaction.id,
+      localRank > remoteRank
+        ? {
+            ...remoteTransaction,
+            ...localTransaction,
+          }
+        : remoteTransaction
+    )
+  }
+
+  return Array.from(merged.values())
 }
 
 async function hydrateLocalStateFromOfflineCache() {
@@ -2409,12 +2461,9 @@ export async function getTransactions(): Promise<Transaction[]> {
         voided: t.voided || false,
       })) as Transaction[]
 
-        const merged = new Map<string, Transaction>()
-        for (const transaction of [...localTransactions, ...getNormalizedTransactions(mapped)]) {
-          merged.set(transaction.id, transaction)
-        }
+        const merged = mergeTransactionSnapshots(localTransactions, mapped)
 
-        return Array.from(merged.values()).sort((left, right) => {
+        return merged.sort((left, right) => {
           const leftTime = new Date(`${left.date} ${left.time}`).getTime()
           const rightTime = new Date(`${right.date} ${right.time}`).getTime()
           return rightTime - leftTime
@@ -2458,14 +2507,45 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
     voided: transaction.voided || false,
   }
 
+  const updateExistingTransaction = async () => {
+    const updateData = {
+      ...transactionData,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error } = await supabase
+      .from("transactions")
+      .update(updateData)
+      .eq("transaction_number", transaction.id)
+
+    if (error) {
+      if (isSupabaseMissingColumnError(error, "updated_at", "transactions")) {
+        const retryResult = await supabase
+          .from("transactions")
+          .update(transactionData)
+          .eq("transaction_number", transaction.id)
+
+        if (!retryResult.error) return
+        throw new Error(retryResult.error.message)
+      }
+
+      throw new Error(error.message)
+    }
+  }
+
   let { error } = await supabase.from("transactions").insert([transactionData]).select()
 
   if (error && isSupabaseDuplicateConstraintError(error, "transactions_transaction_number_key")) {
     error = null
     transactionExistsRemotely = true
+    await updateExistingTransaction()
   }
 
   if (error) {
+    if (isSupabaseMissingColumnError(error, "order_status", "transactions")) {
+      throw new Error("The transactions.order_status column is required to persist kitchen order status. Run the latest transaction details migration.")
+    }
+
     const fallbackData = {
       transaction_number: transaction.id,
       date: transaction.date,
@@ -2489,6 +2569,7 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
     if (error && isSupabaseDuplicateConstraintError(error, "transactions_transaction_number_key")) {
       error = null
       transactionExistsRemotely = true
+      await updateExistingTransaction()
     }
   }
 
@@ -2676,6 +2757,9 @@ export async function updateTransaction(
   } catch (error) {
     console.log("[v0] Error updating transaction in Supabase:", error)
     await enqueueOfflineOperation("save_transaction", nextTransaction, "transactions")
+    if (updates.orderStatus !== undefined && navigator.onLine) {
+      throw error instanceof Error ? error : new Error(getErrorMessage(error))
+    }
   }
 
   return nextTransaction
