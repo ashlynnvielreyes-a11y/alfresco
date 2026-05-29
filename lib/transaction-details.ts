@@ -124,6 +124,8 @@ function normalizeDiscountType(value: string | null | undefined): TransactionDet
 
 function normalizeOrderStatus(value: string | null | undefined, isVoided: boolean | null | undefined): TransactionDetails["orderStatus"] {
   if (isVoided) return "voided"
+  if (value === "ready_for_pickup") return "ready"
+  if (value === "new_order" || value === "new") return "pending"
   return value === "pending" || value === "preparing" || value === "ready" || value === "completed" || value === "voided" || value === "cancelled" ? value : "completed"
 }
 

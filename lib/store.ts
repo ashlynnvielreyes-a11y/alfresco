@@ -2405,7 +2405,7 @@ export async function getTransactions(): Promise<Transaction[]> {
         change: t.change_amount || 0,
         processedBy: t.processed_by || "Unknown",
         notes: t.notes || null,
-        orderStatus: t.voided ? "voided" : t.order_status || "completed",
+        orderStatus: normalizeTransactionOrderStatus(t.order_status, t.voided),
         voided: t.voided || false,
       })) as Transaction[]
 
@@ -2415,8 +2415,8 @@ export async function getTransactions(): Promise<Transaction[]> {
         }
 
         return Array.from(merged.values()).sort((left, right) => {
-          const leftTime = new Date(`${left.date}T${left.time}`).getTime()
-          const rightTime = new Date(`${right.date}T${right.time}`).getTime()
+          const leftTime = new Date(`${left.date} ${left.time}`).getTime()
+          const rightTime = new Date(`${right.date} ${right.time}`).getTime()
           return rightTime - leftTime
         })
       }
@@ -2454,7 +2454,7 @@ async function syncTransactionToSupabase(transaction: Transaction): Promise<void
     discount_amount: transaction.discountAmount,
     processed_by: transaction.processedBy || currentUser.username,
     notes: transaction.notes || null,
-    order_status: transaction.voided ? "voided" : transaction.orderStatus || "completed",
+    order_status: normalizeTransactionOrderStatus(transaction.orderStatus, transaction.voided),
     voided: transaction.voided || false,
   }
 
@@ -2591,7 +2591,7 @@ export async function saveTransaction(transaction: Transaction): Promise<void> {
     paymentMethod: transaction.paymentMethod === "gcash" ? "gcash" : "cash",
     change: transaction.change || 0,
     notes: transaction.notes || null,
-    orderStatus: transaction.voided ? "voided" : transaction.orderStatus || "completed",
+    orderStatus: normalizeTransactionOrderStatus(transaction.orderStatus, transaction.voided),
   }
 
   saveToLocalStorage(normalizedTransaction)
@@ -2642,7 +2642,10 @@ export async function updateTransaction(
     discountAmount: updates.discountAmount ?? transactions[index].discountAmount ?? 0,
     taxAmount: updates.taxAmount ?? transactions[index].taxAmount ?? 0,
     notes: updates.notes ?? transactions[index].notes ?? null,
-    orderStatus: updates.voided ? "voided" : updates.orderStatus ?? transactions[index].orderStatus ?? "completed",
+    orderStatus: normalizeTransactionOrderStatus(
+      updates.voided ? "voided" : updates.orderStatus ?? transactions[index].orderStatus ?? "completed",
+      updates.voided ?? transactions[index].voided ?? false
+    ),
     voided: updates.voided ?? transactions[index].voided ?? false,
   }
 
@@ -3674,4 +3677,14 @@ export async function getPeakHours(startDate: Date, endDate: Date): Promise<Peak
   }
 
   return result
+}
+function normalizeTransactionOrderStatus(
+  value: string | null | undefined,
+  isVoided?: boolean | null
+): Transaction["orderStatus"] {
+  if (isVoided) return "voided"
+  if (value === "preparing" || value === "completed" || value === "voided" || value === "cancelled") return value
+  if (value === "ready" || value === "ready_for_pickup") return "ready"
+  if (value === "pending" || value === "new_order" || value === "new") return "pending"
+  return "completed"
 }

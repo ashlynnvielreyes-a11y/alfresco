@@ -117,10 +117,14 @@ function getTransactionStatus(transaction: Transaction): TransactionRecord["stat
   if (transaction.voided) return "voided"
   if (
     transaction.orderStatus === "pending" ||
+    transaction.orderStatus === "new_order" ||
     transaction.orderStatus === "preparing" ||
     transaction.orderStatus === "ready" ||
+    transaction.orderStatus === "ready_for_pickup" ||
     transaction.orderStatus === "cancelled"
   ) {
+    if (transaction.orderStatus === "new_order") return "pending"
+    if (transaction.orderStatus === "ready_for_pickup") return "ready"
     return transaction.orderStatus
   }
   return "completed"

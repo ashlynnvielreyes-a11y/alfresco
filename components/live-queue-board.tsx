@@ -55,8 +55,8 @@ function getQueueStage(transaction: Transaction, now: number): DisplayStage | nu
     return null
   }
 
-  if (transaction.orderStatus === "ready") return "ready"
-  if (transaction.orderStatus === "preparing" || transaction.orderStatus === "pending") return "preparing"
+  if (transaction.orderStatus === "ready" || transaction.orderStatus === "ready_for_pickup") return "ready"
+  if (transaction.orderStatus === "preparing" || transaction.orderStatus === "pending" || transaction.orderStatus === "new_order") return "preparing"
 
   if (transaction.orderStatus === "completed") {
     const queueMeta = getTransactionQueueMetadata(transaction)

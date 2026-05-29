@@ -128,7 +128,7 @@ export interface Transaction {
   change: number
   processedBy: string
   notes?: string | null
-  orderStatus?: "pending" | "preparing" | "ready" | "completed" | "voided" | "cancelled"
+  orderStatus?: "pending" | "new_order" | "preparing" | "ready" | "ready_for_pickup" | "completed" | "voided" | "cancelled"
   date: string
   time: string
   voided?: boolean

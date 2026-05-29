@@ -194,7 +194,7 @@ function getItemDescriptor(item: CartItem) {
 
 function resolveKitchenStage(status?: Transaction["orderStatus"]): KitchenStage {
   if (status === "completed") return "completed"
-  if (status === "ready") return "ready"
+  if (status === "ready" || status === "ready_for_pickup") return "ready"
   if (status === "preparing") return "preparing"
   return "new"
 }
@@ -594,6 +594,10 @@ function KitchenDashboardContent() {
         placedAt: queueMeta.placedAt || new Date().toISOString(),
       }
 
+      if (nextStatus === "preparing" && !nextQueueMeta.preparingStartedAt) {
+        nextQueueMeta.preparingStartedAt = new Date().toISOString()
+      }
+
       const optimisticTransaction: Partial<Transaction> = {
         orderStatus: nextStatus,
         notes: buildQueueMetadataNote(nextQueueMeta, transaction.notes),
@@ -647,7 +651,7 @@ function KitchenDashboardContent() {
         await updateQueueStatus(
           record.transaction,
           "ready",
-          `Order ${record.queueNumberLabel} is now Ready to Serve.`,
+          `Order ${record.queueNumberLabel} is now Ready for Pickup.`,
           { readyAt: new Date().toISOString() }
         )
         return
@@ -685,7 +689,7 @@ function KitchenDashboardContent() {
 
   const handleMarkReady = useCallback(async () => {
     if (!selectedRecord) return
-    await updateQueueStatus(selectedRecord.transaction, "ready", `Order ${selectedRecord.queueNumberLabel} is now Ready to Serve.`, { readyAt: new Date().toISOString() })
+    await updateQueueStatus(selectedRecord.transaction, "ready", `Order ${selectedRecord.queueNumberLabel} is now Ready for Pickup.`, { readyAt: new Date().toISOString() })
   }, [selectedRecord, updateQueueStatus])
 
   const handleCompleteOrder = useCallback(async () => {

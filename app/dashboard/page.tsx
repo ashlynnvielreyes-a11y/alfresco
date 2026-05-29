@@ -29,7 +29,9 @@ import {
   getProducts,
   getTransactions,
   initializeSupabaseStore,
+  subscribeToTransactionSync,
 } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
 import type { Ingredient, Product, Transaction } from "@/lib/types"
 import {
   Activity,
@@ -286,6 +288,24 @@ export default function DashboardPage() {
     }, 60000)
 
     return () => window.clearInterval(intervalId)
+  }, [refreshDashboard])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel("dashboard-transactions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => {
+        void refreshDashboard(true)
+      })
+      .subscribe()
+    const unsubscribeTransactionSync = subscribeToTransactionSync(() => {
+      void refreshDashboard(true)
+    })
+
+    return () => {
+      unsubscribeTransactionSync()
+      void supabase.removeChannel(channel)
+    }
   }, [refreshDashboard])
 
   const todayKey = new Date().toISOString().split("T")[0]
